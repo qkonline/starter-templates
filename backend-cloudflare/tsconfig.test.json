@@ -1,0 +1,10 @@
+{
+  // The unit tests and their helpers, type-checked by `npm run check` too. Apart from tsconfig.json
+  // because they run on Node (node:sqlite, node:fs), not in the Worker.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types", "node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],
+  "exclude": []
+}

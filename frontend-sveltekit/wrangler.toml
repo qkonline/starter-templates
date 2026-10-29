@@ -1,0 +1,7 @@
+# Cloudflare Pages project for this frontend. `npm run deploy` builds and uploads build/ with
+# `wrangler pages deploy`, which reads this file. Rename `name` to the app's project; the first
+# deploy creates the project (or create it in the dashboard: Workers & Pages → Create → Pages →
+# Direct Upload). Build variables (PUBLIC_*) are read on the machine that builds, not here.
+name = "starter-frontend"
+pages_build_output_dir = "build"
+compatibility_date = "2026-10-01"

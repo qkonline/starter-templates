@@ -1,0 +1,2 @@
+// The signed-in app runs only in the browser: built as shells, no server rendering.
+export const ssr = false;

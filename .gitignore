@@ -1,0 +1,18 @@
+node_modules/
+.DS_Store
+*.log
+coverage/
+
+# Local Cloudflare state and secrets
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+
+# Frontend build and test output
+.svelte-kit/
+build/
+test-results/
+playwright-report/

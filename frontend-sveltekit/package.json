@@ -1,0 +1,57 @@
+{
+  "name": "starter-frontend-sveltekit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SvelteKit starter: sign-in, account and sessions over the starter contract, built as static files.",
+  "license": "MIT",
+  "author": "Qaisar Khan <kaiser@kaiserkhan.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build && node scripts/postbuild.mjs",
+    "preview": "vite preview",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p src/service-worker/tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "serve": "node scripts/pages-server.mjs",
+    "icons": "node scripts/icons.mjs",
+    "deploy": "node scripts/predeploy.mjs && npm run build && wrangler pages deploy build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@sveltejs/adapter-static": "^4.0.0",
+    "@sveltejs/kit": "^3.1.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-svelte": "^3.23.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.7",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12",
+    "wrangler": "4.155.0"
+  },
+  "dependencies": {
+    "@simplewebauthn/browser": "14.0.0",
+    "@starter/contract": "file:../contract",
+    "openapi-fetch": "^0.17.0",
+    "posthog-js": "^1.441.2"
+  },
+  "imports": {
+    "#lib": "./src/lib",
+    "#lib/*": "./src/lib/*"
+  }
+}

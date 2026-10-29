@@ -1,0 +1,38 @@
+{
+  "name": "@starter/backend-cloudflare",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The starter API on Cloudflare Workers: Hono, D1 and R2, held to contract/openapi.yaml.",
+  "license": "MIT",
+  "author": "Qaisar Khan <kaiser@kaiserkhan.com>",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "wrangler dev --var DEV_MAIL:true",
+    "dev:all": "node scripts/dev-all.mjs",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "check": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "vapid": "node scripts/vapid.mjs",
+    "setup": "node scripts/setup.mjs",
+    "deploy": "node scripts/predeploy.mjs && wrangler d1 migrations apply DB --remote && wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261028.1",
+    "@types/node": "^24.19.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.12",
+    "wrangler": "^4.141.0"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "14.0.3",
+    "hono": "^4.13.14"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261023.1": true
+  }
+}

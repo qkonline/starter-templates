@@ -1,0 +1,12 @@
+extends:
+  - recommended
+
+rules:
+  # Tags only group the operations in generated docs; their names say enough.
+  tag-description: off
+  # The server listed is the local backend on purpose; each app sets its real one.
+  no-server-example.com: off
+  # /health and /auth/signout can't fail with a 4xx by design.
+  operation-4xx-response: off
+  # The OAuth start and callback only ever redirect (302).
+  operation-2xx-response: off

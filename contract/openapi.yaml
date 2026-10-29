@@ -1,0 +1,2936 @@
+openapi: 3.1.0
+info:
+  title: Starter API
+  version: 0.3.0
+  summary: The contract every starter backend implements and every starter frontend calls.
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    The core every app shares: signing in (email and password by default; passkeys; Google and
+    email codes where the app switches them on), sessions, and the account. An app adds its own
+    paths next to these; it never changes the ones here.
+
+    Conventions:
+
+    - JSON in and out, except `PUT /me/photo`, which takes the image bytes.
+    - A signed-in request sends `Authorization: Bearer <token>`. The token is opaque; backends
+      store only its SHA-256 hash. No cookies, so any frontend works with any backend.
+    - Times are ISO 8601 in UTC (`2026-10-28T16:30:00.000Z`).
+    - Every failure is an `Error`: a stable `code` for the app to act on and a `message` written
+      to be shown to the person as it is.
+    - Paths are relative to the server URL, which ends in `/api`.
+    - CORS: the frontend usually lives on another origin, so for each origin the app allows,
+      the backend answers preflights allowing `Authorization` and `Content-Type` and the
+      methods used here, and exposes `Retry-After` so the frontend can show the wait. These
+      can't be checked from the contract tests (they don't run in a browser); the frontend's
+      browser tests cover them.
+
+    Passwords never leave the device. The frontend turns the password into a `passwordKey` with
+    a slow hash (PBKDF2, 600,000 rounds, settings from `/auth/methods`), so a backend on a small
+    CPU budget never has to; `contract/password.ts` is the one implementation, used by frontends
+    and the tests. The backend stores only a salted hash of the key, never the key itself, and
+    compares in constant time.
+
+    Local development: a backend run without a mail provider keeps mail at `/dev/mail` and
+    switches per-network limits off, so test runs don't lock themselves out.
+
+servers:
+  - url: http://localhost:8787/api
+    description: Local backend
+
+security:
+  - bearer: []
+
+tags:
+  - name: Health
+  - name: Sign in
+  - name: Password
+  - name: Email code
+  - name: Social
+  - name: Account
+  - name: Sessions
+  - name: Passkeys
+  - name: Notifications
+  - name: Teams
+  - name: Admin
+  - name: Contact
+  - name: Telemetry
+  - name: Development
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: health
+      summary: Whether the backend is up
+      security: []
+      responses:
+        '200':
+          description: Up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    const: ok
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/methods:
+    get:
+      tags: [Sign in]
+      operationId: signInMethods
+      summary: How this app signs people in
+      description: |
+        Read once when the frontend starts. It says how to make a `passwordKey`, which optional
+        methods are on, whether to show a CAPTCHA and with which public key, and whether the app
+        holds people back until they confirm their email.
+      security: []
+      responses:
+        '200':
+          description: This app's sign-in settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Methods'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/password/signup:
+    post:
+      tags: [Password]
+      operationId: passwordSignUp
+      summary: Make an account with an email and password, signed in at once
+      description: |
+        No email is sent unless the app requires confirmed email, in which case a confirmation
+        code goes out as with `/me/email/confirm/send`; that first code doesn't count toward the
+        60 seconds between codes or the per-address limits, so asking for another right away
+        works. The account starts unconfirmed. At most 30 sign-ups per network an hour.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, passwordKey]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/EmailTaken'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/password/signin:
+    post:
+      tags: [Password]
+      operationId: passwordSignIn
+      summary: Sign in with an email and password
+      description: |
+        A wrong password and an unknown address get the same `invalid_credentials`. At most 10
+        wrong tries per address and 100 per network in 15 minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, passwordKey]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/BadCredentials'
+        '403':
+          $ref: '#/components/responses/Suspended'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/password/forgot:
+    post:
+      tags: [Password]
+      operationId: passwordForgot
+      summary: Email a code for setting a new password
+      description: |
+        The same answer whether or not the address has an account, in what it says and in how
+        long it takes; only real accounts get mail. So the backend sends the mail after
+        answering, and a mail failure is logged rather than answered (`mail_failed` only from a
+        backend that can't send after answering). The code works for 10 minutes and 5 tries; 60
+        seconds between codes to one address, at most 6 per address and 30 per network an hour.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '204':
+          description: Sent, if there's an account
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/password/reset:
+    post:
+      tags: [Password]
+      operationId: passwordReset
+      summary: Set a new password with the emailed code, and sign in
+      description: |
+        Proves the person owns the address, so the email becomes confirmed, and every other
+        session ends: whoever knew the old password, or made the account without owning the
+        address, is out.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code, passwordKey]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                code:
+                  $ref: '#/components/schemas/CodeText'
+                passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/InvalidCode'
+        '403':
+          $ref: '#/components/responses/Suspended'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/code/send:
+    post:
+      tags: [Email code]
+      operationId: sendCode
+      summary: Email a six-digit sign-in code (when the app has email codes on)
+      description: |
+        The same answer for new and known addresses. A code works for 10 minutes and 5 tries;
+        60 seconds between codes to one address, at most 6 per address and 30 per network an
+        hour. Off (`emailCode: false` in `/auth/methods`), this is 404.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '204':
+          description: Sent
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/code/verify:
+    post:
+      tags: [Email code]
+      operationId: verifyCode
+      summary: Sign in with the emailed code
+      description: |
+        A new address makes a new account, already confirmed. On an account that is unconfirmed
+        and has a password, the code proves ownership the password never did: the password is
+        cleared and every other session ends before the email is marked confirmed.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CodeInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/InvalidCode'
+        '403':
+          $ref: '#/components/responses/Suspended'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/passkey/start:
+    post:
+      tags: [Sign in]
+      operationId: passkeySignInStart
+      summary: Options for signing in with a passkey
+      description: Any passkey made for this site can answer. The challenge lasts 5 minutes.
+      security: []
+      responses:
+        '200':
+          description: Pass `options` to the browser's WebAuthn `get`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyChallenge'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/passkey/finish:
+    post:
+      tags: [Sign in]
+      operationId: passkeySignInFinish
+      summary: Sign in with the browser's passkey answer
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyAnswer'
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/PasskeyRefused'
+        '403':
+          $ref: '#/components/responses/Suspended'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/oauth/{provider}/start:
+    get:
+      tags: [Social]
+      operationId: oauthStart
+      summary: Send the browser to the provider to sign in
+      description: |
+        The frontend navigates here (a link, not a fetch). The backend remembers a nonce in a
+        short-lived HttpOnly cookie on its own domain, puts it in `state`, and redirects to the
+        provider. After the provider, `/callback` sends the browser back to `return`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Provider'
+        - name: return
+          in: query
+          required: true
+          description: |
+            The frontend page to come back to, such as `https://app.example.com/auth/callback`.
+            Its origin must be one the backend allows.
+          schema:
+            type: string
+            format: uri
+            maxLength: 2048
+      responses:
+        '302':
+          description: To the provider's sign-in page
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/oauth/{provider}/callback:
+    get:
+      tags: [Social]
+      operationId: oauthCallback
+      summary: Where the provider sends the browser back (the provider calls this, not the frontend)
+      description: |
+        Checks `state` against the nonce cookie, then signs the person in by the provider's
+        email, which must be one the provider has verified. An account with that email is the
+        same account, now confirmed; if it was unconfirmed and had a password, the password is
+        cleared and its sessions end first, as with `/auth/code/verify`. Otherwise an account is
+        made. Redirects to `return` with either `code`, good once for 60 seconds at
+        `/auth/oauth/exchange`, or `error`:
+
+        - `oauth_denied`: the person cancelled at the provider;
+        - `oauth_no_email`: the provider gave no verified email;
+        - `oauth_failed`: anything else, a nonce that doesn't match included;
+        - `account_suspended`: an admin has suspended the account.
+
+        The return address travels in `state` and is checked against the allowed origins again
+        here. If `state` can't be read, the browser goes to `/auth/callback` on the backend's
+        first allowed origin, with `error=oauth_failed`.
+
+        The token itself never goes in an address, where it would sit in browser history.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Provider'
+      responses:
+        '302':
+          description: Back to the frontend with `code` or `error`
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                format: uri
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/oauth/exchange:
+    post:
+      tags: [Social]
+      operationId: oauthExchange
+      summary: Trade the code from the callback for a session
+      description: Each code works once, within 60 seconds; two exchanges at once get one session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+                  maxLength: 100
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/InvalidCode'
+        '403':
+          $ref: '#/components/responses/Suspended'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/signout:
+    post:
+      tags: [Sign in]
+      operationId: signOut
+      summary: End this device's session
+      description: Succeeds even when the token is already gone, so signing out never gets stuck.
+      security:
+        - bearer: []
+        - {}
+      responses:
+        '204':
+          description: Signed out
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me:
+    get:
+      tags: [Account]
+      operationId: getMe
+      summary: The signed-in person
+      description: Works whether or not the email is confirmed, so the frontend can say what's needed.
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [Account]
+      operationId: updateMe
+      summary: Change one's name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  maxLength: 200
+                  description: |
+                    Spaces and control characters are collapsed to single spaces and trimmed;
+                    1 to 60 characters after that.
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Account]
+      operationId: deleteMe
+      summary: Delete the account and everything in it
+      description: |
+        Every session, passkey, push subscription and notification, the photo, and the contact
+        messages the account sent go with it; error reports it sent are kept without it. The
+        token stops working at once. With
+        teams on, they leave every team: a team they were alone in is deleted, and a team left
+        without an admin makes its longest-standing member admin, so deleting never gets stuck.
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/password:
+    put:
+      tags: [Password]
+      operationId: changePassword
+      summary: Change the password, knowing the current one
+      description: |
+        Every other session ends. An account without a password (made with Google or an email
+        code) sets its first one through `/auth/password/forgot` instead, which proves the
+        address; this answers `invalid_input` for it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPasswordKey, passwordKey]
+              additionalProperties: false
+              properties:
+                currentPasswordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+                passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+      responses:
+        '204':
+          description: Changed
+        '400':
+          $ref: '#/components/responses/BadCredentials'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/email/confirm/send:
+    post:
+      tags: [Account]
+      operationId: sendEmailConfirm
+      summary: Email a code to confirm the account's own address
+      description: The same limits as other codes, counted apart from them.
+      responses:
+        '204':
+          description: Sent
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/email/confirm:
+    post:
+      tags: [Account]
+      operationId: confirmEmail
+      summary: Confirm the account's address with the emailed code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              additionalProperties: false
+              properties:
+                code:
+                  $ref: '#/components/schemas/CodeText'
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '400':
+          $ref: '#/components/responses/InvalidCode'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/email/send:
+    post:
+      tags: [Account]
+      operationId: sendEmailChange
+      summary: Email a code to a new address, to move the account to it
+      description: |
+        The same limits as other codes, counted apart from them, and at most 5 an hour per
+        account. The code only works for this account, and only here: it can't sign anyone in.
+
+        An address another account already has gets the same 204 and no mail, so this can't be
+        used to find out who has an account; `/me/email/verify` refuses it (`email_taken`) once
+        a right code is given, which only the address's owner can have.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '204':
+          description: Sent, unless another account has the address
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/email/verify:
+    post:
+      tags: [Account]
+      operationId: verifyEmailChange
+      summary: Move the account to the new address, confirmed
+      description: |
+        The email is part of the password key's salt, so an account with a password sends both
+        keys: `currentPasswordKey` made with the old address (proving the password) and
+        `passwordKey` made with the new one (stored from now on). An account without a password
+        sends neither. A wrong current password spends one of the code's 5 tries, which is what
+        limits guessing here. An address another account has is `email_taken`, answered only
+        after the code is right.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                code:
+                  $ref: '#/components/schemas/CodeText'
+                currentPasswordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+                passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '400':
+          $ref: '#/components/responses/BadCodeOrCredentials'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/EmailTaken'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/photo:
+    put:
+      tags: [Account]
+      operationId: putPhoto
+      summary: Set the profile photo
+      description: |
+        The body is the image itself, at most 2 MB. The frontend crops and resizes it first; the
+        backend stores it as sent and serves it at `user.photoUrl`, which changes with each photo;
+        earlier photos are deleted. At most 20 uploads an hour per account.
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema:
+              type: string
+              contentMediaType: image/png
+          image/jpeg:
+            schema:
+              type: string
+              contentMediaType: image/jpeg
+          image/webp:
+            schema:
+              type: string
+              contentMediaType: image/webp
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Account]
+      operationId: removePhoto
+      summary: Remove the profile photo
+      responses:
+        '200':
+          $ref: '#/components/responses/UserReply'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/export:
+    get:
+      tags: [Account]
+      operationId: exportMe
+      summary: Everything stored about the person, to download
+      description: An app adds its own records under `data`.
+      responses:
+        '200':
+          description: The export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      summary: The devices signed in to this account
+      responses:
+        '200':
+          description: Newest use first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                additionalProperties: false
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Sessions]
+      operationId: signOutOthers
+      summary: Sign out every other device
+      responses:
+        '204':
+          description: Only this device is still signed in
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/sessions/{id}:
+    delete:
+      tags: [Sessions]
+      operationId: endSession
+      summary: Sign out one device
+      description: Removing the current session is the same as signing out.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Signed out there
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/passkeys:
+    get:
+      tags: [Passkeys]
+      operationId: listPasskeys
+      summary: This account's passkeys
+      responses:
+        '200':
+          description: Oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [passkeys]
+                additionalProperties: false
+                properties:
+                  passkeys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Passkey'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/passkeys/start:
+    post:
+      tags: [Passkeys]
+      operationId: addPasskeyStart
+      summary: Options for adding a passkey on this device
+      description: |
+        At most 20 passkeys per account. The challenge lasts 5 minutes. Only a confirmed email
+        may add one, whatever `requireVerifiedEmail` says: `email_unverified` (403) until then,
+        so someone who signed up with an address they don't own can't leave a way back in
+        before the owner takes it back. Signing in with a passkey needs user verification
+        (Face ID, Touch ID, a PIN).
+      responses:
+        '200':
+          description: Pass `options` to the browser's WebAuthn `create`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyChallenge'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrUnverified'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/passkeys/finish:
+    post:
+      tags: [Passkeys]
+      operationId: addPasskeyFinish
+      summary: Save the passkey the browser made
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyAnswer'
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [passkey]
+                additionalProperties: false
+                properties:
+                  passkey:
+                    $ref: '#/components/schemas/Passkey'
+        '400':
+          $ref: '#/components/responses/PasskeyRefused'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/passkeys/{id}:
+    delete:
+      tags: [Passkeys]
+      operationId: removePasskey
+      summary: Remove a passkey
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Removed
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /features:
+    get:
+      tags: [Health]
+      operationId: features
+      summary: Which optional parts this app has on
+      description: |
+        Read once when the frontend starts, next to `/auth/methods`. A part that's off answers
+        `not_found` on all its paths.
+      security: []
+      responses:
+        '200':
+          description: This app's switches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Features'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /contact:
+    post:
+      tags: [Contact]
+      operationId: contact
+      summary: Send a contact message or feedback
+      description: |
+        Works signed in or out. Signed in (a bearer token sent), the message is tied to the
+        account and `email` is ignored; signed out, `email` is required so there's someone to
+        answer. Messages are stored for the admin area, and emailed to the app's contact address
+        only if one is configured (each is an email from the quota). At most 5 per network an
+        hour and 20 per account a day.
+      security:
+        - bearer: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, message]
+              additionalProperties: false
+              properties:
+                kind:
+                  type: string
+                  enum: [contact, feedback]
+                name:
+                  type: string
+                  maxLength: 80
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+                  description: Trimmed; empty after trimming is `invalid_input`.
+                page:
+                  type: string
+                  maxLength: 500
+                  description: The app path the person was on, for feedback.
+                captcha:
+                  $ref: '#/components/schemas/Captcha'
+      responses:
+        '204':
+          description: Received
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /telemetry/errors:
+    post:
+      tags: [Telemetry]
+      operationId: reportError
+      summary: Report an error that happened in the browser
+      description: |
+        Always 204, even when the report is dropped (over the limit, malformed, or a repeat), so
+        reporting can never cause more errors. Over the per-network limit, or the app's daily
+        cap on stored reports, nothing is written at all. Repeats are counted, not stored again:
+        a report is keyed by its message and the first line of its stack. At most 500 distinct
+        reports are kept (trimmed daily); the least recently seen go first. A bearer token, if
+        sent, ties the report to the account.
+      security:
+        - bearer: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  maxLength: 1000
+                stack:
+                  type: string
+                  maxLength: 8000
+                url:
+                  type: string
+                  maxLength: 1000
+                release:
+                  type: string
+                  maxLength: 100
+                  description: The frontend's build version.
+      responses:
+        '204':
+          description: Received, or dropped
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /telemetry/csp:
+    post:
+      tags: [Telemetry]
+      operationId: reportCsp
+      summary: Where browsers send Content-Security-Policy violation reports
+      description: |
+        The frontend's CSP names this as its `report-uri`. Browsers send
+        `application/csp-report` or `application/reports+json`. Stored with the error reports,
+        deduplicated by directive, blocked URI and page. Browsers may batch any number of
+        reports in one request: only the first 5 are kept and the rest are dropped, never
+        refused. Always 204: over the per-network limit, or the app's daily cap on stored
+        reports, nothing is written at all.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/csp-report:
+            schema:
+              type: object
+          application/reports+json:
+            schema:
+              type: array
+              description: Any number; only the first 5 are kept.
+      responses:
+        '204':
+          description: Received, or dropped
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/push:
+    put:
+      tags: [Notifications]
+      operationId: pushSubscribe
+      summary: Send this device's push notifications to the account
+      description: |
+        The browser's PushSubscription in its JSON form, made with the `vapidPublicKey` from
+        `/features`. Saving the same endpoint again updates it. Push off: `not_found`. The
+        endpoint must be https on a known browser push service (Google's, Mozilla's,
+        Microsoft's, Apple's); any other is `invalid_input`. A backend may allow extra hosts in
+        local development, for tests.
+
+        What each push carries (encrypted per RFC 8291, aes128gcm) is the JSON
+        `{"title": string, "body": string, "url": string | null}`, the same fields as the
+        notification it accompanies; the service worker shows it and opens `url` (a path on
+        the app's own site) on tap. A subscription the push service answers 404 or 410 for is
+        removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subscription]
+              additionalProperties: false
+              properties:
+                subscription:
+                  $ref: '#/components/schemas/PushSubscription'
+      responses:
+        '204':
+          description: Saved
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Notifications]
+      operationId: pushUnsubscribe
+      summary: Stop push notifications to one device
+      description: Succeeds even when that endpoint wasn't saved. A body that isn't JSON, or has other fields, is `invalid_input`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint]
+              additionalProperties: false
+              properties:
+                endpoint:
+                  type: string
+                  format: uri
+                  maxLength: 2048
+      responses:
+        '204':
+          description: Removed
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/push/test:
+    post:
+      tags: [Notifications]
+      operationId: pushTest
+      summary: Send a test notification to every device of this account
+      description: |
+        Also adds it to the notification list. `invalid_input` when no device is subscribed.
+        At most 5 an hour.
+      responses:
+        '204':
+          description: Sent
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: The account's notifications, newest first
+      description: |
+        Kept whether or not push is on: this is the in-app list (the bell). 50 per page; pass
+        `next` back as `cursor` for older ones. Notifications older than 90 days are removed.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notifications, unread, next]
+                additionalProperties: false
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  unread:
+                    type: integer
+                    minimum: 0
+                  next:
+                    $ref: '#/components/schemas/NextCursor'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /me/notifications/read:
+    post:
+      tags: [Notifications]
+      operationId: readNotifications
+      summary: Mark notifications read
+      description: Ids that aren't this account's are ignored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [ids]
+                  additionalProperties: false
+                  properties:
+                    ids:
+                      type: array
+                      minItems: 1
+                      maxItems: 100
+                      items:
+                        $ref: '#/components/schemas/Id'
+                - type: object
+                  required: [all]
+                  additionalProperties: false
+                  properties:
+                    all:
+                      const: true
+      responses:
+        '200':
+          description: The unread count now
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [unread]
+                additionalProperties: false
+                properties:
+                  unread:
+                    type: integer
+                    minimum: 0
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams:
+    get:
+      tags: [Teams]
+      operationId: listTeams
+      summary: The teams the person belongs to (teams on)
+      responses:
+        '200':
+          description: Oldest joined first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [teams]
+                additionalProperties: false
+                properties:
+                  teams:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TeamSummary'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      tags: [Teams]
+      operationId: createTeam
+      summary: Make a team; its maker is its first admin
+      description: At most 50 teams per person.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/TeamReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams/{teamId}:
+    parameters:
+      - $ref: '#/components/parameters/TeamId'
+    get:
+      tags: [Teams]
+      operationId: getTeam
+      summary: A team, its members, and (for admins) its pending invites
+      description: A team the person isn't in is `not_found`, the same as one that doesn't exist.
+      responses:
+        '200':
+          description: The team
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [team, members, invites]
+                additionalProperties: false
+                properties:
+                  team:
+                    $ref: '#/components/schemas/TeamSummary'
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Member'
+                  invites:
+                    type: array
+                    description: Pending invites, newest first; always empty for members.
+                    items:
+                      $ref: '#/components/schemas/SentInvite'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [Teams]
+      operationId: renameTeam
+      summary: Rename the team (admins)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/TeamReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Teams]
+      operationId: deleteTeam
+      summary: Delete the team with its members and invites (admins)
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams/{teamId}/members/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/TeamId'
+      - $ref: '#/components/parameters/UserId'
+    patch:
+      tags: [Teams]
+      operationId: setRole
+      summary: Change a member's role (admins)
+      description: |
+        A team always keeps at least one admin, even when two admins change roles at once:
+        demoting the last one is `last_admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              additionalProperties: false
+              properties:
+                role:
+                  $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: The member as now
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [member]
+                additionalProperties: false
+                properties:
+                  member:
+                    $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/LastAdmin'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Teams]
+      operationId: removeMember
+      summary: Remove a member (admins), or leave (anyone, with their own id)
+      description: The last admin can't leave or be removed (`last_admin`); they delete the team instead.
+      responses:
+        '204':
+          description: Removed
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/LastAdmin'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams/{teamId}/invites:
+    parameters:
+      - $ref: '#/components/parameters/TeamId'
+    post:
+      tags: [Teams]
+      operationId: invite
+      summary: Invite someone by email (admins)
+      description: |
+        Emails a link to the frontend's `/invite?token=…` (an email from the quota). The invite
+        works for 7 days. Someone already in the team, or already invited, is `conflict`. If the
+        address belongs to an account, it also gets a notification. At most 50 invites per team
+        and 50 per inviting account a day (resends count), and an app-wide daily cap on invite
+        mail that keeps within the mail provider's quota (`rate_limited`). Only an account with
+        a confirmed email may invite, whatever `requireVerifiedEmail` says: `email_unverified`
+        (403) until then; `forbidden` for someone who isn't the team's admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              additionalProperties: false
+              properties:
+                email:
+                  $ref: '#/components/schemas/EmailText'
+                role:
+                  $ref: '#/components/schemas/Role'
+      responses:
+        '200':
+          description: Invited
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite]
+                additionalProperties: false
+                properties:
+                  invite:
+                    $ref: '#/components/schemas/SentInvite'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrUnverified'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams/{teamId}/invites/{inviteId}:
+    parameters:
+      - $ref: '#/components/parameters/TeamId'
+      - $ref: '#/components/parameters/InviteId'
+    delete:
+      tags: [Teams]
+      operationId: revokeInvite
+      summary: Withdraw a pending invite (admins)
+      responses:
+        '204':
+          description: Withdrawn; its link stops working
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /teams/{teamId}/invites/{inviteId}/resend:
+    parameters:
+      - $ref: '#/components/parameters/TeamId'
+      - $ref: '#/components/parameters/InviteId'
+    post:
+      tags: [Teams]
+      operationId: resendInvite
+      summary: Email the invite again, with a fresh 7 days (admins)
+      description: |
+        The old link stops working. 60 seconds between sends of one invite (a backend may make
+        this shorter in local development; `Retry-After` says how long). Counted against the
+        same daily limits as new invites, and needs a confirmed email the same way
+        (`email_unverified`).
+      responses:
+        '204':
+          description: Sent
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrUnverified'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/MailFailed'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /invites:
+    get:
+      tags: [Teams]
+      operationId: myInvites
+      summary: Pending invites to the person's email (teams on)
+      description: |
+        Only once the email is confirmed; unconfirmed, the list is empty (anyone can sign up
+        with any address). The emailed link works either way, since it proves the address.
+      responses:
+        '200':
+          description: Newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invites]
+                additionalProperties: false
+                properties:
+                  invites:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReceivedInvite'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /invites/accept:
+    post:
+      tags: [Teams]
+      operationId: acceptInvite
+      summary: Join the team
+      description: |
+        By `token` (from the emailed link) or by `inviteId` (from `GET /invites`). Either way the
+        signed-in account's email must be the invited one, or it's `not_found`. A token proves
+        the address, so an unconfirmed account becomes confirmed; by id, the email must already
+        be confirmed. An invite works once; expired, withdrawn or used is `not_found`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [token]
+                  additionalProperties: false
+                  properties:
+                    token:
+                      type: string
+                      maxLength: 100
+                - type: object
+                  required: [inviteId]
+                  additionalProperties: false
+                  properties:
+                    inviteId:
+                      $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/TeamReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /invites/{inviteId}/decline:
+    parameters:
+      - $ref: '#/components/parameters/InviteId'
+    post:
+      tags: [Teams]
+      operationId: declineInvite
+      summary: Turn an invite down
+      description: The same rules for whose invite it is as accepting by id.
+      responses:
+        '204':
+          description: Declined
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /auth/support/exchange:
+    post:
+      tags: [Admin]
+      operationId: supportExchange
+      summary: Open a support session from an admin's one-time code
+      description: |
+        The session is the user's, marked `support`, and lasts one hour. It can read and use the
+        app as the user, but every account and security path (`PATCH /me`, `DELETE /me`,
+        `/me/password`, `/me/email/*`, `/me/photo`, `/me/export`, `/me/sessions*`,
+        `/me/passkeys*`, `/me/push*`) and every `/admin` path answers `forbidden`. Each code works once, within
+        60 seconds.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              additionalProperties: false
+              properties:
+                code:
+                  type: string
+                  maxLength: 100
+      responses:
+        '200':
+          $ref: '#/components/responses/SignedIn'
+        '400':
+          $ref: '#/components/responses/InvalidCode'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      operationId: adminStats
+      summary: Counts for the admin area's front page (admin on, admins only)
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, newUsers7d, suspended, teams, openMessages, errors24h]
+                additionalProperties: false
+                properties:
+                  users:
+                    type: integer
+                  newUsers7d:
+                    type: integer
+                  suspended:
+                    type: integer
+                  teams:
+                    type: [integer, 'null']
+                    description: Null when teams are off.
+                  openMessages:
+                    type: integer
+                  errors24h:
+                    type: integer
+                    description: Error and CSP reports seen in the last 24 hours, repeats included.
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: adminUsers
+      summary: Find people (admins)
+      description: Newest first; `q` matches the start of the email or any word of the name.
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of people
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, next]
+                additionalProperties: false
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  next:
+                    $ref: '#/components/schemas/NextCursor'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/users/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Admin]
+      operationId: adminUser
+      summary: One person (admins)
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserReply'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Admin]
+      operationId: adminDeleteUser
+      summary: Delete a person's account, as `DELETE /me` would (admins; never an admin)
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/users/{userId}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Admin]
+      operationId: adminSuspend
+      summary: Suspend a person (admins; never an admin)
+      description: |
+        Every session ends at once, and every way of signing in answers `account_suspended`
+        (Google returns `error=account_suspended`) until they're unsuspended.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Kept for the audit log; never shown to the person.
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserReply'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/users/{userId}/unsuspend:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Admin]
+      operationId: adminUnsuspend
+      summary: Let a suspended person sign in again (admins)
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminUserReply'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/users/{userId}/support:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Admin]
+      operationId: adminSupport
+      summary: A one-time code to open a support session as this person (admins)
+      description: |
+        Not for admins or suspended people. The frontend opens it in a tab of its own, so the
+        admin's own session stays put. Recorded in the audit log.
+      responses:
+        '200':
+          description: The code, good once for 60 seconds at `/auth/support/exchange`
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code]
+                additionalProperties: false
+                properties:
+                  code:
+                    type: string
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/messages:
+    get:
+      tags: [Admin]
+      operationId: adminMessages
+      summary: Contact messages and feedback, newest first (admins)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, done]
+            default: open
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [messages, next]
+                additionalProperties: false
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  next:
+                    $ref: '#/components/schemas/NextCursor'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/messages/{messageId}:
+    parameters:
+      - name: messageId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+    patch:
+      tags: [Admin]
+      operationId: adminMessageStatus
+      summary: Mark a message done, or open again (admins)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              additionalProperties: false
+              properties:
+                status:
+                  type: string
+                  enum: [open, done]
+      responses:
+        '200':
+          description: The message as now
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                additionalProperties: false
+                properties:
+                  message:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/errors:
+    get:
+      tags: [Admin]
+      operationId: adminErrors
+      summary: Error and CSP reports, most recently seen first (admins)
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of reports
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [errors, next]
+                additionalProperties: false
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ErrorReport'
+                  next:
+                    $ref: '#/components/schemas/NextCursor'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Admin]
+      operationId: adminClearErrors
+      summary: Clear every report (admins)
+      responses:
+        '204':
+          description: Cleared
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      operationId: adminAudit
+      summary: What admins did, newest first (admins)
+      description: Kept for a year. Support sessions, suspensions, unsuspensions and deletions.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, next]
+                additionalProperties: false
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEntry'
+                  next:
+                    $ref: '#/components/schemas/NextCursor'
+        '400':
+          $ref: '#/components/responses/InvalidInput'
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /dev/mail:
+    get:
+      tags: [Development]
+      operationId: devMail
+      summary: Mail the backend would have sent (local development only)
+      description: |
+        Exists only when the backend runs locally (on localhost), without a mail provider and
+        with dev mail switched on; everywhere else it is 404. The contract tests read codes from
+        here.
+      security: []
+      responses:
+        '200':
+          description: Newest last, at most 500
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mail]
+                additionalProperties: false
+                properties:
+                  mail:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: The session token from signing in.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      description: The `next` value from the previous page; omit for the first page.
+      schema:
+        type: string
+        maxLength: 200
+    TeamId:
+      name: teamId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    InviteId:
+      name: inviteId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+    Provider:
+      name: provider
+      in: path
+      required: true
+      description: One that's switched off (not in `/auth/methods`) is 404.
+      schema:
+        $ref: '#/components/schemas/Provider'
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Id'
+
+  schemas:
+    Provider:
+      type: string
+      enum: [google]
+      description: Social sign-in providers a backend may offer. Each is optional.
+
+    Id:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{1,1024}$'
+      description: Opaque. Passkey ids are the credential id, so they can be long.
+
+    Time:
+      type: string
+      format: date-time
+
+    EmailText:
+      type: string
+      maxLength: 254
+      description: |
+        As typed; the backend trims and lower-cases it. It must then be an address of the usual
+        form (the HTML email check: `name@example.com`, with a dot in the domain), and never
+        contain spaces, `?` or `&`; otherwise `invalid_input`.
+
+    CodeText:
+      type: string
+      maxLength: 20
+      description: Anything but digits is ignored, so "123 456" works.
+
+    PasswordKey:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: |
+        What the frontend sends instead of the password: 32 bytes, base64url without padding,
+        from `passwordKey()` in `contract/password.ts`: PBKDF2-HMAC-SHA-256 over the password
+        (Unicode NFKC, UTF-8), salted with `<saltPrefix>|<email>` (the email trimmed and
+        lower-cased), with the rounds `/auth/methods` gives.
+
+    Captcha:
+      type: string
+      maxLength: 2048
+      description: |
+        The CAPTCHA widget's token. Required when `/auth/methods` names a CAPTCHA; a missing or
+        rejected token is `captcha_failed`. Each token works once.
+
+    Methods:
+      type: object
+      required: [password, emailCode, oauth, captcha, requireVerifiedEmail]
+      additionalProperties: false
+      properties:
+        password:
+          type: object
+          required: [saltPrefix, iterations, minLength]
+          additionalProperties: false
+          properties:
+            saltPrefix:
+              type: string
+              pattern: '^[a-z0-9-]{1,40}$'
+              description: The app's own name, so one password gives different keys in different apps.
+            iterations:
+              type: integer
+              const: 600000
+            minLength:
+              type: integer
+              const: 8
+              description: The frontend refuses shorter passwords; the backend never sees them.
+        emailCode:
+          type: boolean
+          description: Whether signing in by emailed code is on. Each code is an email from the app's quota.
+        oauth:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Provider'
+          description: The social providers switched on, possibly none.
+        captcha:
+          description: The CAPTCHA to show before signing up, signing in or asking for a code; null for none.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [provider, siteKey]
+              additionalProperties: false
+              properties:
+                provider:
+                  const: turnstile
+                siteKey:
+                  type: string
+                  description: Public. The secret stays on the backend.
+        requireVerifiedEmail:
+          type: boolean
+          description: |
+            When true, the app's own paths answer `email_unverified` (403) until the email is
+            confirmed. The core paths here always work, so the person can confirm, change the
+            address, or delete the account.
+
+    Features:
+      type: object
+      required: [teams, admin, push]
+      additionalProperties: false
+      properties:
+        teams:
+          type: boolean
+          description: Teams with admins, members and invites.
+        admin:
+          type: boolean
+          description: The admin area, for the people the app lists as admins.
+        push:
+          description: Push notifications, with the public key browsers subscribe with; null when off.
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [vapidPublicKey]
+              additionalProperties: false
+              properties:
+                vapidPublicKey:
+                  type: string
+                  description: Base64url, as `PushManager.subscribe` takes it.
+
+    NextCursor:
+      type: [string, 'null']
+      description: Pass back as `cursor` for the next page; null on the last page.
+
+    PushSubscription:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Must be https.
+        expirationTime:
+          type: [number, 'null']
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh:
+              type: string
+              maxLength: 200
+            auth:
+              type: string
+              maxLength: 100
+
+    Notification:
+      type: object
+      required: [id, title, body, url, createdAt, readAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        title:
+          type: string
+        body:
+          type: string
+        url:
+          type: [string, 'null']
+          description: An app path to open, such as `/teams/abc`.
+        createdAt:
+          $ref: '#/components/schemas/Time'
+        readAt:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+
+    Role:
+      type: string
+      enum: [admin, member]
+      description: Admins rename and delete the team, invite, remove and change roles; members use it.
+
+    TeamInput:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          description: Spaces and control characters collapsed to single spaces and trimmed; 1 to 60 characters after that.
+
+    TeamSummary:
+      type: object
+      required: [id, name, role, memberCount, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+          description: The signed-in person's role in it.
+        memberCount:
+          type: integer
+          minimum: 1
+        createdAt:
+          $ref: '#/components/schemas/Time'
+
+    Member:
+      type: object
+      required: [userId, name, email, photoUrl, role, joinedAt]
+      additionalProperties: false
+      properties:
+        userId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: [string, 'null']
+        email:
+          type: string
+        photoUrl:
+          type: [string, 'null']
+          format: uri
+        role:
+          $ref: '#/components/schemas/Role'
+        joinedAt:
+          $ref: '#/components/schemas/Time'
+
+    Person:
+      type: object
+      required: [name, email]
+      additionalProperties: false
+      properties:
+        name:
+          type: [string, 'null']
+        email:
+          type: string
+
+    SentInvite:
+      type: object
+      required: [id, email, role, invitedBy, createdAt, expiresAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        invitedBy:
+          $ref: '#/components/schemas/Person'
+        createdAt:
+          $ref: '#/components/schemas/Time'
+        expiresAt:
+          $ref: '#/components/schemas/Time'
+
+    ReceivedInvite:
+      type: object
+      required: [id, team, role, invitedBy, expiresAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        team:
+          type: object
+          required: [id, name]
+          additionalProperties: false
+          properties:
+            id:
+              $ref: '#/components/schemas/Id'
+            name:
+              type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        invitedBy:
+          $ref: '#/components/schemas/Person'
+        expiresAt:
+          $ref: '#/components/schemas/Time'
+
+    AdminUser:
+      type: object
+      required: [id, email, emailVerified, hasPassword, isAdmin, name, photoUrl, createdAt, suspended, lastActiveAt, teams]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+        emailVerified:
+          type: boolean
+        hasPassword:
+          type: boolean
+        isAdmin:
+          type: boolean
+        name:
+          type: [string, 'null']
+        photoUrl:
+          type: [string, 'null']
+          format: uri
+        createdAt:
+          $ref: '#/components/schemas/Time'
+        suspended:
+          type: boolean
+        lastActiveAt:
+          description: The latest use of any of their sessions; null if none is left.
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        teams:
+          type: [integer, 'null']
+          description: How many teams they're in; null when teams are off.
+
+    Message:
+      type: object
+      required: [id, kind, name, email, userId, message, page, status, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        kind:
+          type: string
+          enum: [contact, feedback]
+        name:
+          type: [string, 'null']
+        email:
+          type: string
+          description: The account's email when sent signed in.
+        userId:
+          type: [string, 'null']
+        message:
+          type: string
+        page:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [open, done]
+        createdAt:
+          $ref: '#/components/schemas/Time'
+
+    ErrorReport:
+      type: object
+      required: [id, kind, message, detail, url, release, count, firstSeen, lastSeen]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        kind:
+          type: string
+          enum: [client, server, csp]
+        message:
+          type: string
+          description: For CSP, the violated directive and the blocked URI.
+        detail:
+          type: [string, 'null']
+          description: The stack, or for CSP the source file and line.
+        url:
+          type: [string, 'null']
+        release:
+          type: [string, 'null']
+        count:
+          type: integer
+          minimum: 1
+        firstSeen:
+          $ref: '#/components/schemas/Time'
+        lastSeen:
+          $ref: '#/components/schemas/Time'
+
+    AuditEntry:
+      type: object
+      required: [id, action, admin, target, detail, at]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        action:
+          type: string
+          enum: [support, suspend, unsuspend, delete]
+        admin:
+          $ref: '#/components/schemas/Person'
+        target:
+          description: The person acted on, as they were then.
+          $ref: '#/components/schemas/Person'
+        detail:
+          type: [string, 'null']
+          description: The suspension reason, when given.
+        at:
+          $ref: '#/components/schemas/Time'
+
+    User:
+      type: object
+      required: [id, email, emailVerified, hasPassword, isAdmin, name, photoUrl, createdAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+          description: Lower case.
+        emailVerified:
+          type: boolean
+          description: True once the person has shown they get mail there (a code, a reset, or Google).
+        hasPassword:
+          type: boolean
+          description: False for accounts made with Google or an email code until they set one.
+        isAdmin:
+          type: boolean
+          description: |
+            An admin of the app (the admin area), set by the app's list of admin emails and only
+            once the email is confirmed. Always false when the admin area is off.
+        name:
+          type: [string, 'null']
+          description: Null until the person gives one.
+        photoUrl:
+          type: [string, 'null']
+          format: uri
+        createdAt:
+          $ref: '#/components/schemas/Time'
+
+    Session:
+      type: object
+      required: [id, device, createdAt, lastUsedAt, current, support]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+          description: Not the token, nor its hash.
+        device:
+          type: string
+          description: A short name the backend reads from the User-Agent, such as "iPhone" or "Mac"; the frontend sends nothing for it.
+        createdAt:
+          $ref: '#/components/schemas/Time'
+        lastUsedAt:
+          $ref: '#/components/schemas/Time'
+          description: Updated at most once a day.
+        current:
+          type: boolean
+          description: Whether it's the session making this request.
+        support:
+          type: boolean
+          description: A support session an admin opened (`/auth/support/exchange`); it ends within the hour.
+
+    Passkey:
+      type: object
+      required: [id, device, createdAt, lastUsedAt]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        device:
+          type: string
+        createdAt:
+          $ref: '#/components/schemas/Time'
+        lastUsedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+
+    SignIn:
+      type: object
+      required: [token, user, isNew]
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 100
+          description: 'Sent back as `Authorization: Bearer <token>`. Lasts until a year unused.'
+        user:
+          $ref: '#/components/schemas/User'
+        isNew:
+          type: boolean
+          description: True when this sign-in made the account.
+
+    CodeInput:
+      type: object
+      required: [email, code]
+      additionalProperties: false
+      properties:
+        email:
+          $ref: '#/components/schemas/EmailText'
+        code:
+          $ref: '#/components/schemas/CodeText'
+
+    PasskeyChallenge:
+      type: object
+      required: [challengeId, options]
+      additionalProperties: false
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Id'
+        options:
+          type: object
+          description: WebAuthn options in their JSON form, as `@simplewebauthn/browser` takes them.
+
+    PasskeyAnswer:
+      type: object
+      required: [challengeId, response]
+      additionalProperties: false
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/Id'
+        response:
+          type: object
+          description: The browser's WebAuthn answer in its JSON form.
+
+    Export:
+      type: object
+      required:
+        [exportedAt, user, sessions, passkeys, teams, notifications, pushSubscriptions, messages, invitesSent, invitesReceived, data]
+      additionalProperties: false
+      description: |
+        Everything kept about the person (PRD R2.5). The optional parts' lists are empty when
+        the part is off or holds nothing of theirs.
+      properties:
+        exportedAt:
+          $ref: '#/components/schemas/Time'
+        user:
+          $ref: '#/components/schemas/User'
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        passkeys:
+          type: array
+          items:
+            $ref: '#/components/schemas/Passkey'
+        teams:
+          type: array
+          description: The teams they're in, with their role.
+          items:
+            type: object
+            required: [id, name, role, joinedAt]
+            additionalProperties: false
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              name:
+                type: string
+              role:
+                $ref: '#/components/schemas/Role'
+              joinedAt:
+                $ref: '#/components/schemas/Time'
+        notifications:
+          type: array
+          description: Every notification still kept, newest first.
+          items:
+            $ref: '#/components/schemas/Notification'
+        pushSubscriptions:
+          type: array
+          description: The browsers push goes to, by their push service's host only.
+          items:
+            type: object
+            required: [host, createdAt]
+            additionalProperties: false
+            properties:
+              host:
+                type: string
+              createdAt:
+                $ref: '#/components/schemas/Time'
+        messages:
+          type: array
+          description: Contact messages and feedback they sent signed in, newest first.
+          items:
+            $ref: '#/components/schemas/Message'
+        invitesSent:
+          type: array
+          description: Pending invites they sent, newest first.
+          items:
+            type: object
+            required: [id, team, email, role, createdAt, expiresAt]
+            additionalProperties: false
+            properties:
+              id:
+                $ref: '#/components/schemas/Id'
+              team:
+                type: object
+                required: [id, name]
+                additionalProperties: false
+                properties:
+                  id:
+                    $ref: '#/components/schemas/Id'
+                  name:
+                    type: string
+              email:
+                type: string
+              role:
+                $ref: '#/components/schemas/Role'
+              createdAt:
+                $ref: '#/components/schemas/Time'
+              expiresAt:
+                $ref: '#/components/schemas/Time'
+        invitesReceived:
+          type: array
+          description: Pending invites to their address, once it's confirmed (as `/invites`).
+          items:
+            $ref: '#/components/schemas/ReceivedInvite'
+        data:
+          type: object
+          description: The app's own records.
+
+    Mail:
+      type: object
+      required: [to, subject, text]
+      additionalProperties: false
+      properties:
+        to:
+          type: string
+        subject:
+          type: string
+        text:
+          type: string
+        html:
+          type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          description: Plain words for the person, shown as they are.
+
+    ErrorCode:
+      type: string
+      enum:
+        - invalid_input
+        - invalid_code
+        - invalid_credentials
+        - captcha_failed
+        - signed_out
+        - email_unverified
+        - forbidden
+        - account_suspended
+        - last_admin
+        - not_found
+        - conflict
+        - email_taken
+        - passkey_refused
+        - rate_limited
+        - too_large
+        - unsupported_type
+        - mail_failed
+        - server_error
+
+  responses:
+    ServerError:
+      description: '`server_error`: something went wrong on the backend''s side'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ForbiddenOrUnverified:
+      description: '`email_unverified`: confirm the email first; or `forbidden` (not allowed this, or a support session)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: '`forbidden`: signed in, but not allowed this (not an admin, or a support session on an account path)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Suspended:
+      description: '`account_suspended`: an admin has suspended this account'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    LastAdmin:
+      description: '`last_admin`: the team would be left without an admin'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TeamReply:
+      description: The team
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [team]
+            additionalProperties: false
+            properties:
+              team:
+                $ref: '#/components/schemas/TeamSummary'
+    AdminUserReply:
+      description: The person as now
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [user]
+            additionalProperties: false
+            properties:
+              user:
+                $ref: '#/components/schemas/AdminUser'
+    SignedIn:
+      description: Signed in; keep the token on the device
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SignIn'
+    UserReply:
+      description: The account as it is now
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [user]
+            additionalProperties: false
+            properties:
+              user:
+                $ref: '#/components/schemas/User'
+    InvalidInput:
+      description: '`invalid_input`: something sent was missing or not allowed'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: '`invalid_input`, or `captcha_failed`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadCredentials:
+      description: '`invalid_credentials` (wrong email or password), `invalid_input`, or `captcha_failed`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InvalidCode:
+      description: '`invalid_code`: wrong, used up or expired, the same answer for each; `invalid_input` for a malformed body'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadCodeOrCredentials:
+      description: '`invalid_code`, `invalid_credentials` (the current password), or `invalid_input`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PasskeyRefused:
+      description: '`passkey_refused`: unknown passkey, failed check, or the challenge ran out'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    SignedOut:
+      description: '`signed_out`: no token, or one that no longer works'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: '`not_found`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: '`conflict`: it already exists'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    EmailTaken:
+      description: '`email_taken`: another account has that address'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: '`rate_limited`: wait, then try again'
+      headers:
+        Retry-After:
+          description: Seconds to wait, when the backend knows.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooLarge:
+      description: '`too_large`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnsupportedType:
+      description: '`unsupported_type`'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    MailFailed:
+      description: '`mail_failed`: the mail provider refused or timed out'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
