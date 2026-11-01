@@ -5,6 +5,9 @@
   import { formatWhen } from '#lib/format.ts';
   import { Pager } from '#lib/pager.svelte.ts';
   import FormError from '#lib/components/FormError.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
 
   const actions: Record<AuditEntry['action'], string> = {
     support: 'opened a support session as',
@@ -31,25 +34,27 @@
   {#if list.loaded && list.items.length === 0}
     <p class="muted">Nothing yet.</p>
   {/if}
-  <ul class="list">
-    {#each list.items as e (e.id)}
-      <li>
-        <div>
-          <p>
-            <strong>{who(e.admin)}</strong>
-            {actions[e.action]} <strong>{who(e.target)}</strong>
-            {#if e.target.name}<span class="muted small">{e.target.email}</span>{/if}
-          </p>
-          {#if e.detail}<p class="muted small">“{e.detail}”</p>{/if}
-        </div>
-        <span class="muted small">{formatWhen(e.at)}</span>
-      </li>
-    {/each}
-  </ul>
+  <Panel>
+    <List>
+      {#each list.items as e (e.id)}
+        <li>
+          <div>
+            <p>
+              <strong>{who(e.admin)}</strong>
+              {actions[e.action]} <strong>{who(e.target)}</strong>
+              {#if e.target.name}<span class="muted small">{e.target.email}</span>{/if}
+            </p>
+            {#if e.detail}<p class="muted small">“{e.detail}”</p>{/if}
+          </div>
+          <span class="muted small">{formatWhen(e.at)}</span>
+        </li>
+      {/each}
+    </List>
+  </Panel>
   {#if list.more}
     <div>
-      <button type="button" class="btn small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</button
+      <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
+        >Show more</Button
       >
     </div>
   {/if}

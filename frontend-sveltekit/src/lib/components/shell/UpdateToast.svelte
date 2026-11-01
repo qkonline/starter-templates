@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { applyUpdate, pwa } from '#lib/pwa.svelte.ts';
+  import Button from '../ui/Button.svelte';
 
   let later = $state(false);
 </script>
@@ -12,8 +13,8 @@
   <div class="toast pop" role="status">
     <p>A new version is ready.</p>
     <div class="row">
-      <button type="button" class="btn small primary" onclick={applyUpdate}>Reload</button>
-      <button type="button" class="btn small" onclick={() => (later = true)}>Later</button>
+      <Button type="button" size="small" variant="primary" onclick={applyUpdate}>Reload</Button>
+      <Button type="button" size="small" onclick={() => (later = true)}>Later</Button>
     </div>
   </div>
 {/if}

@@ -12,6 +12,7 @@
   import { onPush } from '#lib/pwa.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
   import FormError from './FormError.svelte';
+  import Button from './ui/Button.svelte';
 
   let open = $state(false);
   let button = $state<HTMLButtonElement>();
@@ -105,11 +106,12 @@
       <header>
         <h2>Notifications</h2>
         {#if count}
-          <button
+          <Button
             type="button"
-            class="btn link small"
+            variant="link"
+            size="small"
             disabled={all.busy}
-            onclick={() => all.run(() => notifications.markAll())}>Mark all as read</button
+            onclick={() => all.run(() => notifications.markAll())}>Mark all as read</Button
           >
         {/if}
       </header>
@@ -133,9 +135,9 @@
       </ul>
       {#if list.more}
         <div class="more">
-          <button type="button" class="btn small" disabled={list.loading} onclick={() => list.loadMore()}>
+          <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}>
             {list.loading ? 'Loading…' : 'Show older'}
-          </button>
+          </Button>
         </div>
       {/if}
     </section>
@@ -176,9 +178,9 @@
     padding: 0 5px;
     border-radius: var(--radius-full);
     background: var(--color-danger);
-    color: var(--color-bg);
-    font-size: 11px;
-    font-weight: 650;
+    color: var(--color-on-danger);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-heading);
     line-height: 18px;
     text-align: center;
     box-shadow: 0 0 0 2px var(--color-bg);
@@ -251,7 +253,7 @@
   }
 
   .unread .title {
-    font-weight: 620;
+    font-weight: var(--weight-heading);
   }
 
   .body {

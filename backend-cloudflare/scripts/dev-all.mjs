@@ -21,6 +21,7 @@ const vars = {
   GOOGLE_CLIENT_ID: 'dummy.apps.googleusercontent.com',
   GOOGLE_CLIENT_SECRET: 'dummy',
   TEAMS: 'true',
+  SYNC: 'true',
   ADMIN: 'true',
   ADMIN_EMAILS: 'admin@example.test',
   VAPID_PUBLIC_KEY: 'BJOPnpXUDfLR_LsgcIk1lQWFHwFUbp8XpB5qPExUQbB8FQg4KoVlK75UXLaN28VU3fIGH1bnrFRelGvc1l0LEWg',

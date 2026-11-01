@@ -5,6 +5,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { appName, homePath } from '#lib/config.ts';
+  import Button from '#lib/components/ui/Button.svelte';
 </script>
 
 <svelte:head>
@@ -19,8 +20,8 @@
     you’re back online.
   </p>
   <div class="row">
-    <a class="btn primary" href={resolve(homePath)} data-sveltekit-reload>Open {appName}</a>
-    <button type="button" class="btn" onclick={() => location.reload()}>Try again</button>
+    <Button variant="primary" href={resolve(homePath)} data-sveltekit-reload>Open {appName}</Button>
+    <Button type="button" onclick={() => location.reload()}>Try again</Button>
   </div>
 </div>
 

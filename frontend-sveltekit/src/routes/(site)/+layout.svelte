@@ -2,17 +2,20 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { appName } from '#lib/config.ts';
+  import Button from '#lib/components/ui/Button.svelte';
 
   let { children } = $props();
 </script>
 
 <div class="site">
-  <header class="bar">
-    <a class="brand" href={resolve('')}>{appName}</a>
-    <nav aria-label="Account">
-      <a href={resolve('signin')}>Sign in</a>
-      <a class="btn small primary" href={resolve('signup')}>Create account</a>
-    </nav>
+  <header class="top">
+    <div class="bar">
+      <a class="brand" href={resolve('')}><span class="logo" aria-hidden="true"></span>{appName}</a>
+      <nav aria-label="Account">
+        <a href={resolve('signin')}>Sign in</a>
+        <Button variant="primary" size="small" href={resolve('signup')}>Create account</Button>
+      </nav>
+    </div>
   </header>
 
   <main id="main">
@@ -36,9 +39,20 @@
     flex-direction: column;
   }
 
+  .top {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
+    box-shadow: var(--header-shadow);
+  }
+
+  .top .bar {
+    min-height: var(--header-height);
+    padding-block: 0;
+  }
+
   .bar {
     width: 100%;
-    max-width: var(--page-width);
+    max-width: calc(var(--page-width) + 2 * var(--space-4));
     margin: 0 auto;
     padding: var(--space-4);
     display: flex;
@@ -54,16 +68,30 @@
   }
 
   .brand {
-    font-weight: 650;
-    letter-spacing: var(--tracking-tight);
-    color: var(--color-text);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: var(--weight-heading);
+    color: var(--color-heading);
     text-decoration: none;
+  }
+
+  .logo {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+  }
+
+  nav a:not(:global(.btn)) {
+    font-size: var(--text-sm);
+    color: var(--color-text);
   }
 
   main {
     flex: 1;
     width: 100%;
-    max-width: var(--page-width);
+    max-width: calc(var(--page-width) + 2 * var(--space-4));
     margin: 0 auto;
     padding: var(--space-6) var(--space-4) var(--space-8);
   }

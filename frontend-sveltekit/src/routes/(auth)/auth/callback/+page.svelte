@@ -14,6 +14,7 @@
   import { signedIn } from '#lib/session.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
 
   const words: Record<string, string> = {
     oauth_denied: 'Signing in was cancelled.',
@@ -65,7 +66,7 @@
 {#if problem}
   <AuthShell title="Couldn’t sign you in">
     <p role="alert">{problem}</p>
-    <div><a class="btn primary" href={resolve('signin')}>Back to sign in</a></div>
+    <div><Button variant="primary" href={resolve('signin')}>Back to sign in</Button></div>
   </AuthShell>
 {:else}
   <AuthShell title="Signing you in…">

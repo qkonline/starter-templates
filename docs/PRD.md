@@ -94,8 +94,9 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 - **R3.1 Installable and offline.** A web app manifest, icons, and a service worker that caches
   the app shell so it opens offline with a clear "you're offline" state; a prompt when a new
   version is ready, applied on the person's tap, never mid-task. *(both exam apps, boardo)*
-- **R3.2 Display preferences.** Theme (light, dark, or the device's) and text size, per device,
-  applied before first paint so nothing flashes. *(both exam apps: `theme`, `fontScale`)*
+- **R3.2 Display preferences.** Theme (one of the looks the app offers, when it offers more than
+  one), mode (light, dark, or the device's) and text size, per device, applied before first
+  paint so nothing flashes. *(both exam apps: `theme`, `fontScale`)*
 - **R3.3 Security headers.** A Content-Security-Policy that starts as report-only and reports to
   `/telemetry/csp`, plus the usual headers (HSTS, frame, referrer, content type, permissions), in
   Cloudflare Pages' `_headers`. Move to enforcing once reports are clean. *(high-yield-prep)*
@@ -168,3 +169,32 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 - **R10.1** Run locally without a mail provider, a backend keeps the mail it would have sent at
   `/dev/mail`, so tests read codes from it; only on localhost. *(boardo)*
 - **R10.2** A backend is finished when the tests in `contract/` pass against it.
+
+## 11. Offline data (optional per app)
+
+- **R11.1** An app whose own data can be changed offline follows
+  [`offline-data.md`](offline-data.md): ids made on the device (UUIDs), never a server counter as
+  the key; numbers people read given by the server or per device; changes safe to send twice;
+  clashes between different records (the same patient entered twice, one slot booked twice)
+  kept and flagged for a person, never refused or dropped. Two people offline at once each
+  adding a record must end, after both sync, as two records with their own ids.
+- **R11.2 On the device first.** The app reads and writes IndexedDB and never waits for the
+  network; each write also goes into an outbox. A person's own data, or a team's shared by its
+  members (teams on). The browser is asked to keep the data (`navigator.storage.persist`).
+- **R11.3 Sent in order, each change once.** The outbox goes in batches (at most 100 changes,
+  256 KB) on opening the app, on reconnecting, shortly after a write and every few minutes, one
+  tab at a time. Every change has its own id, so a batch sent again is applied once. Fields
+  merge, the later arrival winning a field both set; deletes stay as markers, and a later edit
+  to a deleted record is refused, shown to the person who made it, never silently dropped.
+- **R11.4 Never overwhelmed.** Each space is applied one request at a time in its own Durable
+  Object, side by side with every other. Over a space's limits (60 batches a minute, 10,000
+  changes a day per person) or when busy, the backend answers `rate_limited` with `Retry-After`
+  and applies nothing; the device waits that long (plus a little at random) and sends the same
+  batch again. With no answer it backs off, up to five minutes.
+- **R11.5 Pulled in pages** from a cursor the backend gives, so a new device, or one back after
+  weeks, catches up a page at a time.
+- **R11.6 Files in parts** (8 MiB, up to 1 GiB a file), each part kept as it's sent, so a
+  dropped connection carries on from the next one.
+- **R11.7 The device shows what's waiting** ("3 changes waiting") and what was refused. Signing
+  out gives the outbox a few seconds to go; what's left stays for that person's next sign-in, and
+  another account signing in on the device wipes it. Deleting an account or a team deletes its data.

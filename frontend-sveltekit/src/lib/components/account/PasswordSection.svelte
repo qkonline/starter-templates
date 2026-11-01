@@ -12,6 +12,7 @@
   import FormError from '../FormError.svelte';
   import PasswordInput from '../PasswordInput.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Button from '../ui/Button.svelte';
 
   let { onChanged }: { onChanged?: () => void } = $props();
 
@@ -121,7 +122,7 @@
     <FormError message={task.error} />
     <div class="row">
       <SubmitButton {task} wide={false} busyLabel="Setting…">Set password</SubmitButton>
-      <button type="button" class="btn" onclick={() => (codeSent = false)}>Back</button>
+      <Button type="button" onclick={() => (codeSent = false)}>Back</Button>
     </div>
   </form>
 {/if}

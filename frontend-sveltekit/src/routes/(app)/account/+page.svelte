@@ -15,6 +15,10 @@
   import Passkeys from '#lib/components/account/Passkeys.svelte';
   import PasswordSection from '#lib/components/account/PasswordSection.svelte';
   import Profile from '#lib/components/account/Profile.svelte';
+  import Badge from '#lib/components/ui/Badge.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Notice from '#lib/components/ui/Notice.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
 
   const user = $derived(auth.user!);
   const support = $derived(!!auth.support);
@@ -23,38 +27,29 @@
 
 <svelte:head><title>Account · {appName}</title></svelte:head>
 
-<div class="page">
+<div class="page stack">
   <header class="head">
-    <h1>Account</h1>
-    <button type="button" class="btn" onclick={signOut}>{support ? 'End support session' : 'Sign out'}</button
-    >
+    <div class="titles">
+      <h1>Account</h1>
+      <p class="muted">How you appear in {appName}, and how you sign in.</p>
+    </div>
+    <Button type="button" onclick={signOut}>{support ? 'End support session' : 'Sign out'}</Button>
   </header>
 
   {#if support}
-    <p class="notice">
+    <Notice>
       This is a support session. Profile, email, password, passkeys, devices, notifications and data aren’t
       available here.
-    </p>
+    </Notice>
   {:else}
-    <section aria-labelledby="profile-h">
-      <div class="intro">
-        <h2 id="profile-h">Profile</h2>
-        <p class="muted small">How you appear in {appName}.</p>
-      </div>
-      <div class="body stack"><Profile /></div>
-    </section>
+    <Panel title="Profile" description="How you appear in {appName}."><Profile /></Panel>
 
-    <section id="email" aria-labelledby="email-h">
-      <div class="intro">
-        <h2 id="email-h">Email</h2>
-        <p class="muted small">
-          {user.email}
-          {#if user.emailVerified}<span class="badge">Confirmed</span>{:else}<span class="badge unconfirmed"
-              >Not confirmed</span
-            >{/if}
-        </p>
-      </div>
-      <div class="body stack">
+    <Panel id="email" title="Email">
+      {#snippet description()}
+        {user.email}
+        {#if user.emailVerified}<Badge>Confirmed</Badge>{:else}<Badge tone="danger">Not confirmed</Badge>{/if}
+      {/snippet}
+      <div class="stack">
         {#if !user.emailVerified}
           <div class="stack">
             <h3>Confirm your address</h3>
@@ -62,111 +57,70 @@
           </div>
         {/if}
         <div class="stack">
-          <h3>Change your address</h3>
+          {#if !user.emailVerified}<h3>Change your address</h3>{/if}
           <ChangeEmail />
         </div>
       </div>
-    </section>
+    </Panel>
 
-    <section aria-labelledby="password-h">
-      <div class="intro">
-        <h2 id="password-h">Password</h2>
-        <p class="muted small">Your password never leaves this device.</p>
-      </div>
-      <div class="body"><PasswordSection onChanged={() => devices?.reload()} /></div>
-    </section>
+    <Panel title="Password" description="Your password never leaves this device.">
+      <PasswordSection onChanged={() => devices?.reload()} />
+    </Panel>
 
-    <section aria-labelledby="passkeys-h">
-      <div class="intro">
-        <h2 id="passkeys-h">Passkeys</h2>
-        <p class="muted small">Sign in with Face ID, Touch ID, Windows Hello or a security key.</p>
-      </div>
-      <div class="body"><Passkeys /></div>
-    </section>
+    <Panel title="Passkeys" description="Sign in with Face ID, Touch ID, Windows Hello or a security key.">
+      <Passkeys />
+    </Panel>
 
-    <section aria-labelledby="devices-h">
-      <div class="intro">
-        <h2 id="devices-h">Devices</h2>
-        <p class="muted small">Where your account is signed in.</p>
-      </div>
-      <div class="body"><Devices bind:this={devices} /></div>
-    </section>
+    <Panel title="Devices" description="Where your account is signed in."
+      ><Devices bind:this={devices} /></Panel
+    >
 
     {#if auth.features?.push}
-      <section aria-labelledby="push-h">
-        <div class="intro">
-          <h2 id="push-h">Notifications</h2>
-          <p class="muted small">On this device, even when {appName} is closed.</p>
-        </div>
-        <div class="body"><PushSection /></div>
-      </section>
+      <Panel title="Notifications" description="On this device, even when {appName} is closed.">
+        <PushSection />
+      </Panel>
     {/if}
-
-    <section aria-labelledby="data-h">
-      <div class="intro">
-        <h2 id="data-h">Data</h2>
-        <p class="muted small">Take your data with you, or remove it.</p>
-      </div>
-      <div class="body"><DataSection /></div>
-    </section>
   {/if}
 
-  <section aria-labelledby="display-h">
-    <div class="intro">
-      <h2 id="display-h">Display</h2>
-      <p class="muted small">Theme and text size on this device.</p>
-    </div>
-    <div class="body"><DisplaySection /></div>
-  </section>
+  <Panel title="Display" description="Theme, mode and text size on this device."><DisplaySection /></Panel>
+
+  {#if !support}
+    <Panel title="Data" description="Take your data with you, or remove it."><DataSection /></Panel>
+  {/if}
 </div>
 
 <style>
   .page {
-    display: flex;
-    flex-direction: column;
+    gap: var(--space-5);
   }
 
   .head {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-end;
     justify-content: space-between;
     gap: var(--space-4);
-    padding-bottom: var(--space-5);
   }
 
-  /* A settings document: hairline rules between sections; heading beside content on wide screens. */
-  section {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-6) 0;
-    border-top: 1px solid var(--color-border);
-    scroll-margin-top: var(--space-4);
-  }
-
-  .intro {
+  .titles {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
   }
 
-  .body {
-    min-width: 0;
-    max-width: 32rem;
+  /* Forms keep a readable width inside the wider panels; lists (devices, passkeys) span them. */
+  .page :global(.panel .body form),
+  .page :global(.panel .body > p) {
+    max-width: 36rem;
   }
 
-  .body :global(h3) {
-    font-size: var(--text-sm);
+  /* Subsection headings inside a panel: closer to what they head than to what's above. */
+  .page :global(.panel .body h3) {
+    margin-bottom: calc(var(--space-2) * -1);
   }
 
-  .badge.unconfirmed {
-    color: var(--color-danger);
-    background: var(--color-danger-soft);
-  }
-
-  @media (min-width: 48rem) {
-    section {
-      grid-template-columns: 14rem 1fr;
-      gap: var(--space-6);
-    }
+  .page :global(.panel .body :not(:first-child) > h3:first-child),
+  .page :global(.panel .body h3:not(:first-child)) {
+    margin-top: var(--space-3);
   }
 </style>

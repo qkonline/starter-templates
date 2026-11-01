@@ -16,6 +16,7 @@
   import FormError from '#lib/components/FormError.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
 
   // Derived, so following another invite link from this page shows that invite.
   const token = $derived(inviteToken(page.url));
@@ -61,14 +62,14 @@
 {:else if problem}
   <AuthShell title="Can’t open this invite">
     <p role="alert">{problem}</p>
-    <div><a class="btn" href={resolve('')}>Go to the home page</a></div>
+    <div><Button href={resolve('')}>Go to the home page</Button></div>
   </AuthShell>
 {:else if !auth.user}
   <AuthShell title="You’re invited to a team" lead="Sign in or create an account to join it.">
     <p class="muted">Use the email address the invite was sent to.</p>
     <div class="stack">
-      <a class="btn primary wide" href={authPathFor('signin', token, base)}>Sign in</a>
-      <a class="btn wide" href={authPathFor('signup', token, base)}>Create an account</a>
+      <Button variant="primary" wide href={authPathFor('signin', token, base)}>Sign in</Button>
+      <Button wide href={authPathFor('signup', token, base)}>Create an account</Button>
     </div>
   </AuthShell>
 {:else}
@@ -77,7 +78,7 @@
     <FormError message={task.error} />
     <SubmitButton {task} type="button" busyLabel="Joining…" onclick={join}>Join the team</SubmitButton>
     <p class="muted small">
-      Not you? <button type="button" class="btn link" onclick={signOut}>Sign out</button> and sign in with the invited
+      Not you? <Button type="button" variant="link" onclick={signOut}>Sign out</Button> and sign in with the invited
       address.
     </p>
   </AuthShell>

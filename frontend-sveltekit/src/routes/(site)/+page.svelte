@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { appName } from '#lib/config.ts';
+  import Button from '#lib/components/ui/Button.svelte';
 
   // A backend that can't tell where a social sign-in started sends the browser to the site's
   // root with `error=oauth_…` (contract: /auth/oauth/{provider}/callback); show it there.
@@ -20,15 +21,14 @@
 </svelte:head>
 
 <section class="hero">
-  <p class="eyebrow muted">Placeholder landing page</p>
   <h1>Say what {appName} does, in one line.</h1>
   <p class="lead muted">
-    A sentence or two on who it’s for and why it helps. This page is built ahead of time, so it loads fast and
-    search engines can read it.
+    A sentence or two on who it’s for and why it helps. This placeholder is built ahead of time, so it loads
+    fast and search engines can read it.
   </p>
   <div class="row">
-    <a class="btn primary" href={resolve('signup')}>Create an account</a>
-    <a class="btn" href={resolve('signin')}>Sign in</a>
+    <Button variant="primary" href={resolve('signup')}>Create an account</Button>
+    <Button href={resolve('signin')}>Sign in</Button>
   </div>
 </section>
 
@@ -43,12 +43,7 @@
 
   .hero h1 {
     font-size: clamp(2rem, 6vw, 3rem);
-  }
-
-  .eyebrow {
-    font-size: var(--text-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: -0.02em;
   }
 
   .lead {

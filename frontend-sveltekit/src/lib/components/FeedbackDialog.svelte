@@ -10,6 +10,9 @@
   import Captcha from './Captcha.svelte';
   import FormError from './FormError.svelte';
   import SubmitButton from './SubmitButton.svelte';
+  import Button from './ui/Button.svelte';
+  import Field from './ui/Field.svelte';
+  import Textarea from './ui/Textarea.svelte';
 
   let dialog = $state<HTMLDialogElement>();
   let captcha = $state<ReturnType<typeof Captcha>>();
@@ -58,17 +61,14 @@
     <div class="stack">
       <h2 id="feedback-h">Thank you</h2>
       <p>Your feedback is on its way.</p>
-      <div><button type="button" class="btn" onclick={close}>Close</button></div>
+      <div><Button type="button" onclick={close}>Close</Button></div>
     </div>
   {:else}
     <form class="stack" onsubmit={send} novalidate>
       <h2 id="feedback-h">Send feedback</h2>
-      <div class="field">
-        <label for="feedback-message">What’s on your mind?</label>
-        <textarea id="feedback-message" class="input" rows="5" maxlength="5000" bind:value={message}
-        ></textarea>
-        <p class="hint">Sent with the page you’re on, so we know what you mean.</p>
-      </div>
+      <Field label="What’s on your mind?" hint="Sent with the page you’re on, so we know what you mean.">
+        <Textarea class="message" rows={5} maxlength={5000} bind:value={message} />
+      </Field>
       {#if open && auth.methods?.captcha}<Captcha
           bind:this={captcha}
           siteKey={auth.methods.captcha.siteKey}
@@ -77,16 +77,14 @@
       <FormError message={task.error} />
       <div class="row">
         <SubmitButton {task} wide={false} busyLabel="Sending…">Send</SubmitButton>
-        <button type="button" class="btn" onclick={close}>Cancel</button>
+        <Button type="button" onclick={close}>Cancel</Button>
       </div>
     </form>
   {/if}
 </dialog>
 
 <style>
-  textarea {
+  dialog :global(.message) {
     min-height: 7rem;
-    padding: var(--space-2) var(--space-3);
-    resize: vertical;
   }
 </style>

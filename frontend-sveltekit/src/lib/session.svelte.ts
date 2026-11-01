@@ -27,6 +27,7 @@ import {
   readToken,
   writeToken,
 } from '#lib/device.ts';
+import { flushBeforeSignOut, stopSync } from '#lib/db/index.svelte.ts';
 import { pushOff } from '#lib/push.ts';
 import { homePath } from '#lib/config.ts';
 import { safeNext } from '#lib/format.ts';
@@ -40,7 +41,7 @@ export const auth = $state<{
 }>({ methods: null, features: null, user: null, support: null });
 
 /** Everything optional off: what a backend without `/features` has. */
-const allOff: Features = { teams: false, admin: false, push: null };
+const allOff: Features = { teams: false, admin: false, push: null, sync: false };
 
 let methodsLoading: Promise<Methods> | null = null;
 let featuresLoading: Promise<Features> | null = null;
@@ -120,6 +121,10 @@ function leaveTo(path: Path): void {
 /** Sign this device out. */
 export async function signOut(): Promise<void> {
   if (auth.support) return endSupportSession();
+  // What was done here offline gets a few seconds to reach the backend; anything left stays on
+  // the device for this person's next sign-in (another account signing in here wipes it).
+  await flushBeforeSignOut().catch(() => {});
+  stopSync();
   // This device's notifications belong to the person leaving, not whoever signs in next.
   if (auth.features?.push) await withTimeout(pushOff(), 3000).catch(() => {});
   try {

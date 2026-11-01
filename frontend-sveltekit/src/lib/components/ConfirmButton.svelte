@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { tick, type Snippet } from 'svelte';
+  import Button from './ui/Button.svelte';
 
   let {
     label,
@@ -12,6 +13,7 @@
     question,
     danger = true,
     disabled = false,
+    size = 'small',
     onconfirm,
     children,
   }: {
@@ -22,15 +24,17 @@
     question: string;
     danger?: boolean;
     disabled?: boolean;
+    /** Small in list rows (the default); full size beside other full-size buttons. */
+    size?: 'md' | 'small';
     onconfirm: () => void;
     /** Anything to ask for before confirming (a reason, a typed name). */
     children?: Snippet;
   } = $props();
 
   let asking = $state(false);
-  let opener = $state<HTMLButtonElement>();
+  let opener = $state<HTMLElement>();
   let ask = $state<HTMLDivElement>();
-  let confirmer = $state<HTMLButtonElement>();
+  let confirmer = $state<HTMLElement>();
 
   async function open() {
     asking = true;
@@ -47,27 +51,31 @@
 </script>
 
 {#if !asking}
-  <button bind:this={opener} type="button" class="btn small" class:danger {disabled} onclick={open}
-    >{label}</button
+  <Button
+    bind:ref={opener}
+    type="button"
+    {size}
+    variant={danger ? 'danger' : 'plain'}
+    {disabled}
+    onclick={open}>{label}</Button
   >
 {:else}
   <div bind:this={ask} class="ask" role="group" aria-label={question}>
     <p class="small">{question}</p>
     {@render children?.()}
     <div class="row">
-      <button
-        bind:this={confirmer}
+      <Button
+        bind:ref={confirmer}
         type="button"
-        class="btn small"
-        class:danger
-        class:solid={danger}
+        {size}
+        variant={danger ? 'danger-solid' : 'plain'}
         {disabled}
         onclick={() => {
           close();
           onconfirm();
-        }}>{confirmLabel}</button
+        }}>{confirmLabel}</Button
       >
-      <button type="button" class="btn small" onclick={close}>Cancel</button>
+      <Button type="button" {size} onclick={close}>Cancel</Button>
     </div>
   </div>
 {/if}

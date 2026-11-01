@@ -6,6 +6,16 @@
   import { Pager } from '#lib/pager.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
   import FormError from '#lib/components/FormError.svelte';
+  import Badge from '#lib/components/ui/Badge.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
+  import Segmented from '#lib/components/ui/Segmented.svelte';
+
+  const statuses = [
+    { value: 'open', label: 'Open' },
+    { value: 'done', label: 'Done' },
+  ] as const;
 
   let status = $state<'open' | 'done'>('open');
   let changing = $state<string | null>(null);
@@ -40,44 +50,43 @@
 <div class="stack">
   <div class="row spread">
     <h1>Messages</h1>
-    <div class="segmented" role="group" aria-label="Show">
-      <button type="button" aria-pressed={status === 'open'} onclick={() => show('open')}>Open</button>
-      <button type="button" aria-pressed={status === 'done'} onclick={() => show('done')}>Done</button>
-    </div>
+    <Segmented legend="Show" hideLegend options={statuses} value={status} onchange={show} />
   </div>
   <FormError message={list.error || change.error} />
   {#if list.loaded && list.items.length === 0}
     <p class="muted">{status === 'open' ? 'Nothing waiting.' : 'Nothing marked done yet.'}</p>
   {/if}
-  <ul class="list">
-    {#each list.items as m (m.id)}
-      <li class="message">
-        <div class="stack tight">
-          <p class="small">
-            <span class="badge">{m.kind === 'feedback' ? 'Feedback' : 'Contact'}</span>
-            <strong>{m.name ?? m.email}</strong>
-            {#if m.name}<span class="muted">&lt;{m.email}&gt;</span>{/if}
-            <span class="muted">· {formatWhen(m.createdAt)}</span>
-          </p>
-          <p class="text">{m.message}</p>
-          {#if m.page}<p class="muted small">On {m.page}</p>{/if}
-          <p class="small"><a href={mailtoHref(m.email)}>Reply by email</a></p>
-        </div>
-        <button
-          type="button"
-          class="btn small"
-          disabled={changing === m.id}
-          onclick={() => mark(m, status === 'open' ? 'done' : 'open')}
-        >
-          {status === 'open' ? 'Mark done' : 'Open again'}
-        </button>
-      </li>
-    {/each}
-  </ul>
+  <Panel>
+    <List>
+      {#each list.items as m (m.id)}
+        <li class="message">
+          <div class="stack tight">
+            <p class="small">
+              <Badge>{m.kind === 'feedback' ? 'Feedback' : 'Contact'}</Badge>
+              <strong>{m.name ?? m.email}</strong>
+              {#if m.name}<span class="muted">&lt;{m.email}&gt;</span>{/if}
+              <span class="muted">· {formatWhen(m.createdAt)}</span>
+            </p>
+            <p class="text">{m.message}</p>
+            {#if m.page}<p class="muted small">On {m.page}</p>{/if}
+            <p class="small"><a href={mailtoHref(m.email)}>Reply by email</a></p>
+          </div>
+          <Button
+            type="button"
+            size="small"
+            disabled={changing === m.id}
+            onclick={() => mark(m, status === 'open' ? 'done' : 'open')}
+          >
+            {status === 'open' ? 'Mark done' : 'Open again'}
+          </Button>
+        </li>
+      {/each}
+    </List>
+  </Panel>
   {#if list.more}
     <div>
-      <button type="button" class="btn small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</button
+      <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
+        >Show more</Button
       >
     </div>
   {/if}
@@ -103,7 +112,7 @@
     overflow-wrap: anywhere;
   }
 
-  .badge {
+  .message :global(.badge) {
     margin: 0 var(--space-2) 0 0;
   }
 </style>

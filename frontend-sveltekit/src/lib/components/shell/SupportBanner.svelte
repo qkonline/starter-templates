@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { auth, endSupportSession } from '#lib/session.svelte.ts';
+  import Button from '../ui/Button.svelte';
 
   let ending = $state(false);
 
@@ -16,9 +17,9 @@
 {#if auth.support}
   <div class="support" role="region" aria-label="Support session">
     <p>Support session as <strong>{auth.support.email}</strong></p>
-    <button type="button" class="btn small" disabled={ending} onclick={end}>
+    <Button type="button" size="small" disabled={ending} onclick={end}>
       {ending ? 'Ending…' : 'End support session'}
-    </button>
+    </Button>
   </div>
 {/if}
 
@@ -38,7 +39,7 @@
     font-size: var(--text-sm);
   }
 
-  .btn {
+  .support :global(.btn) {
     color: var(--color-text);
   }
 </style>

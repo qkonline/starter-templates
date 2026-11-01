@@ -10,6 +10,11 @@
   import { expiresIn, inviteGone, roleLabel, teamPath } from '#lib/teams.ts';
   import FormError from '#lib/components/FormError.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
 
   const base = resolve('').replace(/\/$/, '');
   let teams = $state<TeamSummary[] | null>(null);
@@ -77,9 +82,8 @@
     <h1>Teams</h1>
 
     {#if invites.length}
-      <section class="stack" aria-labelledby="invites-h">
-        <h2 id="invites-h">Invites for you</h2>
-        <ul class="list">
+      <Panel title="Invites for you">
+        <List>
           {#each invites as invite (invite.id)}
             <li>
               <div>
@@ -92,34 +96,34 @@
                 </p>
               </div>
               <div class="row">
-                <button
+                <Button
                   type="button"
-                  class="btn small primary"
+                  variant="primary"
+                  size="small"
                   disabled={answering === invite.id}
-                  onclick={() => accept(invite)}>Join</button
+                  onclick={() => accept(invite)}>Join</Button
                 >
-                <button
+                <Button
                   type="button"
-                  class="btn small"
+                  size="small"
                   disabled={answering === invite.id}
-                  onclick={() => decline(invite)}>Decline</button
+                  onclick={() => decline(invite)}>Decline</Button
                 >
               </div>
             </li>
           {/each}
-        </ul>
+        </List>
         <FormError message={answer.error} />
-      </section>
+      </Panel>
     {/if}
 
-    <section class="stack" aria-labelledby="mine-h">
-      <h2 id="mine-h">Your teams</h2>
+    <Panel title="Your teams">
       {#if teams === null}
         {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
       {:else if teams.length === 0}
         <p class="muted">You’re not in a team yet. Make one below, or join one from an invite.</p>
       {:else}
-        <ul class="list">
+        <List>
           {#each teams as team (team.id)}
             <li>
               <div>
@@ -133,7 +137,7 @@
               </div>
             </li>
           {/each}
-        </ul>
+        </List>
       {/if}
       {#if !auth.user?.emailVerified}
         <p class="muted small">
@@ -141,25 +145,23 @@
           <a href="{resolve('account')}#email">Confirm it</a>
         </p>
       {/if}
-    </section>
+    </Panel>
 
-    <section class="stack" aria-labelledby="new-h">
-      <h2 id="new-h">New team</h2>
+    <Panel title="New team">
       <form class="stack narrow" onsubmit={make} novalidate>
-        <div class="field">
-          <label for="team-name">Name</label>
-          <input id="team-name" class="input" bind:value={name} maxlength="60" autocomplete="off" />
-        </div>
+        <Field label="Name" id="team-name">
+          <Input bind:value={name} maxlength={60} autocomplete="off" />
+        </Field>
         <FormError message={create.error} />
         <div><SubmitButton task={create} wide={false} busyLabel="Making…">Make the team</SubmitButton></div>
       </form>
-    </section>
+    </Panel>
   </div>
 {/if}
 
 <style>
   .page {
-    gap: var(--space-6);
+    gap: var(--space-5);
   }
 
   .narrow {

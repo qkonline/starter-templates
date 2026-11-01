@@ -22,6 +22,7 @@ import { me, photos } from './routes/me';
 import { notifications } from './routes/notifications';
 import { oauth } from './routes/oauth';
 import { passkeys } from './routes/passkeys';
+import { sync } from './routes/sync';
 import { teams } from './routes/teams';
 
 const app = new Hono<AppEnv>().basePath('/api');
@@ -46,7 +47,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.get('/features', (c) => {
   const { cfg } = c.var.ctx;
-  return c.json({ teams: cfg.teams, admin: !!cfg.admin, push: cfg.push ? { vapidPublicKey: cfg.push.publicKey } : null });
+  return c.json({ teams: cfg.teams, admin: !!cfg.admin, push: cfg.push ? { vapidPublicKey: cfg.push.publicKey } : null, sync: cfg.sync });
 });
 
 app.get('/dev/mail', (c) => {
@@ -63,6 +64,7 @@ app.route('/', notifications);
 app.route('/', teams);
 app.route('/', admin);
 app.route('/', contact);
+app.route('/', sync);
 
 // An app's own routes go here, e.g. (README, "Adding routes"):
 //   app.get('/notes', requireUser, requireVerifiedEmail, async (c) => c.json(...));
@@ -80,6 +82,9 @@ app.onError(async (e, c) => {
   if (ctx) await recordReport(ctx, serverReport(e, `${c.req.method} ${c.req.path}`));
   return c.json({ code: 'server_error', message: 'Something went wrong on our side. Try again in a minute.' }, 500);
 });
+
+// The one named export: a Durable Object class must be exported from the Worker's main module.
+export { SyncSpace } from './sync/space';
 
 export default {
   fetch: app.fetch,

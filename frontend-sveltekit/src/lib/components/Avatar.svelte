@@ -25,7 +25,7 @@
     border-radius: var(--radius-full);
     background: var(--color-accent-soft);
     color: var(--color-accent);
-    font-weight: 620;
+    font-weight: var(--weight-medium);
     font-size: calc(var(--size) * 0.42);
     box-shadow: inset 0 0 0 1px var(--color-border);
   }

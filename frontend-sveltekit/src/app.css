@@ -1,53 +1,15 @@
 /*
-  The look, in one file. An app restyles itself by changing the tokens in :root (and their dark
-  values below); components use only these variables, never colours or fonts of their own.
-
-  The starting style is deliberately quiet: paper and ink, one accent, hairline rules between
-  sections instead of cards and shadows, system fonts.
+  The look. Colours, fonts, type sizes, corners, shadows and the look of controls come from the
+  theme (src/lib/themes/: Fusion is the base and lists every token a theme sets); this file
+  holds the spacing every theme shares, the mode and text size, and the base styles. Components
+  use only these variables, never colours or fonts of their own, and keep their styles in their
+  own <style> (src/lib/components/ui/ for the building blocks).
 */
 
+@import './lib/themes/fusion.css';
+
 :root {
-  /* Fonts */
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-display: var(--font-sans);
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-
-  /* Type scale */
-  --text-xs: 0.8125rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 2rem;
-  --leading: 1.5;
-  --tracking-tight: -0.015em;
-
-  /* Colours: light */
-  --color-bg: oklch(98.4% 0.004 85);
-  --color-surface: oklch(100% 0 0);
-  --color-sunken: oklch(95.8% 0.006 85);
-  --color-text: oklch(22% 0.01 260);
-  --color-muted: oklch(50% 0.012 260);
-  --color-border: oklch(89% 0.008 85);
-  --color-border-strong: oklch(76% 0.01 85);
-  --color-accent: oklch(47% 0.09 195);
-  --color-accent-text: oklch(99% 0 0);
-  --color-accent-soft: oklch(94.5% 0.03 195);
-  --color-danger: oklch(52% 0.18 27);
-  --color-danger-soft: oklch(95.5% 0.03 27);
-  --color-success: oklch(50% 0.11 150);
-  --color-notice: oklch(95% 0.045 85);
-  --color-notice-border: oklch(84% 0.08 85);
-  --color-focus: oklch(60% 0.13 195);
-
-  /* Primary buttons are ink on paper, so the accent stays for links and focus. */
-  --color-primary: var(--color-text);
-  --color-primary-text: var(--color-bg);
-
-  /* Shape and space */
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-full: 999px;
+  /* Space and size */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -56,67 +18,26 @@
   --space-6: 2rem;
   --space-7: 3rem;
   --space-8: 4.5rem;
-  --control-height: 2.75rem;
+  /* The space each block component (ui/: Field, Notice, List, Table, Segmented, Divider) keeps
+     below itself in ordinary flow. */
+  --flow-space: var(--space-4);
   --page-width: 56rem;
   --form-width: 24rem;
 
   /* Things that float above the page: the bell's list, the update prompt, dialogs. */
-  --shadow-pop: 0 12px 32px oklch(20% 0.01 260 / 0.16), 0 2px 6px oklch(20% 0.01 260 / 0.08);
   --z-pop: 40;
 
+  /* The mode (Account → Display): the device's unless the person picked light or dark. Every
+     theme colour is light-dark(), so this one property switches them all. */
+  color-scheme: light dark;
+}
+
+:root[data-mode='light'] {
   color-scheme: light;
 }
 
-/*
-  Dark values. Twice, because the person can choose (Account → Display): the device's setting
-  unless they picked light, and dark when they picked dark. Keep the two blocks the same.
-*/
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --color-bg: oklch(17.5% 0.006 260);
-    --color-surface: oklch(21% 0.007 260);
-    --color-sunken: oklch(15% 0.006 260);
-    --color-text: oklch(93% 0.006 85);
-    --color-muted: oklch(70% 0.01 260);
-    --color-border: oklch(30% 0.008 260);
-    --color-border-strong: oklch(42% 0.01 260);
-    --color-accent: oklch(76% 0.1 195);
-    --color-accent-text: oklch(18% 0.02 195);
-    --color-accent-soft: oklch(28% 0.04 195);
-    --color-danger: oklch(72% 0.15 27);
-    --color-danger-soft: oklch(27% 0.05 27);
-    --color-success: oklch(75% 0.12 150);
-    --color-notice: oklch(27% 0.035 85);
-    --color-notice-border: oklch(42% 0.06 85);
-    --color-focus: oklch(76% 0.1 195);
-
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme='dark'] {
-  --color-bg: oklch(17.5% 0.006 260);
-  --color-surface: oklch(21% 0.007 260);
-  --color-sunken: oklch(15% 0.006 260);
-  --color-text: oklch(93% 0.006 85);
-  --color-muted: oklch(70% 0.01 260);
-  --color-border: oklch(30% 0.008 260);
-  --color-border-strong: oklch(42% 0.01 260);
-  --color-accent: oklch(76% 0.1 195);
-  --color-accent-text: oklch(18% 0.02 195);
-  --color-accent-soft: oklch(28% 0.04 195);
-  --color-danger: oklch(72% 0.15 27);
-  --color-danger-soft: oklch(27% 0.05 27);
-  --color-success: oklch(75% 0.12 150);
-  --color-notice: oklch(27% 0.035 85);
-  --color-notice-border: oklch(42% 0.06 85);
-  --color-focus: oklch(76% 0.1 195);
-
+:root[data-mode='dark'] {
   color-scheme: dark;
-}
-
-:root[data-theme='light'] {
-  color-scheme: light;
 }
 
 /* Text size (Account → Display). Every size is in rem, so this scales the whole app. */
@@ -152,33 +73,37 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--text-md);
+  font-weight: var(--weight-body);
   line-height: var(--leading);
+  caret-color: var(--color-accent);
+  scrollbar-color: var(--color-border-strong) transparent;
   -webkit-font-smoothing: antialiased;
 }
 
 h1,
 h2,
 h3 {
+  color: var(--color-heading);
   font-family: var(--font-display);
   letter-spacing: var(--tracking-tight);
-  line-height: 1.2;
+  line-height: 1.25;
   margin: 0;
   text-wrap: balance;
 }
 
 h1 {
   font-size: var(--text-2xl);
-  font-weight: 650;
+  font-weight: var(--weight-display);
 }
 
 h2 {
   font-size: var(--text-lg);
-  font-weight: 620;
+  font-weight: var(--weight-heading);
 }
 
 h3 {
   font-size: var(--text-md);
-  font-weight: 620;
+  font-weight: var(--weight-heading);
 }
 
 p {
@@ -186,14 +111,30 @@ p {
   text-wrap: pretty;
 }
 
+strong,
+b {
+  font-weight: var(--weight-medium);
+  color: var(--color-heading);
+}
+
+/* Links: coloured, underlined on hover, and always underlined inside a sentence, where colour
+   alone wouldn't set them apart from the text around them. */
 a {
-  color: var(--color-accent);
-  text-underline-offset: 0.18em;
+  color: var(--color-link);
+  text-decoration: none;
+  text-underline-offset: 0.2em;
   text-decoration-thickness: 1px;
 }
 
-a:hover {
-  text-decoration-thickness: 2px;
+a:hover,
+p > a {
+  text-decoration-line: underline;
+}
+
+table,
+time,
+code {
+  font-variant-numeric: tabular-nums;
 }
 
 img {
@@ -208,6 +149,7 @@ img {
 
 ::selection {
   background: var(--color-accent-soft);
+  color: var(--color-heading);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -269,18 +211,26 @@ img {
   gap: var(--space-3);
 }
 
-/* ---------- Forms ---------- */
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+/*
+  Components keep --flow-space below themselves (none when last in their container), declared
+  inside :where() so anything outranks it. A .stack or .row spaces its children with its gap
+  instead, so there the margins go (not a <dialog>'s, which centre it); a layout of a page's own that uses gap adds `stack` or
+  `row` to its class, or sets `margin-block: 0` on its children.
+*/
+:is(.stack, .row) > :not(dialog) {
+  margin-block: 0;
 }
 
-.field > label,
+/* Error and status regions stay in the page, so screen readers hear what appears in them, but
+   take no room (and no stack gap) while they're empty. */
+:is([role='alert'], [role='status']):empty {
+  position: absolute;
+}
+
 .label {
+  color: var(--color-heading);
   font-size: var(--text-sm);
-  font-weight: 560;
+  font-weight: var(--weight-medium);
 }
 
 .hint {
@@ -288,269 +238,20 @@ img {
   color: var(--color-muted);
 }
 
-.input {
-  width: 100%;
-  min-height: var(--control-height);
-  padding: 0 var(--space-3);
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  transition: border-color 120ms;
-}
-
-.input:hover {
-  border-color: var(--color-muted);
-}
-
-.input:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 0;
-  border-color: transparent;
-}
-
-.input[aria-invalid='true'] {
-  border-color: var(--color-danger);
-}
-
-.input.code {
-  font-family: var(--font-mono);
-  font-size: var(--text-lg);
-  letter-spacing: 0.3em;
-}
-
-/* ---------- Buttons ---------- */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: var(--control-height);
-  padding: 0 var(--space-4);
-  font: inherit;
-  font-weight: 560;
-  line-height: 1.2;
-  text-decoration: none;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition:
-    background-color 120ms,
-    border-color 120ms,
-    opacity 120ms;
-}
-
-.btn:hover {
-  background: var(--color-sunken);
-  text-decoration: none;
-}
-
-.btn:disabled,
-.btn[aria-disabled='true'] {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: var(--color-primary);
-  color: var(--color-primary-text);
-  border-color: var(--color-primary);
-}
-
-.btn.primary:hover:not(:disabled) {
-  opacity: 0.88;
-}
-
-.btn.danger {
-  color: var(--color-danger);
-  border-color: currentColor;
-}
-
-.btn.danger.solid {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-bg);
-}
-
-.btn.wide {
-  width: 100%;
-}
-
-.btn.link {
-  min-height: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-accent);
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-  text-decoration-thickness: 1px;
-}
-
-.btn.small {
-  min-height: 2.25rem;
-  padding: 0 var(--space-3);
-  font-size: var(--text-sm);
-}
-
-/* ---------- Messages ---------- */
-
 .error {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
   font-size: var(--text-sm);
-}
-
-.notice {
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-notice);
-  border: 1px solid var(--color-notice-border);
-  border-radius: var(--radius-sm);
 }
 
 .success {
-  color: var(--color-success);
+  color: var(--color-success-text);
   font-size: var(--text-sm);
 }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid var(--color-border);
-}
-
-/* ---------- Lists (devices, passkeys) ---------- */
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.list > li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.list .title {
-  font-weight: 560;
-}
-
-.badge {
-  display: inline-block;
-  margin-left: var(--space-2);
-  padding: 0.05rem var(--space-2);
-  font-size: var(--text-xs);
-  font-weight: 560;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  border-radius: var(--radius-full);
-  vertical-align: 0.1em;
-}
-
-/* ---------- Choices (display preferences, filters) ---------- */
-
-.segmented {
-  display: inline-flex;
-  flex-wrap: wrap;
-  padding: 3px;
-  gap: 3px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-sunken);
-}
-
-.segmented label,
-.segmented button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: none;
-  color: var(--color-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 560;
-  cursor: pointer;
-}
-
-.segmented input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.segmented label:has(input:checked),
-.segmented button[aria-pressed='true'] {
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: 0 0 0 1px var(--color-border);
-}
-
-.segmented label:has(input:focus-visible) {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 1px;
-}
-
-/* ---------- Floating bits ---------- */
-
+/* A surface that floats above the page: the bell's list, the update prompt, dialogs. */
 .pop {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-pop);
-}
-
-dialog.pop {
-  width: min(32rem, calc(100vw - 2 * var(--space-4)));
-  padding: var(--space-5);
-  color: var(--color-text);
-}
-
-dialog.pop::backdrop {
-  background: oklch(20% 0.01 260 / 0.4);
-}
-
-/* ---------- Tables (admin) ---------- */
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.table th,
-.table td {
-  padding: var(--space-2) var(--space-3) var(--space-2) 0;
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.table th {
-  color: var(--color-muted);
-  font-weight: 560;
 }

@@ -7,6 +7,7 @@
   import { resolve } from '$app/paths';
   import { analytics } from '#lib/analytics/index.ts';
   import { appName } from '#lib/config.ts';
+  import Button from '../ui/Button.svelte';
 
   let open = $state(analytics.needsConsent);
 
@@ -23,8 +24,8 @@
       until you say yes. <a href={resolve('privacy')}>Privacy</a>
     </p>
     <div class="row">
-      <button type="button" class="btn small primary" onclick={() => choose('granted')}>Allow</button>
-      <button type="button" class="btn small" onclick={() => choose('denied')}>No thanks</button>
+      <Button type="button" size="small" variant="primary" onclick={() => choose('granted')}>Allow</Button>
+      <Button type="button" size="small" onclick={() => choose('denied')}>No thanks</Button>
     </div>
   </div>
 {/if}

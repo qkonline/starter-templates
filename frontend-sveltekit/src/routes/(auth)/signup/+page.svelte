@@ -11,6 +11,8 @@
   import FormError from '#lib/components/FormError.svelte';
   import PasswordInput from '#lib/components/PasswordInput.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
 
   const methods = $derived(auth.methods!);
   // Derived, so a link to this page with another `next` is followed.
@@ -37,11 +39,8 @@
 
 <AuthShell title="Create your account">
   <form class="stack" onsubmit={submit} novalidate>
-    <div class="field">
-      <label for="email">Email</label>
-      <input
-        id="email"
-        class="input"
+    <Field label="Email" id="email">
+      <Input
         type="email"
         bind:value={email}
         autocomplete="email"
@@ -49,7 +48,7 @@
         spellcheck="false"
         required
       />
-    </div>
+    </Field>
     <PasswordInput
       id="password"
       bind:value={password}

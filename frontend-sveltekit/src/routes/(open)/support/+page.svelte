@@ -14,6 +14,7 @@
   import { loadSupport } from '#lib/session.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
 
   let phase = $state<'working' | 'ended' | 'failed'>('working');
   let problem = $state('');
@@ -55,14 +56,14 @@
   <AuthShell title="Support session ended" lead="Nothing in this tab is signed in any more.">
     <p class="muted">Your own session in your other tabs is as it was.</p>
     <div class="row">
-      <button type="button" class="btn primary" onclick={closeTab}>Close this tab</button>
-      <a class="btn" href={resolve('admin/people')}>Back to the admin area</a>
+      <Button type="button" variant="primary" onclick={closeTab}>Close this tab</Button>
+      <Button href={resolve('admin/people')}>Back to the admin area</Button>
     </div>
   </AuthShell>
 {:else if phase === 'failed'}
   <AuthShell title="Couldn’t start the support session">
     <p role="alert">{problem}</p>
-    <div><button type="button" class="btn" onclick={closeTab}>Close this tab</button></div>
+    <div><Button type="button" onclick={closeTab}>Close this tab</Button></div>
   </AuthShell>
 {:else}
   <AuthShell title="Starting the support session…">

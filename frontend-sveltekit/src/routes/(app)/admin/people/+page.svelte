@@ -13,6 +13,12 @@
   import Avatar from '#lib/components/Avatar.svelte';
   import ConfirmButton from '#lib/components/ConfirmButton.svelte';
   import FormError from '#lib/components/FormError.svelte';
+  import Badge from '#lib/components/ui/Badge.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
 
   let q = $state('');
   // Per person: what was typed in one row's form never carries over to another's.
@@ -121,97 +127,88 @@
 
 <div class="stack">
   <h1>People</h1>
-  <div class="field search">
-    <label for="people-q">Find by email or name</label>
-    <input
-      id="people-q"
-      class="input"
-      type="search"
-      bind:value={q}
-      oninput={search}
-      autocomplete="off"
-      autocapitalize="off"
-      spellcheck="false"
-    />
+  <div class="search">
+    <Field label="Find by email or name" id="people-q">
+      <Input
+        type="search"
+        bind:value={q}
+        oninput={search}
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+    </Field>
   </div>
   <p class="success" role="status">{status}</p>
   <FormError message={list.error || act.error} />
   {#if list.loaded && list.items.length === 0}
     <p class="muted">No one matches.</p>
   {/if}
-  <ul class="list">
-    {#each list.items as u (u.id)}
-      <li class="person">
-        <div class="who">
-          <Avatar user={u} size={36} />
-          <div>
-            <p class="title">
-              {u.email}
-              {#if u.isAdmin}<span class="badge">Admin</span>{/if}
-              {#if u.suspended}<span class="badge warn">Suspended</span>{/if}
-              {#if !u.emailVerified}<span class="badge plain">Not confirmed</span>{/if}
-            </p>
-            <p class="muted small">
-              {#if u.name}{u.name} ·
-              {/if}Joined {formatWhen(u.createdAt)} · {u.lastActiveAt
-                ? `Active ${formatWhen(u.lastActiveAt)}`
-                : 'Not signed in anywhere'}{#if u.teams !== null}
-                · {u.teams} {u.teams === 1 ? 'team' : 'teams'}{/if}
-            </p>
+  <Panel>
+    <List>
+      {#each list.items as u (u.id)}
+        <li class="person">
+          <div class="who">
+            <Avatar user={u} size={36} />
+            <div>
+              <p class="title">
+                {u.email}
+                {#if u.isAdmin}<Badge>Admin</Badge>{/if}
+                {#if u.suspended}<Badge tone="danger">Suspended</Badge>{/if}
+                {#if !u.emailVerified}<Badge tone="plain">Not confirmed</Badge>{/if}
+              </p>
+              <p class="muted small">
+                {#if u.name}{u.name} ·
+                {/if}Joined {formatWhen(u.createdAt)} · {u.lastActiveAt
+                  ? `Active ${formatWhen(u.lastActiveAt)}`
+                  : 'Not signed in anywhere'}{#if u.teams !== null}
+                  · {u.teams} {u.teams === 1 ? 'team' : 'teams'}{/if}
+              </p>
+            </div>
           </div>
-        </div>
-        {#if !u.isAdmin}
-          <div class="actions">
-            {#if !u.suspended}
-              <button type="button" class="btn small" disabled={working === u.id} onclick={() => support(u)}
-                >Support sign-in</button
-              >
+          {#if !u.isAdmin}
+            <div class="actions">
+              {#if !u.suspended}
+                <Button type="button" size="small" disabled={working === u.id} onclick={() => support(u)}
+                  >Support sign-in</Button
+                >
+                <ConfirmButton
+                  label="Suspend…"
+                  confirmLabel="Suspend {label(u)}"
+                  question="Suspend {u.email}? They’re signed out everywhere and can’t sign in until unsuspended."
+                  disabled={working === u.id}
+                  onconfirm={() => suspend(u)}
+                >
+                  <label class="small" for="reason-{u.id}"
+                    >Reason, for the audit log (they never see it)</label
+                  >
+                  <Input id="reason-{u.id}" bind:value={reasons[u.id]} maxlength={500} autocomplete="off" />
+                </ConfirmButton>
+              {:else}
+                <Button type="button" size="small" disabled={working === u.id} onclick={() => unsuspend(u)}
+                  >Unsuspend</Button
+                >
+              {/if}
               <ConfirmButton
-                label="Suspend…"
-                confirmLabel="Suspend {label(u)}"
-                question="Suspend {u.email}? They’re signed out everywhere and can’t sign in until unsuspended."
+                label="Delete…"
+                confirmLabel="Delete for good"
+                question="Delete {u.email}’s account, with everything in it? This can’t be undone."
                 disabled={working === u.id}
-                onconfirm={() => suspend(u)}
+                onconfirm={() => remove(u)}
               >
-                <label class="small" for="reason-{u.id}">Reason, for the audit log (they never see it)</label>
-                <input
-                  id="reason-{u.id}"
-                  class="input"
-                  bind:value={reasons[u.id]}
-                  maxlength="500"
-                  autocomplete="off"
-                />
+                <label class="small" for="delete-{u.id}">Type {u.email} to confirm</label>
+                <Input id="delete-{u.id}" bind:value={typed[u.id]} autocomplete="off" autocapitalize="off" />
               </ConfirmButton>
-            {:else}
-              <button type="button" class="btn small" disabled={working === u.id} onclick={() => unsuspend(u)}
-                >Unsuspend</button
-              >
-            {/if}
-            <ConfirmButton
-              label="Delete…"
-              confirmLabel="Delete for good"
-              question="Delete {u.email}’s account, with everything in it? This can’t be undone."
-              disabled={working === u.id}
-              onconfirm={() => remove(u)}
-            >
-              <label class="small" for="delete-{u.id}">Type {u.email} to confirm</label>
-              <input
-                id="delete-{u.id}"
-                class="input"
-                bind:value={typed[u.id]}
-                autocomplete="off"
-                autocapitalize="off"
-              />
-            </ConfirmButton>
-          </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </List>
+  </Panel>
   {#if list.more}
     <div>
-      <button type="button" class="btn small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</button
+      <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
+        >Show more</Button
       >
     </div>
   {/if}
@@ -241,15 +238,5 @@
     flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--space-2);
-  }
-
-  .badge.warn {
-    color: var(--color-danger);
-    background: var(--color-danger-soft);
-  }
-
-  .badge.plain {
-    color: var(--color-muted);
-    background: var(--color-sunken);
   }
 </style>

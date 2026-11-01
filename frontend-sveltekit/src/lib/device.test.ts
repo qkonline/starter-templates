@@ -140,11 +140,13 @@ describe('support sessions', () => {
 
 describe('device settings', () => {
   it('stay when the device forgets the previous person', async () => {
-    localStorage.setItem('starter:theme', 'dark');
+    localStorage.setItem('starter:theme', 'fusion');
+    localStorage.setItem('starter:mode', 'dark');
     localStorage.setItem('starter:text', 'lg');
     localStorage.setItem('app:drafts', 'x');
     await forgetDevice();
-    expect(localStorage.getItem('starter:theme')).toBe('dark');
+    expect(localStorage.getItem('starter:theme')).toBe('fusion');
+    expect(localStorage.getItem('starter:mode')).toBe('dark');
     expect(localStorage.getItem('starter:text')).toBe('lg');
     expect(localStorage.getItem('app:drafts')).toBeNull();
   });

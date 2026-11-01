@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { appName } from '#lib/config.ts';
+  import Button from '#lib/components/ui/Button.svelte';
 </script>
 
 <svelte:head
@@ -17,7 +18,7 @@
     <h1>Something went wrong</h1>
     <p class="muted">Reload the page to try again. If it keeps happening, let us know.</p>
   {/if}
-  <p><a class="btn" href={resolve('')}>Go to the home page</a></p>
+  <p><Button href={resolve('')}>Go to the home page</Button></p>
 </main>
 
 <style>

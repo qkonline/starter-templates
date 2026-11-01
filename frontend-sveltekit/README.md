@@ -23,8 +23,8 @@ What's in it (requirement numbers from [`../docs/PRD.md`](../docs/PRD.md)):
 - **Installable and offline** (R3.1): a manifest, icons, a service worker that caches the app
   so it opens offline, an offline page and banner, and "A new version is ready" applied only
   when the person taps Reload.
-- **Display preferences** (R3.2): theme (device, light, dark) and text size, per device,
-  applied before the first paint.
+- **Display preferences** (R3.2): theme (Fusion, or the app's own), mode (device,
+  light, dark) and text size, per device, applied before the first paint.
 - **Security headers** (R3.3): `_headers` for Cloudflare Pages with HSTS and a report-only CSP
   that reports to the backend's `/telemetry/csp`.
 - **Analytics, optional** (R3.4): PostHog and/or Google Analytics 4, each only when its key is
@@ -35,6 +35,9 @@ What's in it (requirement numbers from [`../docs/PRD.md`](../docs/PRD.md)):
 - **Teams** (R5, when `/features` has them): teams, members, roles, invites, `/invite?token=…`.
 - **Admin area** (R6, when on and for `user.isAdmin`): counts, people (suspend, unsuspend,
   delete, support sign-in in a tab of its own), messages, error reports, audit log.
+- **Offline data** (R11, when `/features` has `sync`): `#lib/db` keeps the app's records in
+  IndexedDB and syncs them; a "N changes waiting" chip in the header and a banner for changes
+  the backend refused. See [Offline data](#offline-data).
 - **Contact** (`/contact`, signed in or out) and **Send feedback** inside the app (R7.1).
 - Public pages (`/`, `/privacy`, `/terms`, `/contact`, `/offline`) prerendered with their
   content, as placeholders.
@@ -219,7 +222,103 @@ track('note_created', { length: 'short' }); // nothing personal in props
 - **Data kept on the device** (IndexedDB, caches): register a cleaner with `onForget()` from
   `#lib/device.ts`, so it's wiped when a different account signs in or the account is deleted.
   Settings of the device rather than the person go in `deviceKeys` there, so they stay.
+  Records people create or change offline go through `#lib/db` (below), which already does this.
 - **New third-party scripts or hosts**: add them to `scripts/csp.ts`, or the CSP reports them.
-- **The look**: every colour, font, radius and spacing is a token at the top of `src/app.css`,
-  with dark values below it (twice: the device's dark mode and the chosen one). Components use
-  only those.
+- **The look**: see [Components and themes](#components-and-themes).
+
+## Offline data
+
+With `SYNC = "true"` on the backend, the app's own records live in IndexedDB first and sync
+when there's a connection (PRD section 11). Read the rules in
+[`docs/offline-data.md`](../docs/offline-data.md) before designing tables.
+
+```ts
+import { data, ME } from '#lib/db/index.svelte.ts';
+
+const id = data.newId(); // a UUID v7, made here and kept by the backend
+await data.put(ME, 'appointments', id, { patient: 'Ali', slot: '10:00' });
+await data.put(ME, 'appointments', id, { note: 'first visit' }); // merges: patient and slot stay
+await data.remove(ME, 'appointments', id);
+const list = await data.list(ME, 'appointments');
+const stop = data.onChange(() => reload()); // a write here, in another tab, or from the backend
+
+const photo = await data.saveFile(ME, blob); // uploads in 8 MiB parts; keep `photo` in a field
+const back = await data.file(ME, photo);
+```
+
+- **Spaces**: `ME` is the person's own data; a team's id is that team's, shared with its members.
+  Call `data.follow(teamId)` once (opening the team) so its changes are pulled too.
+- **When it syncs** (`src/lib/db/sync.ts`): on opening the app, on coming back online, on
+  returning to the tab, 1.5 s after a write, and every 5 minutes, in one tab at a time. The
+  outbox goes in batches of at most 100 changes; `rate_limited` waits as long as `Retry-After`
+  says plus up to 2 s at random, and resends the same batch; no answer backs off up to 5 minutes.
+- **What people see**: `SyncStatus` in the header while changes are waiting, `SyncRefused` when
+  the backend refused some (with its message). `syncState` has `pending`, `running`, `error`,
+  `refused`.
+- **Merging**: each record keeps `base` (the backend's) and `fields` (`base` plus this device's
+  unsent changes). Pulled records replace `base` without losing unsent changes; a refused change
+  is dropped and `fields` worked out again.
+- **Signing out** gives the outbox 5 seconds; what's left stays for this person's next sign-in.
+  Another account signing in here, or deleting the account, wipes the database (`onForget`).
+- Records over 256 KB are refused on the device: keep large things as files (at most 1 GB).
+
+## Components and themes
+
+Pages are built from the components in `src/lib/components/ui/`, which own their styles:
+
+| Component                               | For                                                                                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `Panel`                                 | A titled block of a page: `title`, optional `description` and `actions`, then the content                                               |
+| `Button`                                | Buttons, and links that look like one (`href`). `variant`: `plain`, `primary`, `danger`, `danger-solid`, `link`; `size="small"`; `wide` |
+| `Field` + `Input`, `Textarea`, `Select` | A labelled control with an optional `hint`. The control takes its id, `aria-describedby` and `aria-invalid` from the `Field` around it  |
+| `Segmented`                             | One choice out of a few, side by side (radio buttons underneath)                                                                        |
+| `Badge`, `Notice`, `Divider`            | A short label (`tone`: `accent`, `danger`, `plain`), a boxed message, a rule with "or" in it                                            |
+| `List`, `Table`                         | Rows between hairlines; a plain data table                                                                                              |
+
+```svelte
+<Field label="Email" hint="We'll send a code to it.">
+  <Input type="email" bind:value={email} autocomplete="email" />
+</Field>
+<Button variant="primary" type="submit">Send</Button>
+```
+
+Block components (`Panel`, `Field`, `Notice`, `List`, `Table`, `Segmented`, `Divider`) keep
+`--flow-space` below themselves, none as the last in their container. A `.stack` or `.row`
+spaces its children with its `gap` instead, so there the margins go. A page layout of its own
+that uses `gap` should carry `stack` or `row` too (as `AuthShell` and the team page's sections
+do), or its children's margins add to the gap. Each component declares its margin inside
+`:where()`, so a page can always override it.
+
+`src/app.css` keeps only what every component shares: the type and space scales, the mode and
+text size, element defaults, and layout helpers (`.stack`, `.row`, `.muted`, `.small`, `.pop`
+for floating surfaces).
+
+**Themes** set the look through tokens: colours, fonts, the type scale, weights, corners,
+shadows, and how controls, buttons, panels and the top bar look. Each is one CSS file in
+`src/lib/themes/`:
+
+- `fusion.css` is the one theme that ships, and the base: it lists every token a theme can set.
+  It takes Elastic EUI's colours and font (Inter, served from `static/fonts/`, licence beside
+  it), sizes halfway between EUI and Ant Design (36 px controls, 15 px text, 20 px panel
+  padding) and Ant's control states. A theme added later overrides only what it changes, so a
+  removed theme falls back to Fusion.
+- Colours are written once as `light-dark(light, dark)`. The mode (Device, Light, Dark) sets
+  `color-scheme`, which picks the half, so a theme has no separate dark block.
+- A theme applies to whatever carries `data-theme`. `<html>` always does, and a preview or a
+  section can carry another (the picker in Account → Display shows each theme this way).
+
+To **add a theme**: create `<id>.css` with one `[data-theme='<id>']` rule holding the tokens
+it changes from `fusion.css`, then add the id to `src/lib/themes/index.ts`, to the `@import`s in
+`src/app.css` and to the `themes` list in the inline script in `src/app.html`
+(`src/lib/themes/themes.test.ts` checks all of these agree, and that a theme sets no token
+Fusion doesn't define). Its own font goes in `static/fonts/` with an `@font-face` in its file:
+the CSP allows fonts from this site only. With two or more themes, Account → Display shows a
+picker.
+
+To **change the app's default**, set `defaultTheme` in `src/lib/themes/index.ts` and `data-theme`
+on `<html>` in `src/app.html`. Then put the theme's background colour in
+`static/manifest.webmanifest` and in the `theme-color` metas in `src/app.html`; after loading,
+the page sets the bar colour from the theme in use. To **offer only one look**, list one theme:
+Account → Display then shows no theme choice. A person's choice is kept per device
+(`starter:theme`, `starter:mode`, `starter:text`) and survives the device being handed to
+another account.

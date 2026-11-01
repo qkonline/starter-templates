@@ -46,30 +46,31 @@
     gap: var(--space-5);
   }
 
+  /* Tabs: the current one underlined in the brand colour, like the main bar. */
   .sub {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1);
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border-strong);
   }
 
   .sub a {
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-sm);
-    color: var(--color-muted);
+    padding: var(--space-2) var(--space-3);
+    color: var(--color-text);
     text-decoration: none;
     font-size: var(--text-sm);
-    font-weight: 560;
+    box-shadow: inset 0 -2px 0 transparent;
+    transition:
+      color 160ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   .sub a:hover {
-    background: var(--color-sunken);
-    color: var(--color-text);
+    color: var(--color-link);
   }
 
   .sub a[aria-current='page'] {
-    background: var(--color-sunken);
-    color: var(--color-text);
+    color: var(--color-link);
+    box-shadow: inset 0 -2px 0 var(--color-accent);
   }
 </style>

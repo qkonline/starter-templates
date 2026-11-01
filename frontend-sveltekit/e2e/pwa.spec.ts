@@ -59,9 +59,10 @@ test('public pages load without a CSP violation', async ({ page }) => {
   }
 });
 
-test('the theme and text size apply before the first paint', async ({ page }) => {
+test('the theme, mode and text size apply before the first paint', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('starter:theme', 'dark');
+    localStorage.setItem('starter:theme', 'fusion');
+    localStorage.setItem('starter:mode', 'dark');
     localStorage.setItem('starter:text', 'xl');
     // Record <html>'s attributes at the moment <body> is first parsed, before anything paints.
     new MutationObserver((_, observer) => {
@@ -69,6 +70,7 @@ test('the theme and text size apply before the first paint', async ({ page }) =>
       const html = document.documentElement;
       (window as unknown as { atBody: unknown }).atBody = {
         theme: html.getAttribute('data-theme'),
+        mode: html.getAttribute('data-mode'),
         text: html.getAttribute('data-text'),
       };
       observer.disconnect();
@@ -76,7 +78,8 @@ test('the theme and text size apply before the first paint', async ({ page }) =>
   });
   await page.goto('/privacy');
   expect(await page.evaluate(() => (window as unknown as { atBody: unknown }).atBody)).toEqual({
-    theme: 'dark',
+    theme: 'fusion',
+    mode: 'dark',
     text: 'xl',
   });
   const style = await page.evaluate(() => ({
@@ -86,15 +89,31 @@ test('the theme and text size apply before the first paint', async ({ page }) =>
   expect(style).toEqual({ scheme: 'dark', size: '20px' });
 });
 
-test('the light theme wins over a dark device', async ({ browser }) => {
+test('the light mode wins over a dark device', async ({ browser }) => {
   const context = await browser.newContext({ colorScheme: 'dark' });
   const page = await context.newPage();
+  const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.goto('/');
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark');
-  await page.evaluate(() => localStorage.setItem('starter:theme', 'light'));
+  const dark = await background();
+  await page.evaluate(() => localStorage.setItem('starter:mode', 'light'));
   await page.reload();
-  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light');
+  const light = await background();
+  expect(light).not.toBe(dark);
+  await page.evaluate(() => localStorage.removeItem('starter:mode'));
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.reload();
+  expect(await background()).toBe(light);
   await context.close();
+});
+
+test('a theme since removed falls back to the default', async ({ page }) => {
+  const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.goto('/');
+  const base = await background();
+  await page.evaluate(() => localStorage.setItem('starter:theme', 'gone'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'fusion');
+  expect(await background()).toBe(base);
 });
 
 test('the service worker registers, and the app opens offline', async ({ context, page }) => {

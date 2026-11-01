@@ -1,7 +1,7 @@
 // What this device keeps: the session token, and the id of the account that last signed in
 // here. When a different account signs in, everything the previous person left on the device
 // goes first (localStorage, sessionStorage, and whatever an app registered with `onForget`),
-// except the device's own settings (`deviceKeys`: theme, text size).
+// except the device's own settings (`deviceKeys`: theme, mode, text size).
 //
 // A support session (PRD R6.3) lives in one tab only: its token is in that tab's
 // sessionStorage, and while it's there it is the token this tab sends. The admin's own session
@@ -18,7 +18,7 @@ const SUPPORT_TAB = 'starter:support-tab';
 let wasSupportTab = false;
 
 /** Settings of the device rather than the person: they stay when the device forgets someone. */
-export const deviceKeys: readonly string[] = ['starter:theme', 'starter:text'];
+export const deviceKeys: readonly string[] = ['starter:theme', 'starter:mode', 'starter:text'];
 
 export interface SupportSession {
   token: string;

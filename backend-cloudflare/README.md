@@ -76,6 +76,7 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `DEV_MAIL` | dev flag | Local development only (the API on localhost): with no `RESEND_API_KEY`, mail is kept at `/api/dev/mail` (newest last, at most 500) instead of sent, and every per-network limit is off so test runs don't lock themselves out. Never in `wrangler.toml`: `npm run dev` and `dev:all` pass it with `--var`, so a deploy can't carry it. |
 | `APP_URL` | var | The frontend's address, for links in emails (invites go to `<APP_URL>/invite?token=…`). Empty: the first of `ALLOWED_ORIGINS`. |
 | `TEAMS` | var | `true` turns on teams (`/teams`, `/invites`). Off, they're 404. |
+| `SYNC` | var | `true` turns on offline data (`/sync/*`, [Sync](#sync)). Off, it's 404. |
 | `ADMIN` | var | `true` turns on the admin area (`/admin/*`, `/auth/support/exchange`). Off, they're 404 and nobody is `isAdmin`. |
 | `ADMIN_EMAILS` | var | Comma-separated emails of the app's admins. An account is an admin only once its email is confirmed. |
 | `VAPID_PUBLIC_KEY` | var | With `VAPID_PRIVATE_KEY`, push is on; `/features` gives this key to browsers. Make the pair once with `npm run vapid` (setup does it). A new pair ends every subscription. |
@@ -86,9 +87,38 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `INVITE_RESEND_GAP_S` | dev flag | Local only: seconds between sends of one invite (60 otherwise; `dev:all`: 2). |
 | `CONTACT_EMAIL` | var | Contact messages and feedback are also emailed here (each one an email from the quota). Empty: kept for the admin area only. |
 
-Bindings (`wrangler.toml`): `DB` (D1), `PHOTOS` (R2), `LIMITER` (Cloudflare's rate limiting, 60
+Bindings (`wrangler.toml`): `DB` (D1), `PHOTOS` and `FILES` (the same R2 bucket: photos under
+`photos/`, synced files under `sync/`), `SPACES` (the sync's Durable Objects), `LIMITER` (Cloudflare's rate limiting, 60
 requests a minute per network on the routes anyone can call; off with `DEV_MAIL`). Workers logs
 (`[observability]`) are on: Cloudflare keeps console output and uncaught errors.
+
+### Sync
+
+Offline data (PRD section 11; the rules every table follows are in `../docs/offline-data.md`).
+Each space, a person's own data or a team's, is one Durable Object (`src/sync/space.ts`) with
+its own SQLite storage. Cloudflare runs each object on its own and gives it one request at a
+time, so a space's changes apply strictly in the order they arrive while every other space
+carries on beside it: no shared queue, and no single database every device writes to. D1 keeps
+the accounts; the synced records never touch it.
+
+- `POST /sync/push`: at most 100 changes and 256 KB a batch, applied in order in one
+  transaction. Ids come from the device and are kept. Each change id is remembered for 31 days,
+  so a batch sent again after a lost reply is applied once. `put` merges fields, the later one
+  winning (by arrival, never the devices' clocks); `delete` leaves a marker; a `put` to a marker is
+  refused with `conflict`.
+- `GET /sync/pull?since=`: pages of up to 200 records or about 256 KB, in the order they last
+  changed, with the cursor to come back with.
+- Files: `POST /sync/files` starts an R2 multipart upload; parts of 8 MiB go through the Worker
+  (`PUT /sync/files/{id}/parts/{n}`), then `POST .../complete`. At most 1 GiB a file.
+- Limits, per person in a space: 60 pushes, 300 pulls and 600 file calls a minute (counted in
+  the object's memory, so they cost no writes); 10,000 changes and 2 GiB of files a day (kept in
+  its storage). Over any, or when the object is overloaded, `rate_limited` with `Retry-After`,
+  and nothing is applied. Workers Free allows 100,000 rows written a day across the app (each
+  change is about three) and 10 ms of CPU a request, which is why batches are small: raise the
+  limits in `src/sync/store.ts` and `space.ts` with the plan.
+- Deleting an account wipes its space and those of the teams it was alone in; deleting a team
+  wipes the team's. The synced data isn't in `/me/export`: it can be large, and the app reads it
+  through `/sync/pull`.
 
 ### Push
 
@@ -171,6 +201,11 @@ app.get('/notes', requireUser, requireVerifiedEmail, async (c) => {
 
 Throw a `Refusal` (`src/errors.ts`) for anything the person should see; it becomes the contract's
 `{ code, message }`. Put the app's queries in `src/db/` too if it might move to another cloud.
+
+Tables whose records can be made offline (on several devices at once) follow
+[`docs/offline-data.md`](../docs/offline-data.md): keep the `TEXT` id the device sent, never
+replace it with an auto-increment, give readable numbers in their own column, and flag clashes
+such as a slot booked twice instead of refusing the second.
 
 ## Deploying
 

@@ -12,6 +12,7 @@
   import { hasToken, loadMethods, loadUser } from '#lib/session.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
 
   let { children } = $props();
 
@@ -42,7 +43,7 @@
 {:else if phase === 'failed'}
   <AuthShell title="Can’t reach the app">
     <p role="alert">{problem}</p>
-    <div><button class="btn" onclick={start}>Try again</button></div>
+    <div><Button onclick={start}>Try again</Button></div>
   </AuthShell>
 {:else}
   <div class="loading" role="status"><Spinner /><span class="visually-hidden">Loading</span></div>

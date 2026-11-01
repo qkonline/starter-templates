@@ -27,6 +27,13 @@
   import ConfirmEmailFirst from '#lib/components/ConfirmEmailFirst.svelte';
   import FormError from '#lib/components/FormError.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Badge from '#lib/components/ui/Badge.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
+  import Select from '#lib/components/ui/Select.svelte';
 
   // Derived: going from one team to another (the bell, a link) stays on this page with a new `id`.
   const teamId = $derived(page.url.searchParams.get('id') ?? '');
@@ -204,7 +211,7 @@
 {:else if !team}
   {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
 {:else}
-  <div class="page">
+  <div class="page stack">
     <header class="head">
       <p class="small"><a href={resolve('teams')}>Teams</a></p>
       <h1>{team.name}</h1>
@@ -215,9 +222,8 @@
       <p class="success" role="status">{status}</p>
     </header>
 
-    <section aria-labelledby="members-h">
-      <h2 id="members-h">Members</h2>
-      <ul class="list">
+    <Panel title="Members">
+      <List>
         {#each members as m (m.userId)}
           {@const self = m.userId === me.id}
           {@const onlyAdmin = isLastAdmin(members, m.userId)}
@@ -226,31 +232,30 @@
               <Avatar user={m} size={32} />
               <div>
                 <p class="title">
-                  {m.name ?? m.email}{#if self}<span class="badge">You</span>{/if}
+                  {m.name ?? m.email}{#if self}<Badge>You</Badge>{/if}
                 </p>
                 <p class="muted small">{m.name ? m.email : ''}</p>
+                {#if self && onlyAdmin}<p class="muted small">You’re the only admin. {lastAdminHint}</p>{/if}
               </div>
             </div>
             <div class="row">
               {#if admin}
                 <label class="visually-hidden" for="role-{m.userId}">Role of {m.name ?? m.email}</label>
-                <select
+                <Select
                   id="role-{m.userId}"
-                  class="input select"
+                  small
                   value={m.role}
                   disabled={people.busy || (onlyAdmin && m.role === 'admin')}
                   title={onlyAdmin ? 'The team’s only admin can’t step down.' : undefined}
                   onchange={(e) => changeRole(m, e.currentTarget.value as Role)}
                 >
                   {#each roles as r (r.value)}<option value={r.value}>{r.label}</option>{/each}
-                </select>
+                </Select>
               {:else}
                 <span class="muted small">{roleLabel(m.role)}</span>
               {/if}
               {#if self}
-                {#if onlyAdmin}
-                  <span class="muted small">You’re the only admin. {lastAdminHint}</span>
-                {:else}
+                {#if !onlyAdmin}
                   <ConfirmButton
                     label="Leave"
                     confirmLabel="Leave {team.name}"
@@ -271,32 +276,27 @@
             </div>
           </li>
         {/each}
-      </ul>
+      </List>
       <FormError message={people.error} />
-    </section>
+    </Panel>
 
     {#if admin}
-      <section aria-labelledby="invite-h">
-        <h2 id="invite-h">Invite someone</h2>
+      <Panel title="Invite someone">
         <form class="stack narrow" onsubmit={sendInvite} novalidate>
-          <div class="field">
-            <label for="invite-email">Email</label>
-            <input
-              id="invite-email"
-              class="input"
+          <Field label="Email" id="invite-email" hint="They get an email with a link that works for 7 days.">
+            <Input
               type="email"
               bind:value={inviteEmail}
               autocomplete="off"
               autocapitalize="off"
               spellcheck="false"
             />
-          </div>
-          <div class="field">
-            <label for="invite-role">Role</label>
-            <select id="invite-role" class="input select" bind:value={inviteRole}>
+          </Field>
+          <Field label="Role" id="invite-role">
+            <Select bind:value={inviteRole}>
               {#each roles as r (r.value)}<option value={r.value}>{r.label}</option>{/each}
-            </select>
-          </div>
+            </Select>
+          </Field>
           {#if inviting.code === 'email_unverified'}
             <ConfirmEmailFirst action="invite people" />
           {:else}
@@ -305,12 +305,11 @@
           <div>
             <SubmitButton task={inviting} wide={false} busyLabel="Sending…">Send invite</SubmitButton>
           </div>
-          <p class="hint">They get an email with a link that works for 7 days.</p>
         </form>
 
         {#if invites.length}
           <h3>Waiting to join</h3>
-          <ul class="list">
+          <List>
             {#each invites as invite (invite.id)}
               <li>
                 <div>
@@ -318,11 +317,8 @@
                   <p class="muted small">{roleLabel(invite.role)} · {expiresIn(invite.expiresAt)}</p>
                 </div>
                 <div class="row">
-                  <button
-                    type="button"
-                    class="btn small"
-                    disabled={pending.blocked}
-                    onclick={() => resend(invite)}>Resend</button
+                  <Button type="button" size="small" disabled={pending.blocked} onclick={() => resend(invite)}
+                    >Resend</Button
                   >
                   <ConfirmButton
                     label="Withdraw"
@@ -334,22 +330,20 @@
                 </div>
               </li>
             {/each}
-          </ul>
+          </List>
           {#if pending.code === 'email_unverified'}
             <ConfirmEmailFirst action="send the invite again" />
           {:else}
             <FormError message={pending.error} />
           {/if}
         {/if}
-      </section>
+      </Panel>
 
-      <section aria-labelledby="settings-h">
-        <h2 id="settings-h">Settings</h2>
+      <Panel title="Settings">
         <form class="stack narrow" onsubmit={saveName} novalidate>
-          <div class="field">
-            <label for="team-rename">Name</label>
-            <input id="team-rename" class="input" bind:value={newName} maxlength="60" autocomplete="off" />
-          </div>
+          <Field label="Name" id="team-rename">
+            <Input bind:value={newName} maxlength={60} autocomplete="off" />
+          </Field>
           <FormError message={rename.error} />
           <div>
             <SubmitButton task={rename} wide={false} variant="plain" busyLabel="Saving…">Rename</SubmitButton>
@@ -361,19 +355,22 @@
           <p class="muted small">
             Removes the team, its members and its invites, at once. This can’t be undone.
           </p>
-          <ConfirmButton
-            label="Delete team…"
-            confirmLabel="Delete {team.name} for good"
-            question="Type the team’s name to confirm."
-            disabled={removal.busy}
-            onconfirm={deleteTeam}
-          >
-            <label class="visually-hidden" for="delete-name">Team name</label>
-            <input id="delete-name" class="input" bind:value={deleteTyped} autocomplete="off" />
-          </ConfirmButton>
+          <div>
+            <ConfirmButton
+              label="Delete team…"
+              size="md"
+              confirmLabel="Delete {team.name} for good"
+              question="Type the team’s name to confirm."
+              disabled={removal.busy}
+              onconfirm={deleteTeam}
+            >
+              <label class="visually-hidden" for="delete-name">Team name</label>
+              <Input id="delete-name" bind:value={deleteTyped} autocomplete="off" />
+            </ConfirmButton>
+          </div>
           <FormError message={removal.error} />
         </div>
-      </section>
+      </Panel>
     {/if}
   </div>
 {/if}
@@ -382,21 +379,13 @@
   .page {
     display: flex;
     flex-direction: column;
+    gap: var(--space-5);
   }
 
   .head {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-    padding-bottom: var(--space-5);
-  }
-
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-6) 0;
-    border-top: 1px solid var(--color-border);
   }
 
   .person {
@@ -410,14 +399,9 @@
     max-width: var(--form-width);
   }
 
-  .select {
-    width: auto;
-    min-height: 2.25rem;
-    font-size: var(--text-sm);
-  }
-
-  h3 {
-    margin-top: var(--space-2);
-    font-size: var(--text-sm);
+  /* Subsection headings: closer to what they head than to what's above. */
+  .page h3 {
+    margin-top: var(--space-3);
+    margin-bottom: calc(var(--space-2) * -1);
   }
 </style>

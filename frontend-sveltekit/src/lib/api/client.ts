@@ -32,6 +32,10 @@ export type AdminUser = Schemas['AdminUser'];
 export type Message = Schemas['Message'];
 export type ErrorReport = Schemas['ErrorReport'];
 export type AuditEntry = Schemas['AuditEntry'];
+export type SyncChange = Schemas['SyncChange'];
+export type SyncResult = Schemas['SyncResult'];
+export type SyncRecord = Schemas['SyncRecord'];
+export type SyncFile = Schemas['SyncFile'];
 export type AdminStats = paths['/admin/stats']['get']['responses'][200]['content']['application/json'];
 export type ContactBody = NonNullable<
   paths['/contact']['post']['requestBody']
@@ -268,6 +272,52 @@ export function createApi(options: ApiOptions) {
     adminClearErrors: () => call(client.DELETE('/admin/errors')),
     adminAudit: (cursor?: string | null) =>
       call(client.GET('/admin/audit', { params: { query: cursor ? { cursor } : {} } })),
+
+    // Offline data (PRD section 11): `team` absent for the person's own data. Used by #lib/db.
+    syncPush: (changes: SyncChange[], team?: string) =>
+      call(client.POST('/sync/push', { params: { query: team ? { team } : {} }, body: { changes } })).then(
+        (r) => r.results,
+      ),
+    syncPull: (opts: { team?: string; since?: string; limit?: number } = {}) =>
+      call(
+        client.GET('/sync/pull', {
+          params: {
+            query: {
+              ...(opts.team ? { team: opts.team } : {}),
+              ...(opts.since ? { since: opts.since } : {}),
+              ...(opts.limit ? { limit: opts.limit } : {}),
+            },
+          },
+        }),
+      ),
+    syncFileStart: (file: { id: string; type: string; size: number }, team?: string) =>
+      call(client.POST('/sync/files', { params: { query: team ? { team } : {} }, body: file })).then(
+        (r) => r.file,
+      ),
+    syncFilePart: (fileId: string, number: number, bytes: Blob, team?: string) =>
+      call(
+        client.PUT('/sync/files/{fileId}/parts/{number}', {
+          params: { path: { fileId, number }, query: team ? { team } : {} },
+          // The body is the part's bytes, not JSON.
+          body: bytes as unknown as string,
+          bodySerializer: (b: unknown) => b as BodyInit,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        }),
+      ).then((r) => r.etag),
+    syncFileComplete: (fileId: string, parts: { number: number; etag: string }[], team?: string) =>
+      call(
+        client.POST('/sync/files/{fileId}/complete', {
+          params: { path: { fileId }, query: team ? { team } : {} },
+          body: { parts },
+        }),
+      ).then((r) => r.file),
+    syncFileGet: (fileId: string, team?: string) =>
+      call(
+        client.GET('/sync/files/{fileId}', {
+          params: { path: { fileId }, query: team ? { team } : {} },
+          parseAs: 'blob',
+        }),
+      ) as Promise<Blob>,
   };
 }
 

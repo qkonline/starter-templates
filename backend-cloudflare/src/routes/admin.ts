@@ -13,6 +13,7 @@ import type { Ctx } from '../env';
 import { forbidden, invalid, notFound, wrongCode } from '../errors';
 import { requireAdmin, requireFeature, perNetwork, type AppEnv } from '../middleware';
 import { clearPhotos } from '../photos';
+import { spacesOf, wipeSpaces } from './sync';
 
 const PAGE = 50;
 const CODE_MS = 60_000;
@@ -96,8 +97,10 @@ admin.get('/admin/users/:userId', async (c) => {
 admin.delete('/admin/users/:userId', async (c) => {
   const { ctx, user } = c.var;
   const who = await target(ctx, c.req.param('userId'), { notAdmin: true });
+  const spaces = await spacesOf(ctx, who.id);
   await ctx.db.deleteUser(who.id);
   await clearPhotos(ctx.env.PHOTOS, who.id);
+  await wipeSpaces(ctx, spaces);
   await audit(ctx, 'delete', user, who);
   return c.body(null, 204);
 });

@@ -2,10 +2,15 @@
 // read from them once per request.
 
 import type { Db } from './db';
+import type { SyncSpace } from './sync/space';
 
 export interface Env {
   DB: D1Database;
   PHOTOS: R2Bucket;
+  /** Synced files (sync on), under sync/ in the same bucket as the photos. */
+  FILES: R2Bucket;
+  /** One Durable Object per space of synced data: a person's own, or a team's. */
+  SPACES: DurableObjectNamespace<SyncSpace>;
   /** Requests per network to the routes that need no sign-in. Absent in unit tests. */
   LIMITER?: RateLimit;
   /** The passwordKey salt prefix: lower case, digits and dashes. Never changed once in use. */
@@ -34,6 +39,8 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   /** "true" for teams (admins, members, invites). Off, /teams and /invites are 404. */
   TEAMS?: string;
+  /** "true" for offline data kept in step with the backend (/sync). Off, /sync is 404. */
+  SYNC?: string;
   /** "true" for the admin area, for the confirmed accounts in ADMIN_EMAILS. Off, /admin is 404. */
   ADMIN?: string;
   /** Comma-separated emails of the app's admins. */
@@ -67,6 +74,8 @@ export interface Config {
   captcha: { siteKey: string; secret: string } | null;
   google: { clientId: string; clientSecret: string } | null;
   teams: boolean;
+  /** Offline data: /sync, a Durable Object per space. */
+  sync: boolean;
   /** The admin area: on, with the emails of the app's admins (lower case). */
   admin: { emails: string[] } | null;
   push: { publicKey: string; privateKey: string; subject: string } | null;
@@ -114,6 +123,7 @@ export function config(env: Env, api: string): Config {
     google:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } : null,
     teams: on(env.TEAMS),
+    sync: on(env.SYNC),
     admin: on(env.ADMIN) ? { emails: list(env.ADMIN_EMAILS).map((e) => e.toLowerCase()) } : null,
     push:
       env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY

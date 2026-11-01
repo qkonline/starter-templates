@@ -56,15 +56,18 @@
   }
 
   .tile {
-    padding: var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--panel-radius);
+    box-shadow: var(--panel-shadow);
   }
 
   dd {
     margin: var(--space-1) 0 0;
-    font-size: var(--text-xl);
-    font-weight: 620;
+    color: var(--color-heading);
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-display);
     font-variant-numeric: tabular-nums;
   }
 

@@ -14,6 +14,7 @@ import { DAY, limit } from '../limits';
 import { sendMail } from '../mail';
 import { needsConfirmedEmail, requireFeature, requireUser, type AppEnv } from '../middleware';
 import { notify } from '../notify';
+import { wipeSpace } from './sync';
 
 const INVITE_MS = 7 * DAY;
 const MAX_TEAMS = 50;
@@ -144,6 +145,7 @@ teams.delete('/teams/:teamId', async (c) => {
   const { ctx, user } = c.var;
   const team = await adminOf(ctx, c.req.param('teamId'), user.id);
   await ctx.db.deleteTeam(team.id);
+  if (ctx.cfg.sync) await wipeSpace(ctx, `team:${team.id}`);
   return c.body(null, 204);
 });
 

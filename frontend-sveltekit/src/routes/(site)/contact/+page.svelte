@@ -13,6 +13,9 @@
   import Captcha from '#lib/components/Captcha.svelte';
   import FormError from '#lib/components/FormError.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
+  import Textarea from '#lib/components/ui/Textarea.svelte';
 
   let ready = $state(false);
   let problem = $state('');
@@ -65,31 +68,26 @@
   {:else}
     <p class="muted">Questions, problems, ideas: write to us here.</p>
     <form class="stack" onsubmit={send} novalidate>
-      <div class="field">
-        <label for="contact-name">Name <span class="muted">(optional)</span></label>
-        <input id="contact-name" class="input" bind:value={name} maxlength="80" autocomplete="name" />
-      </div>
+      <Field id="contact-name">
+        {#snippet label()}Name <span class="muted">(optional)</span>{/snippet}
+        <Input bind:value={name} maxlength={80} autocomplete="name" />
+      </Field>
       {#if signedIn}
         <p class="small muted">We’ll answer at <strong>{auth.user?.email}</strong>.</p>
       {:else}
-        <div class="field">
-          <label for="contact-email">Email</label>
-          <input
-            id="contact-email"
-            class="input"
+        <Field label="Email" id="contact-email">
+          <Input
             type="email"
             bind:value={email}
             autocomplete="email"
             autocapitalize="off"
             spellcheck="false"
           />
-        </div>
+        </Field>
       {/if}
-      <div class="field">
-        <label for="contact-message">Message</label>
-        <textarea id="contact-message" class="input" rows="7" maxlength="5000" bind:value={message}
-        ></textarea>
-      </div>
+      <Field label="Message" id="contact-message">
+        <Textarea rows={7} maxlength={5000} bind:value={message} />
+      </Field>
       {#if ready && auth.methods?.captcha}<Captcha
           bind:this={captcha}
           siteKey={auth.methods.captcha.siteKey}
@@ -106,11 +104,5 @@
 <style>
   .column {
     max-width: 32rem;
-  }
-
-  textarea {
-    min-height: 9rem;
-    padding: var(--space-2) var(--space-3);
-    resize: vertical;
   }
 </style>

@@ -40,11 +40,12 @@ test('feedback from inside the app, and display preferences', async ({ page }) =
 
   await page.goto('/account');
   await page.getByText('Dark', { exact: true }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
   await page.getByText('Larger', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'xl');
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'fusion');
+  await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
 });
 
 test('a team, an emailed invite accepted after signing up, and the last admin', async ({ browser }) => {

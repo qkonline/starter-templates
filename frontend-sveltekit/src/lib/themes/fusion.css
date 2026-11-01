@@ -1,0 +1,158 @@
+/*
+  Fusion: the theme, and the full list of what a theme can set. It sits between Elastic's EUI
+  and Ant Design: EUI's blue-grey palette and Inter, sized halfway between EUI's roomy controls
+  and Ant's compact ones (36 px fields and buttons, 15 px text, 20 px panel padding), with Ant's
+  clearer control states (white bordered buttons, a blue border and glow on focus, a grey track
+  for one-of-a-few choices, bordered tags, a rule under panel titles). Type stays light: 400
+  body, 500 headings and buttons.
+
+  A theme added later starts from these values and overrides only what it changes, so an
+  unknown or removed theme still looks like this one. Colours are `light-dark(light, dark)`:
+  which half applies follows `color-scheme`, which the mode (Device, Light, Dark) sets in
+  src/app.css, so a theme never writes its dark values twice.
+*/
+
+/* Inter, served from this site (the CSP allows fonts from here only), Latin, weights 300-600.
+   Licence: static/fonts/Inter-OFL.txt. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+}
+
+:root,
+[data-theme='fusion'] {
+  /* Type: Inter, 15 px body (EUI 16, Ant 14), light weights */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Roboto Mono', monospace;
+  --weight-body: 400;
+  --weight-medium: 500;
+  --weight-heading: 500;
+  --weight-display: 500;
+  --tracking-tight: -0.011em;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --leading: 1.55;
+
+  /* Page and surfaces (EUI's Borealis colours) */
+  --color-bg: light-dark(#f6f9fc, #0b1628);
+  --color-surface: light-dark(#ffffff, #111c2c);
+  --color-sunken: light-dark(#ecf1f9, #07101f);
+  --color-scrim: light-dark(rgb(72 89 117 / 0.6), rgb(7 16 31 / 0.8));
+
+  /* Text */
+  --color-heading: light-dark(#111c2c, #e3e8f2);
+  --color-text: light-dark(#384861, #b4c1d5);
+  --color-muted: light-dark(#516381, #98a8c3);
+  --color-link: light-dark(#1750ba, #61a2ff);
+
+  /* Lines */
+  --color-border: light-dark(#e3e8f2, #2b394f);
+  --color-border-strong: light-dark(#cad3e2, #485975);
+  --color-border-hover: light-dark(#0b64dd, #61a2ff);
+
+  /* The brand blue: filled, soft (hover tint, tags), subtle (selected rows), border */
+  --color-accent: light-dark(#0b64dd, #61a2ff);
+  --color-accent-text: light-dark(#ffffff, #07101f);
+  --color-accent-soft: light-dark(#e8f1ff, #0d2f5e);
+  --color-accent-soft-text: light-dark(#1750ba, #8bbaff);
+  --color-accent-subtle: light-dark(#f1f6ff, #0a2342);
+  --color-accent-border: light-dark(#bfdbff, #1750ba);
+  --color-focus: light-dark(#0b64dd, #61a2ff);
+
+  /* Primary buttons */
+  --color-primary: var(--color-accent);
+  --color-primary-hover: light-dark(#1750ba, #8bbaff);
+  --color-primary-text: var(--color-accent-text);
+
+  /* States */
+  --color-danger: light-dark(#c61e25, #f6726a);
+  --color-danger-text: light-dark(#a71627, #f6726a);
+  --color-on-danger: light-dark(#ffffff, #07101f);
+  --color-danger-soft: light-dark(#fff3f1, #351721);
+  --color-danger-subtle: light-dark(#fff3f1, #351721);
+  --color-danger-border: light-dark(#ffc9c2, #7a2a33);
+  --color-success: light-dark(#008a5e, #24c292);
+  --color-success-text: light-dark(#09724d, #24c292);
+  --color-success-soft: light-dark(#e9fff7, #0b3a2b);
+  --color-notice: light-dark(#fff7e2, #2a2312);
+  --color-notice-border: light-dark(#fcd883, #6b5212);
+  --color-notice-text: light-dark(#825803, #facb3d);
+
+  /* Shape and depth */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-full: 999px;
+  --shadow-pop:
+    0 6px 16px light-dark(rgb(43 57 79 / 0.1), rgb(0 0 0 / 0.45)),
+    0 2px 4px light-dark(rgb(43 57 79 / 0.08), rgb(0 0 0 / 0.3));
+
+  /* Form controls: 36 px (EUI 40, Ant 32), white with a hairline, a blue border and glow on focus */
+  --control-height: 2.25rem;
+  --control-height-sm: 1.75rem;
+  --control-padding-x: 0.75rem;
+  --control-bg: var(--color-surface);
+  --control-border: var(--color-border-strong);
+  --control-border-hover: var(--color-border-hover);
+  --control-focus-border: var(--color-accent);
+  --control-focus-shadow: 0 0 0 3px light-dark(rgb(11 100 221 / 0.14), rgb(97 162 255 / 0.22));
+  --control-invalid-focus-shadow: 0 0 0 3px light-dark(rgb(198 30 37 / 0.12), rgb(246 114 106 / 0.2));
+
+  /* Buttons: secondary ones white with a border, tinted blue on hover; 15 px side padding */
+  --button-weight: 500;
+  --button-padding-x: 0.9375rem;
+  --button-plain-bg: var(--color-surface);
+  --button-plain-text: var(--color-heading);
+  --button-plain-border: var(--color-border-strong);
+  --button-plain-hover-bg: var(--color-accent-soft);
+  --button-plain-hover-text: var(--color-accent-soft-text);
+  --button-plain-hover-border: var(--color-accent-border);
+  --button-danger-bg: var(--color-surface);
+  --button-danger-text: var(--color-danger-text);
+  --button-danger-border: var(--color-danger-border);
+  --button-danger-hover-bg: var(--color-danger-soft);
+  --button-primary-shadow: 0 1px 2px light-dark(rgb(11 100 221 / 0.18), rgb(0 0 0 / 0.3));
+
+  /* One choice out of a few: a grey track, the chosen one white and lifted */
+  --segmented-track-bg: light-dark(#e3e8f2, #07101f);
+  --segmented-track-border: transparent;
+  --segmented-text: var(--color-muted);
+  --segmented-selected-bg: light-dark(#ffffff, #2b394f);
+  --segmented-selected-text: var(--color-heading);
+  --segmented-selected-shadow: 0 1px 2px light-dark(rgb(43 57 79 / 0.14), rgb(0 0 0 / 0.4));
+
+  --table-head-bg: var(--color-sunken);
+
+  /* Tags and boxed messages */
+  --badge-radius: 4px;
+  --badge-border-width: 1px;
+  --badge-weight: 500;
+  --notice-border-width: 1px;
+
+  /* Panels: white, a hairline and a soft shadow, a rule under the title row */
+  --panel-bg: var(--color-surface);
+  --panel-border: var(--color-border);
+  --panel-radius: 8px;
+  --panel-padding: 1.25rem;
+  --panel-shadow:
+    0 1px 2px light-dark(rgb(43 57 79 / 0.05), rgb(0 0 0 / 0.3)),
+    0 2px 8px light-dark(rgb(43 57 79 / 0.04), rgb(0 0 0 / 0.2));
+  --panel-title-size: var(--text-lg);
+  --panel-head-border: 1px solid var(--color-border);
+  --panel-head-padding-top: 0.875rem;
+  --panel-head-padding-bottom: 0.875rem;
+  --panel-head-gap: 1.25rem;
+
+  /* The bar along the top of signed-in pages: 56 px (EUI 48, Ant 64) */
+  --header-bg: var(--color-surface);
+  --header-border: var(--color-border);
+  --header-height: 3.5rem;
+  --header-shadow: 0 1px 2px light-dark(rgb(43 57 79 / 0.06), rgb(0 0 0 / 0.4));
+}

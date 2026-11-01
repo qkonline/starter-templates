@@ -7,6 +7,8 @@
   import AuthShell from './AuthShell.svelte';
   import ChangeEmail from './account/ChangeEmail.svelte';
   import ConfirmEmail from './account/ConfirmEmail.svelte';
+  import Button from './ui/Button.svelte';
+  import Divider from './ui/Divider.svelte';
 
   let changing = $state(false);
 </script>
@@ -16,16 +18,14 @@
     <!-- Signing up sent a code already when the app requires confirmation. -->
     <ConfirmEmail sent />
     <p class="muted small">
-      Wrong address? <button type="button" class="btn link" onclick={() => (changing = true)}
-        >Change it</button
-      >
+      Wrong address? <Button type="button" variant="link" onclick={() => (changing = true)}>Change it</Button>
     </p>
   {:else}
     <ChangeEmail />
     <p class="muted small">
-      <button type="button" class="btn link" onclick={() => (changing = false)}>Back to confirming</button>
+      <Button type="button" variant="link" onclick={() => (changing = false)}>Back to confirming</Button>
     </p>
   {/if}
-  <div class="divider">or</div>
-  <div><button type="button" class="btn" onclick={signOut}>Sign out</button></div>
+  <Divider>or</Divider>
+  <div><Button type="button" onclick={signOut}>Sign out</Button></div>
 </AuthShell>

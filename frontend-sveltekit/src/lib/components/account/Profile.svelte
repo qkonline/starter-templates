@@ -8,6 +8,9 @@
   import FormError from '../FormError.svelte';
   import PhotoCropper from '../PhotoCropper.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Button from '../ui/Button.svelte';
+  import Field from '../ui/Field.svelte';
+  import Input from '../ui/Input.svelte';
 
   const user = $derived(auth.user!);
 
@@ -81,12 +84,11 @@
         tabindex="-1"
         onchange={choose}
       />
-      <button type="button" class="btn small" onclick={() => fileInput.click()} disabled={photoTask.busy}>
+      <Button type="button" size="small" onclick={() => fileInput.click()} disabled={photoTask.busy}>
         {user.photoUrl ? 'Change photo' : 'Add a photo'}
-      </button>
+      </Button>
       {#if user.photoUrl}
-        <button type="button" class="btn small" onclick={removePhoto} disabled={photoTask.busy}>Remove</button
-        >
+        <Button type="button" size="small" onclick={removePhoto} disabled={photoTask.busy}>Remove</Button>
       {/if}
     </div>
     <FormError message={photoTask.error} />
@@ -105,19 +107,9 @@
 {/if}
 
 <form class="stack" onsubmit={saveName} novalidate>
-  <div class="field">
-    <label for="name">Name</label>
-    <input
-      id="name"
-      class="input"
-      bind:value={name}
-      autocomplete="name"
-      maxlength="60"
-      aria-invalid={!!nameTask.error}
-      aria-describedby="name-error"
-      oninput={() => (saved = false)}
-    />
-  </div>
+  <Field label="Name" id="name" invalid={!!nameTask.error} describedby="name-error">
+    <Input bind:value={name} autocomplete="name" maxlength={60} oninput={() => (saved = false)} />
+  </Field>
   <FormError id="name-error" message={nameTask.error} />
   <div class="row">
     <SubmitButton task={nameTask} wide={false} busyLabel="Saving…">Save name</SubmitButton>

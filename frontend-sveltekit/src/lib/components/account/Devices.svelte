@@ -7,6 +7,9 @@
   import { Task } from '#lib/task.svelte.ts';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Badge from '../ui/Badge.svelte';
+  import Button from '../ui/Button.svelte';
+  import List from '../ui/List.svelte';
 
   let sessions = $state<Session[] | null>(null);
   let status = $state('');
@@ -56,28 +59,28 @@
   {#if sessions === null}
     {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
   {:else}
-    <ul class="list">
+    <List>
       {#each sessions as s (s.id)}
         <li>
           <div>
             <p class="title">
               {s.device}
-              {#if s.current}<span class="badge">This device</span>{/if}
+              {#if s.current}<Badge>This device</Badge>{/if}
             </p>
             <p class="muted small">
               Signed in {formatWhen(s.createdAt)} · Last used {formatWhen(s.lastUsedAt)}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            class="btn small"
+            size="small"
             disabled={ending === s.id}
             onclick={() => endOne(s)}
-            aria-label={s.current ? 'Sign out on this device' : `Sign out on ${s.device}`}>Sign out</button
+            aria-label={s.current ? 'Sign out on this device' : `Sign out on ${s.device}`}>Sign out</Button
           >
         </li>
       {/each}
-    </ul>
+    </List>
   {/if}
   <FormError message={end.error || others.error} />
   <div class="row">

@@ -1,7 +1,8 @@
 <!--
   Everything behind sign-in. Without a working session, off to sign in. With
   `requireVerifiedEmail` on and the email unconfirmed, only the gate shows (PRD R1.7). The
-  header shows Teams, Admin and the bell only when /features has them on.
+  header shows Teams, Admin and the bell only when /features has them on. With sync on, it
+  starts keeping the device's data in step and shows what's still waiting.
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
@@ -9,12 +10,16 @@
   import { page } from '$app/state';
   import { messageOf } from '#lib/api/index.ts';
   import { appName } from '#lib/config.ts';
+  import { startSync } from '#lib/db/index.svelte.ts';
   import { auth, loadFeatures, loadMethods, loadUser } from '#lib/session.svelte.ts';
   import Avatar from '#lib/components/Avatar.svelte';
   import Bell from '#lib/components/Bell.svelte';
   import EmailGate from '#lib/components/EmailGate.svelte';
   import FeedbackDialog from '#lib/components/FeedbackDialog.svelte';
+  import SyncRefused from '#lib/components/shell/SyncRefused.svelte';
+  import SyncStatus from '#lib/components/shell/SyncStatus.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
 
   let { children } = $props();
 
@@ -31,6 +36,9 @@
         return;
       }
       phase = 'ready';
+      // Not for an unconfirmed person when the app requires confirming: the backend refuses them.
+      const held = !user.emailVerified && !!auth.methods?.requireVerifiedEmail;
+      if (auth.features?.sync && !held) startSync();
     } catch (e) {
       problem = messageOf(e);
       phase = 'failed';
@@ -55,24 +63,29 @@
   {:else}
     <div class="app">
       <header class="bar">
-        <a class="brand" href={resolve('app')}>{appName}</a>
-        <nav aria-label="Main">
-          <a href={resolve('app')} aria-current={current(resolve('app'))}>Home</a>
-          {#if teamsOn}
-            <a href={resolve('teams')} aria-current={current(resolve('teams')) ?? current(resolve('team'))}
-              >Teams</a
-            >
-          {/if}
-          {#if adminOn}
-            <a href={resolve('admin')} aria-current={within(resolve('admin'))}>Admin</a>
-          {/if}
-          <Bell />
-          <a class="me" href={resolve('account')} aria-current={current(resolve('account'))}>
-            <Avatar {user} size={28} />
-            <span>Account</span>
-          </a>
-        </nav>
+        <div class="bar-in">
+          <a class="brand" href={resolve('app')}><span class="logo" aria-hidden="true"></span>{appName}</a>
+          <nav aria-label="Main">
+            <a href={resolve('app')} aria-current={current(resolve('app'))}>Home</a>
+            {#if teamsOn}
+              <a href={resolve('teams')} aria-current={current(resolve('teams')) ?? current(resolve('team'))}
+                >Teams</a
+              >
+            {/if}
+            {#if adminOn}
+              <a href={resolve('admin')} aria-current={within(resolve('admin'))}>Admin</a>
+            {/if}
+            {#if auth.features?.sync}<SyncStatus />{/if}
+            <Bell />
+            <a class="me" href={resolve('account')} aria-current={current(resolve('account'))}>
+              <Avatar {user} size={28} />
+              <span>Account</span>
+            </a>
+          </nav>
+        </div>
       </header>
+
+      {#if auth.features?.sync}<SyncRefused />{/if}
 
       {#if !user.emailVerified}
         <div class="banner" role="region" aria-label="Email not confirmed">
@@ -89,7 +102,7 @@
       </main>
 
       <footer class="foot muted small">
-        <button type="button" class="btn link" onclick={() => feedback?.show()}>Send feedback</button>
+        <Button type="button" variant="link" onclick={() => feedback?.show()}>Send feedback</Button>
         <a href={resolve('contact')}>Contact</a>
         <a href={resolve('privacy')}>Privacy</a>
       </footer>
@@ -100,7 +113,7 @@
   <main id="main" class="center stack">
     <h1>Can’t reach the app</h1>
     <p role="alert">{problem}</p>
-    <div><button class="btn" onclick={start}>Try again</button></div>
+    <div><Button onclick={start}>Try again</Button></div>
   </main>
 {:else}
   <div class="center" role="status"><Spinner /><span class="visually-hidden">Loading</span></div>
@@ -113,11 +126,21 @@
     flex-direction: column;
   }
 
+  /* The top bar: full width, the theme's height, shadow and hairline. */
   .bar {
-    width: 100%;
-    max-width: var(--page-width);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
+    box-shadow: var(--header-shadow);
+  }
+
+  .bar-in {
+    max-width: calc(var(--page-width) + 2 * var(--space-4));
     margin: 0 auto;
-    padding: var(--space-3) var(--space-4);
+    min-height: var(--header-height);
+    padding: 0 var(--space-4);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -125,15 +148,26 @@
   }
 
   .brand {
-    font-weight: 650;
-    letter-spacing: var(--tracking-tight);
-    color: var(--color-text);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: var(--weight-heading);
+    color: var(--color-heading);
     text-decoration: none;
+  }
+
+  /* A placeholder mark in the brand colour; an app replaces it with its own. */
+  .logo {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
   }
 
   nav {
     display: flex;
-    align-items: center;
+    align-items: stretch;
+    align-self: stretch;
     gap: var(--space-1);
   }
 
@@ -141,26 +175,33 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    min-height: var(--control-height);
     padding: 0 var(--space-3);
-    color: var(--color-muted);
+    color: var(--color-text);
+    font-size: var(--text-sm);
     text-decoration: none;
-    border-radius: var(--radius-sm);
+    box-shadow: inset 0 -2px 0 transparent;
+    transition:
+      color 160ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
   }
 
   nav a:hover {
-    color: var(--color-text);
-    background: var(--color-sunken);
+    color: var(--color-link);
   }
 
   nav a[aria-current='page'] {
-    color: var(--color-text);
-    font-weight: 560;
+    color: var(--color-link);
+    box-shadow: inset 0 -2px 0 var(--color-accent);
+  }
+
+  nav :global(.bell) {
+    align-self: center;
   }
 
   .banner {
+    color: var(--color-heading);
     background: var(--color-notice);
-    border-block: 1px solid var(--color-notice-border);
+    border-bottom: 1px solid var(--color-notice-border);
   }
 
   .banner p {
@@ -173,14 +214,14 @@
   main {
     flex: 1;
     width: 100%;
-    max-width: var(--page-width);
+    max-width: calc(var(--page-width) + 2 * var(--space-4));
     margin: 0 auto;
     padding: var(--space-6) var(--space-4) var(--space-8);
   }
 
   .foot {
     width: 100%;
-    max-width: var(--page-width);
+    max-width: calc(var(--page-width) + 2 * var(--space-4));
     margin: 0 auto;
     padding: var(--space-4);
     display: flex;
@@ -190,7 +231,7 @@
   }
 
   .foot a,
-  .foot .btn.link {
+  .foot :global(.btn) {
     color: inherit;
     font-size: inherit;
   }
@@ -209,7 +250,7 @@
       display: none;
     }
 
-    .bar {
+    .bar-in {
       padding-inline: var(--space-3);
     }
 

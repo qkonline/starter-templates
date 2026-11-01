@@ -3,6 +3,7 @@
   import type { Snippet } from 'svelte';
   import type { Task } from '#lib/task.svelte.ts';
   import Spinner from './Spinner.svelte';
+  import Button from './ui/Button.svelte';
 
   let {
     task,
@@ -23,15 +24,13 @@
   } = $props();
 </script>
 
-<button
+<Button
   {type}
-  class="btn"
-  class:primary={variant === 'primary'}
-  class:danger={variant === 'danger'}
-  class:wide
+  {variant}
+  {wide}
   aria-disabled={task.blocked}
   aria-busy={task.busy}
-  onclick={(e) => {
+  onclick={(e: MouseEvent) => {
     if (task.blocked) e.preventDefault();
     else onclick?.();
   }}
@@ -43,4 +42,4 @@
   {:else}
     {@render children()}
   {/if}
-</button>
+</Button>

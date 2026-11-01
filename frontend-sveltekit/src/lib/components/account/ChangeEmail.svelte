@@ -14,6 +14,9 @@
   import FormError from '../FormError.svelte';
   import PasswordInput from '../PasswordInput.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Button from '../ui/Button.svelte';
+  import Field from '../ui/Field.svelte';
+  import Input from '../ui/Input.svelte';
 
   let { onDone }: { onDone?: () => void } = $props();
 
@@ -72,21 +75,16 @@
 
 {#if !sentTo}
   <form class="stack" onsubmit={send} novalidate>
-    <div class="field">
-      <label for="new-email">New email address</label>
-      <input
-        id="new-email"
-        class="input"
+    <Field label="New email address" id="new-email" invalid={!!sendTask.error} describedby="new-email-error">
+      <Input
         type="email"
         bind:value={email}
         autocomplete="email"
         autocapitalize="off"
         spellcheck="false"
         required
-        aria-invalid={!!sendTask.error}
-        aria-describedby="new-email-error"
       />
-    </div>
+    </Field>
     {#if auth.methods?.captcha}<Captcha
         bind:this={captcha}
         siteKey={auth.methods.captcha.siteKey}
@@ -113,13 +111,12 @@
     <FormError message={verifyTask.error || sendTask.error} />
     <div class="row">
       <SubmitButton task={verifyTask} wide={false} busyLabel="Checking…">Change email</SubmitButton>
-      <button
+      <Button
         type="button"
-        class="btn"
         onclick={() => {
           sentTo = null;
           verifyTask.clear();
-        }}>Use another address</button
+        }}>Use another address</Button
       >
     </div>
   </form>

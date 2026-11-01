@@ -119,6 +119,7 @@ export const features = (await call('get', '/features')).body as {
   teams: boolean;
   admin: boolean;
   push: { vapidPublicKey: string } | null;
+  sync: boolean;
 };
 
 /** The password key for this backend's settings. */

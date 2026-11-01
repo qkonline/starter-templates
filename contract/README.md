@@ -16,7 +16,9 @@ And the optional parts each app switches on, listed at `/features`:
 - notifications (always) and push (on with VAPID keys);
 - teams: admins and members, invites by email, never without an admin;
 - the admin area: finding, suspending and deleting people, support sessions, the audit log;
-- contact messages and feedback, and error and CSP reports (always).
+- contact messages and feedback, and error and CSP reports (always);
+- sync: offline data pushed in batches and pulled in pages, files uploaded in parts
+  (PRD section 11, `docs/offline-data.md`).
 
 An app adds its own paths beside these and leaves these as they are.
 
@@ -54,7 +56,7 @@ the backend lists `google` at `/auth/methods`; otherwise they check that it's ab
 
 Tests sign people up with passwords, so they send little mail. Optional parts (email codes,
 Google, the CAPTCHA, required confirmation) are read from `/auth/methods`, and teams, the admin area
-and push from `/features`: their tests run when the backend has them on and check that they answer
+push and sync from `/features`: their tests run when the backend has them on and check that they answer
 `not_found` when it doesn't. With a CAPTCHA on, the tests send
 Turnstile's dummy token, so a local backend must use Turnstile's always-pass test secret.
 
@@ -88,6 +90,14 @@ using a real passkey needs a WebAuthn authenticator, so the frontend's browser t
   (refused on every listed account and security path and on `/admin`, a code works once, the
   person can end it, suspending ends it); admins can't act on an admin; the audit log. That a
   support session ends after an hour is in the backend's unit tests: a run can't wait an hour.
+- `sync.test.ts`: two devices offline each add a record and both are kept with the ids they
+  were made with; a batch sent again is applied once; fields merge, the later one winning a field
+  both set; deletes stay as markers and a later edit is refused (`conflict`); a change that can't
+  be applied is refused alone while the rest of its batch goes in; unreadable or too large
+  batches; pages pick up where they stopped; 61 batches in a minute get `rate_limited` with
+  `Retry-After` and change nothing; one person's data is theirs alone; a team's is shared by its
+  members only (teams on); files in one and two parts (8 MiB each), sent again, wrong sizes,
+  finishing with missing parts; unconfirmed people held back when the app requires confirming.
 - `contact.test.ts`: signed in or out (`email` required signed out), the CAPTCHA, 20 a day per
   account, and the messages in the admin area.
 - `telemetry.test.ts`: always 204 whatever arrives; repeats counted (by message and first stack

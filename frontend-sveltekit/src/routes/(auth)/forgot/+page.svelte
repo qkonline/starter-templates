@@ -15,6 +15,9 @@
   import FormError from '#lib/components/FormError.svelte';
   import PasswordInput from '#lib/components/PasswordInput.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
 
   const methods = $derived(auth.methods!);
 
@@ -60,11 +63,8 @@
 {#if !sentTo}
   <AuthShell title="Reset your password" lead="We’ll email you a code to set a new one.">
     <form class="stack" onsubmit={send} novalidate>
-      <div class="field">
-        <label for="email">Email</label>
-        <input
-          id="email"
-          class="input"
+      <Field label="Email" id="email">
+        <Input
           type="email"
           bind:value={email}
           autocomplete="email"
@@ -72,7 +72,7 @@
           spellcheck="false"
           required
         />
-      </div>
+      </Field>
       {#if methods.captcha}<Captcha
           bind:this={captcha}
           siteKey={methods.captcha.siteKey}
@@ -112,8 +112,8 @@
       >
     </form>
     <p class="muted">
-      No email? Check spam, or <button type="button" class="btn link" onclick={() => (sentTo = null)}
-        >send another code</button
+      No email? Check spam, or <Button type="button" variant="link" onclick={() => (sentTo = null)}
+        >send another code</Button
       >.
     </p>
   </AuthShell>

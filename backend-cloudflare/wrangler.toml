@@ -29,6 +29,8 @@ TURNSTILE_SITE_KEY = ""
 GOOGLE_CLIENT_ID = ""
 # Teams with admins, members and email invites.
 TEAMS = "false"
+# Offline data kept in step with the backend (/sync), in a Durable Object per person and per team.
+SYNC = "false"
 # The admin area, for the confirmed accounts with these (comma-separated) emails.
 ADMIN = "false"
 ADMIN_EMAILS = ""
@@ -58,6 +60,21 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "PHOTOS"
 bucket_name = "starter-photos"
+
+# Synced files (SYNC on), under sync/ in the same bucket.
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "starter-photos"
+
+# Synced data (SYNC on): one Durable Object per space (a person's own, or a team's), each with its
+# own SQLite storage. Bound whether or not SYNC is on; nothing is made until it's used.
+[[durable_objects.bindings]]
+name = "SPACES"
+class_name = "SyncSpace"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncSpace"]
 
 # Clears out what has run out (src/index.ts, scheduled; Db.sweep): codes, challenges, rate-limit
 # counts, support sessions, expired invites, notifications after 90 days, the audit log after a year.

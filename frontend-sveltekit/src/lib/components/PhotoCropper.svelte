@@ -7,6 +7,7 @@
   import { centreCrop, clampCrop, cropRect, MAX_ZOOM, panCrop, renderCrop, type Crop } from '#lib/images.ts';
   import { messageOf } from '#lib/api/errors.ts';
   import Spinner from './Spinner.svelte';
+  import Button from './ui/Button.svelte';
 
   let {
     image,
@@ -135,7 +136,7 @@
   </div>
 
   <div class="field">
-    <label for="crop-zoom">Zoom</label>
+    <label class="label" for="crop-zoom">Zoom</label>
     <input
       id="crop-zoom"
       type="range"
@@ -152,10 +153,10 @@
   </div>
 
   <div class="actions">
-    <button type="button" class="btn" onclick={() => dialog.close()} disabled={busy}>Cancel</button>
-    <button type="button" class="btn primary" onclick={use} aria-busy={busy} disabled={busy}>
+    <Button type="button" onclick={() => dialog.close()} disabled={busy}>Cancel</Button>
+    <Button type="button" variant="primary" onclick={use} aria-busy={busy} disabled={busy}>
       {#if busy}<Spinner />Saving…{:else}Use photo{/if}
-    </button>
+    </Button>
   </div>
 </dialog>
 
@@ -177,7 +178,7 @@
   }
 
   dialog::backdrop {
-    background: oklch(0% 0 0 / 0.5);
+    background: var(--color-scrim);
   }
 
   .frame {
@@ -213,6 +214,12 @@
     max-width: none;
     transform-origin: 0 0;
     pointer-events: none;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
   }
 
   input[type='range'] {

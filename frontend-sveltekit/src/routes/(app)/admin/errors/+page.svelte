@@ -7,6 +7,10 @@
   import { Task } from '#lib/task.svelte.ts';
   import ConfirmButton from '#lib/components/ConfirmButton.svelte';
   import FormError from '#lib/components/FormError.svelte';
+  import Badge from '#lib/components/ui/Badge.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import List from '#lib/components/ui/List.svelte';
+  import Panel from '#lib/components/ui/Panel.svelte';
 
   const kinds = { client: 'Browser', server: 'Server', csp: 'CSP' } as const;
   const clear = new Task();
@@ -45,30 +49,32 @@
   {#if list.loaded && list.items.length === 0}
     <p class="muted">No reports. When the app or a browser reports an error, it shows here.</p>
   {/if}
-  <ul class="list">
-    {#each list.items as e (e.id)}
-      <li>
-        <details>
-          <summary>
-            <span class="badge">{kinds[e.kind]}</span>
-            <span class="msg">{e.message}</span>
-            <span class="muted small">
-              ×{e.count} · last {formatWhen(e.lastSeen)} · first {formatWhen(e.firstSeen)}
-            </span>
-          </summary>
-          <div class="stack detail small">
-            {#if e.url}<p><span class="muted">Page</span> {e.url}</p>{/if}
-            {#if e.release}<p><span class="muted">Version</span> {e.release}</p>{/if}
-            {#if e.detail}<pre>{e.detail}</pre>{/if}
-          </div>
-        </details>
-      </li>
-    {/each}
-  </ul>
+  <Panel>
+    <List>
+      {#each list.items as e (e.id)}
+        <li>
+          <details>
+            <summary>
+              <Badge>{kinds[e.kind]}</Badge>
+              <span class="msg">{e.message}</span>
+              <span class="muted small">
+                ×{e.count} · last {formatWhen(e.lastSeen)} · first {formatWhen(e.firstSeen)}
+              </span>
+            </summary>
+            <div class="stack detail small">
+              {#if e.url}<p><span class="muted">Page</span> {e.url}</p>{/if}
+              {#if e.release}<p><span class="muted">Version</span> {e.release}</p>{/if}
+              {#if e.detail}<pre>{e.detail}</pre>{/if}
+            </div>
+          </details>
+        </li>
+      {/each}
+    </List>
+  </Panel>
   {#if list.more}
     <div>
-      <button type="button" class="btn small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</button
+      <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
+        >Show more</Button
       >
     </div>
   {/if}
@@ -93,11 +99,11 @@
   }
 
   .msg {
-    font-weight: 560;
+    font-weight: var(--weight-medium);
     overflow-wrap: anywhere;
   }
 
-  .badge {
+  summary :global(.badge) {
     margin: 0;
   }
 

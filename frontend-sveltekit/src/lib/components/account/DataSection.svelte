@@ -7,6 +7,9 @@
   import { Task } from '#lib/task.svelte.ts';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Button from '../ui/Button.svelte';
+  import Field from '../ui/Field.svelte';
+  import Input from '../ui/Input.svelte';
 
   const exportTask = new Task();
   const deleteTask = new Task();
@@ -59,36 +62,26 @@
     </p>
     {#if !confirming}
       <div>
-        <button type="button" class="btn danger" onclick={() => (confirming = true)}
-          >Delete my account…</button
-        >
+        <Button type="button" variant="danger" onclick={() => (confirming = true)}>Delete my account…</Button>
       </div>
     {:else}
       <form class="stack confirm" onsubmit={remove} novalidate>
-        <div class="field">
-          <label for="delete-confirm">To confirm, type <strong>{auth.user?.email}</strong></label>
-          <input
-            id="delete-confirm"
-            class="input"
-            bind:value={typed}
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-          />
-        </div>
+        <Field id="delete-confirm">
+          {#snippet label()}To confirm, type <strong>{auth.user?.email}</strong>{/snippet}
+          <Input bind:value={typed} autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </Field>
         <FormError message={deleteTask.error} />
         <div class="row">
           <SubmitButton task={deleteTask} variant="danger" wide={false} busyLabel="Deleting…">
             Delete my account for good
           </SubmitButton>
-          <button
+          <Button
             type="button"
-            class="btn"
             onclick={() => {
               confirming = false;
               typed = '';
               deleteTask.clear();
-            }}>Cancel</button
+            }}>Cancel</Button
           >
         </div>
       </form>

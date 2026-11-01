@@ -23,6 +23,11 @@
   import FormError from '#lib/components/FormError.svelte';
   import PasswordInput from '#lib/components/PasswordInput.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
+  import Button from '#lib/components/ui/Button.svelte';
+  import Divider from '#lib/components/ui/Divider.svelte';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Input from '#lib/components/ui/Input.svelte';
+  import Notice from '#lib/components/ui/Notice.svelte';
 
   const methods = $derived(auth.methods!);
   // Derived, so a link to this page with other parameters (another `next`) is followed.
@@ -120,16 +125,13 @@
 
 <AuthShell title="Sign in">
   {#if expired}
-    <p class="notice" role="status">You were signed out. Sign in again to carry on.</p>
+    <Notice role="status">You were signed out. Sign in again to carry on.</Notice>
   {/if}
 
   {#if mode === 'password'}
     <form class="stack" onsubmit={withPassword} novalidate>
-      <div class="field">
-        <label for="email">Email</label>
-        <input
-          id="email"
-          class="input"
+      <Field label="Email" id="email">
+        <Input
           type="email"
           bind:value={email}
           autocomplete="username webauthn"
@@ -137,7 +139,7 @@
           spellcheck="false"
           required
         />
-      </div>
+      </Field>
       <PasswordInput id="password" bind:value={password} />
       {#if methods.captcha}<Captcha
           bind:this={captcha}
@@ -154,11 +156,8 @@
     </form>
   {:else if mode === 'code'}
     <form class="stack" onsubmit={sendCode} novalidate>
-      <div class="field">
-        <label for="code-email">Email</label>
-        <input
-          id="code-email"
-          class="input"
+      <Field label="Email" id="code-email">
+        <Input
           type="email"
           bind:value={email}
           autocomplete="email"
@@ -166,7 +165,7 @@
           spellcheck="false"
           required
         />
-      </div>
+      </Field>
       {#if methods.captcha}<Captcha
           bind:this={captcha}
           siteKey={methods.captcha.siteKey}
@@ -175,8 +174,8 @@
       <FormError message={task.error} />
       <SubmitButton {task} busyLabel="Sending…">Email me a code</SubmitButton>
       <p class="small">
-        <button type="button" class="btn link" onclick={() => switchTo('password')}
-          >Use my password instead</button
+        <Button type="button" variant="link" onclick={() => switchTo('password')}
+          >Use my password instead</Button
         >
       </p>
     </form>
@@ -187,13 +186,13 @@
       <FormError message={task.error} />
       <SubmitButton {task} busyLabel="Checking…">Sign in</SubmitButton>
       <p class="small">
-        <button type="button" class="btn link" onclick={() => switchTo('code')}>Send a new code</button>
+        <Button type="button" variant="link" onclick={() => switchTo('code')}>Send a new code</Button>
       </p>
     </form>
   {/if}
 
   {#if canPasskey || google || (methods.emailCode && mode === 'password')}
-    <div class="divider">or</div>
+    <Divider>or</Divider>
     <div class="stack others">
       {#if canPasskey}
         <SubmitButton
@@ -207,7 +206,7 @@
         </SubmitButton>
       {/if}
       {#if google}
-        <button type="button" class="btn wide" onclick={withGoogle}>
+        <Button type="button" wide onclick={withGoogle}>
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
             <path
               fill="#4285F4"
@@ -227,12 +226,10 @@
             />
           </svg>
           Continue with Google
-        </button>
+        </Button>
       {/if}
       {#if methods.emailCode && mode === 'password'}
-        <button type="button" class="btn wide" onclick={() => switchTo('code')}
-          >Email me a code instead</button
-        >
+        <Button type="button" wide onclick={() => switchTo('code')}>Email me a code instead</Button>
       {/if}
       <FormError message={passkeyTask.error} />
     </div>

@@ -47,5 +47,7 @@ export default defineConfig(({ mode }) => ({
   test: {
     include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'node',
+    // So the theme tests can read app.css and the theme files as text (src/lib/themes/themes.test.ts).
+    css: { include: [/\.css(\?|$)/] },
   },
 }));

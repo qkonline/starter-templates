@@ -8,6 +8,8 @@
   import ConfirmEmailFirst from '../ConfirmEmailFirst.svelte';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
+  import Button from '../ui/Button.svelte';
+  import List from '../ui/List.svelte';
 
   let passkeys = $state<Passkey[] | null>(null);
   let supported = $state(true);
@@ -50,7 +52,7 @@
   {:else if passkeys.length === 0}
     <p class="muted">No passkeys yet.</p>
   {:else}
-    <ul class="list">
+    <List>
       {#each passkeys as p (p.id)}
         <li>
           <div>
@@ -71,19 +73,19 @@
                 busyLabel="Removing…"
                 onclick={() => removeOne(p.id)}>Remove</SubmitButton
               >
-              <button type="button" class="btn small" onclick={() => (confirming = null)}>Keep</button>
+              <Button type="button" size="small" onclick={() => (confirming = null)}>Keep</Button>
             </div>
           {:else}
-            <button
+            <Button
               type="button"
-              class="btn small"
+              size="small"
               onclick={() => (confirming = p.id)}
-              aria-label="Remove passkey {p.device}, added {formatWhen(p.createdAt)}">Remove</button
+              aria-label="Remove passkey {p.device}, added {formatWhen(p.createdAt)}">Remove</Button
             >
           {/if}
         </li>
       {/each}
-    </ul>
+    </List>
   {/if}
 
   {#if add.code === 'email_unverified'}

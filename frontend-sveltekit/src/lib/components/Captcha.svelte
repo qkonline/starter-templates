@@ -5,6 +5,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadTurnstile, TokenQueue, type Turnstile } from '#lib/captcha.ts';
+  import { readPreferences } from '#lib/preferences.ts';
 
   let { siteKey, action }: { siteKey: string; action?: string } = $props();
 
@@ -12,6 +13,8 @@
   let turnstile: Turnstile | null = null;
   let widgetId: string | undefined;
   let problem = $state('');
+  // The person's mode (Account → Display), so the widget matches the page.
+  const { mode } = readPreferences();
 
   const queue = new TokenQueue(() => {
     if (turnstile && widgetId !== undefined) turnstile.reset(widgetId);
@@ -32,7 +35,7 @@
         widgetId = t.render(el, {
           sitekey: siteKey,
           action,
-          theme: 'auto',
+          theme: mode === 'system' ? 'auto' : mode,
           size: 'flexible',
           callback: (tok) => queue.give(tok),
           'expired-callback': () => queue.expire(),

@@ -1230,6 +1230,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sync/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a batch of changes made on the device (sync on)
+         * @description Offline data (PRD section 11, `docs/offline-data.md`). The device keeps every change in
+         *     an outbox and sends them here in the order they were made, at most 100 changes and 256 KB
+         *     a batch, one batch at a time, waiting for each reply before the next.
+         *
+         *     - **Where.** Without `team`, the person's own data; with it, that team's, shared by its
+         *       members (teams on, and only for a member; otherwise `not_found`).
+         *     - **Ids come from the device** and are kept: a change's `record` is the record's id,
+         *       made on the device when the record was made (a UUID). The backend never gives a
+         *       record another id.
+         *     - **In order, each once.** Changes are applied in the order sent. A change whose `id`
+         *       was applied before (a batch sent again after a lost reply) is answered as it was
+         *       then, and not applied again. Change ids are remembered for at least 30 days.
+         *     - **Merged per field, later wins.** `put` sets the fields it carries and leaves the
+         *       others as they are; a record that doesn't exist yet is made. When two changes set
+         *       the same field, the one the backend received later wins, whatever the devices'
+         *       clocks say.
+         *     - **Deletes stay as markers**, so they reach devices that were offline. A `put` to a
+         *       deleted record is refused with `conflict`, never brings it back.
+         *     - **Refused one by one.** A change that can't be applied (a record grown past 256 KB, a
+         *       deleted record) is refused in its own result, with an error code and a message to
+         *       show the person; the rest of the batch is applied. A batch that doesn't match this
+         *       schema (any change in it unreadable) is refused whole with `invalid_input` and
+         *       nothing applied, so a device can send its changes one by one to find the bad one;
+         *       a batch over 256 KB is `too_large`.
+         *     - **Busy.** At most 60 batches a minute per person and space, and 10,000 changes a day
+         *       per person and space; over either, or whenever the backend is too busy, `rate_limited`
+         *       with `Retry-After`. Nothing in the batch is applied then: the device waits and sends
+         *       the same batch again.
+         */
+        post: operations["syncPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The records changed since the device last asked (sync on)
+         * @description Records in the order they last changed, each as it is now, deleted ones as markers.
+         *     Start without `since`; keep `next` and send it as `since` for the following page, and
+         *     next time. `more` says whether to ask again now. A record changed between two pages
+         *     comes again in a later one, so after the last page the device has everything as it
+         *     was then. At most `limit` records (200 when not given) and about 256 KB a page.
+         *     At most 300 pages a minute per person and space, else `rate_limited`.
+         */
+        get: operations["syncPull"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start uploading a file (sync on)
+         * @description Files (photos, scans, attachments) go up in parts, so a large one survives a dropped
+         *     connection: start, send each part (`PUT .../parts/{number}`), then finish. The `id` is
+         *     made on the device, like a record's, and a record refers to the file by it.
+         *
+         *     Starting again with the same id is safe: it answers with the same file, which says
+         *     whether it's already complete. Every part but the last is exactly `partSize` bytes. At
+         *     most 1 GiB a file, and 2 GiB of files started a day per person and space
+         *     (`rate_limited` past it). An upload not finished within 7 days may be dropped.
+         */
+        post: operations["syncFileStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/files/{fileId}/parts/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Send one part of a file (sync on)
+         * @description The body is the part's bytes: `partSize` of them, or what's left for the last part.
+         *     Sending a part again replaces it. Keep each part's `etag` for finishing. `conflict`
+         *     when the file is already complete; `not_found` when it was never started (or its
+         *     upload was dropped: start again). At most 600 parts a minute per person and space.
+         */
+        put: operations["syncFilePart"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/files/{fileId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finish uploading a file (sync on)
+         * @description Every part, in order, with the etag each answered. Finishing a file that's already
+         *     complete answers with the file again. Parts that don't add up to the size given at
+         *     the start, or don't match what was sent, are `invalid_input`.
+         */
+        post: operations["syncFileComplete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/files/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A complete file's bytes (sync on)
+         * @description Sent as a download (`Content-Disposition: attachment`) with the type it was uploaded
+         *     as. `not_found` until it's complete.
+         */
+        get: operations["syncFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dev/mail": {
         parameters: {
             query?: never;
@@ -1325,6 +1490,66 @@ export interface components {
                 /** @description Base64url, as `PushManager.subscribe` takes it. */
                 vapidPublicKey: string;
             };
+            /** @description Offline data kept in step with the backend (`/sync/*`). */
+            sync: boolean;
+        };
+        /**
+         * @description Made on the device, unique everywhere: a UUID (version 7 preferred, time-ordered), or
+         *     any other id of 16 to 64 letters, digits, `-` and `_` that can't collide.
+         */
+        SyncId: string;
+        /** @description The app's own name for a kind of record (`appointments`, `patients`). */
+        SyncTable: string;
+        /** @description Field names and their values (any JSON). The app decides what they are. */
+        SyncFields: {
+            [key: string]: unknown;
+        };
+        SyncChange: {
+            id: components["schemas"]["SyncId"];
+            table: components["schemas"]["SyncTable"];
+            record: components["schemas"]["SyncId"];
+            /**
+             * @description `put` sets `fields` (making the record if new); `delete` marks it deleted.
+             * @enum {string}
+             */
+            op: "put" | "delete";
+            fields?: components["schemas"]["SyncFields"];
+            /** @description When it was done, by the device's clock (kept as what the person saw; never used for ordering). */
+            at: components["schemas"]["Time"];
+        };
+        SyncResult: {
+            id: components["schemas"]["SyncId"];
+            /**
+             * @description `applied`, now or when it was first sent; `refused`, with why, for the person who made it.
+             * @enum {string}
+             */
+            status: "applied" | "refused";
+            code?: components["schemas"]["ErrorCode"];
+            message?: string;
+        };
+        SyncRecord: {
+            table: components["schemas"]["SyncTable"];
+            id: components["schemas"]["SyncId"];
+            fields: components["schemas"]["SyncFields"];
+            /** @description A deleted record's marker; its fields are empty. */
+            deleted: boolean;
+            /** @description The account that made it. */
+            createdBy: string | null;
+            /** @description The account that changed it last. */
+            updatedBy: string | null;
+            createdAt: components["schemas"]["Time"];
+            /** @description When the backend received the last change. */
+            updatedAt: components["schemas"]["Time"];
+            /** @description When the last change was made, by that device's clock. */
+            changedAt: components["schemas"]["Time"];
+        };
+        SyncFile: {
+            id: components["schemas"]["SyncId"];
+            type: string;
+            size: number;
+            /** @description Bytes in every part but the last. */
+            partSize: number;
+            complete: boolean;
         };
         /** @description Pass back as `cursor` for the next page; null on the last page. */
         NextCursor: string | null;
@@ -1616,6 +1841,17 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The file as it is now */
+        SyncFileReply: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    file: components["schemas"]["SyncFile"];
+                };
+            };
+        };
         /** @description The team */
         TeamReply: {
             headers: {
@@ -1795,6 +2031,9 @@ export interface components {
         InviteId: components["schemas"]["Id"];
         /** @description One that's switched off (not in `/auth/methods`) is 404. */
         Provider: components["schemas"]["Provider"];
+        /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+        SyncTeam: components["schemas"]["Id"];
+        FileId: components["schemas"]["SyncId"];
         Id: components["schemas"]["Id"];
     };
     requestBodies: never;
@@ -3523,6 +3762,218 @@ export interface operations {
             401: components["responses"]["SignedOut"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncPush: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    changes: components["schemas"]["SyncChange"][];
+                };
+            };
+        };
+        responses: {
+            /** @description One result per change, in the order sent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        results: components["schemas"]["SyncResult"][];
+                    };
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["TooLarge"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncPull: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+                /** @description `next` from the last page; omit to start from the beginning. */
+                since?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        records: components["schemas"]["SyncRecord"][];
+                        /** @description Send as `since` next time. */
+                        next: string;
+                        /** @description There are more records after this page. */
+                        more: boolean;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncFileStart: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: components["schemas"]["SyncId"];
+                    /** @description The file's media type, as `image/jpeg`. */
+                    type: string;
+                    /** @description Bytes. Over 1 GiB is `too_large`. */
+                    size: number;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["SyncFileReply"];
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["TooLarge"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncFilePart: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path: {
+                fileId: components["parameters"]["FileId"];
+                /** @description From 1. */
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description The part is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        etag: string;
+                    };
+                };
+            };
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["TooLarge"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncFileComplete: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path: {
+                fileId: components["parameters"]["FileId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    parts: {
+                        number: number;
+                        etag: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["SyncFileReply"];
+            400: components["responses"]["InvalidInput"];
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    syncFile: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path: {
+                fileId: components["parameters"]["FileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
             500: components["responses"]["ServerError"];
         };
     };
