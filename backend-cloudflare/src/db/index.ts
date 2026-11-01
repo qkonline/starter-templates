@@ -188,7 +188,8 @@ export interface CleanupRow {
 }
 
 /** The emailed codes kept for an account: its confirm code, and change codes it asked for (codes.ts keys). */
-const ACCOUNT_CODES = "key = 'confirm|' || ?1 OR substr(key, 1, length('change|' || ?1 || '|')) = 'change|' || ?1 || '|'";
+const ACCOUNT_CODES =
+  "key = 'confirm|' || ?1 OR substr(key, 1, length('change|' || ?1 || '|')) = 'change|' || ?1 || '|' OR substr(key, 1, length('leave|' || ?1 || '|')) = 'leave|' || ?1 || '|'";
 
 export function d1(DB: D1Database): Db {
   const teams = teamsD1(DB);

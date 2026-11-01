@@ -175,6 +175,15 @@ export const data = {
     return blob;
   },
 
+  /**
+   * Deletes a file here at once, and on the backend when it syncs (by whoever added it, or a
+   * team admin). Clear the record fields that point at it with `put`.
+   */
+  removeFile: async (space: Space, id: string) => {
+    await (await open()).removeFile(space, id);
+    syncSoon();
+  },
+
   /** Keep this team's shared data on the device and in step. */
   follow: async (space: Space) => {
     await (await open()).follow(space);

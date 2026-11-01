@@ -7,7 +7,7 @@
   import { appName } from '#lib/config.ts';
   import { auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
-  import { expiresIn, inviteGone, roleLabel, teamPath } from '#lib/teams.ts';
+  import { asRole, expiresIn, inviteGone, roleLabel, teamPath } from '#lib/teams.ts';
   import FormError from '#lib/components/FormError.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
   import Button from '#lib/components/ui/Button.svelte';
@@ -130,9 +130,7 @@
                 <p class="title"><a href={teamPath(team.id, base)}>{team.name}</a></p>
                 <p class="muted small">
                   {team.memberCount}
-                  {team.memberCount === 1 ? 'member' : 'members'} · You’re {team.role === 'admin'
-                    ? 'an admin'
-                    : 'a member'}
+                  {team.memberCount === 1 ? 'member' : 'members'} · You’re {asRole(team.role)}
                 </p>
               </div>
             </li>

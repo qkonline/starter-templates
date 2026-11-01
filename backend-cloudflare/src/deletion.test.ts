@@ -62,3 +62,15 @@ describe('deleting an account', () => {
     expect(await ctx.db.teamsOf('ann')).toEqual([]);
   });
 });
+
+describe('the admin totals', () => {
+  it('follow accounts and teams as they come and go, without counting every row', async () => {
+    const { ctx } = fakeCtx({ TEAMS: 'true' });
+    const now = 1_800_000_000_000;
+    for (const id of ['a', 'b', 'c']) await ctx.db.createUser({ id, email: `${id}@b.test`, verified: true, password: null, now });
+    await ctx.db.createTeam({ id: 't', name: 'T', userId: 'a', now });
+    expect(await ctx.db.stats(now)).toMatchObject({ users: 3, teams: 1 });
+    await ctx.db.deleteUser('a');
+    expect(await ctx.db.stats(now)).toMatchObject({ users: 2, teams: 0 });
+  });
+});

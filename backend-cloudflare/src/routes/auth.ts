@@ -11,10 +11,9 @@ import { randomToken, sha256 } from '../crypto';
 import { emailTaken, invalid, notFound, wrongCode, wrongCredentials } from '../errors';
 import { HOUR, limit, MINUTE, networkLimit, uncount, uncountNetwork } from '../limits';
 import { bearer, perNetwork, type AppEnv } from '../middleware';
-import { checkPasswordKey, hashPasswordKey } from '../password';
+import { browserRoundsOf, checkPasswordKey, hashPasswordKey } from '../password';
 
 /** The browser's PBKDF2 rounds (contract/password.ts). Fixed: changing it changes every key. */
-const ITERATIONS = 600_000;
 const SIGNUPS_PER_NETWORK = 30;
 const WRONG_PER_ADDRESS = 10;
 const WRONG_PER_NETWORK = 100;
@@ -27,13 +26,19 @@ const notAKey = () => invalid("The password couldn't be read. Reload the page an
  * Count a password check against the address and the network before making it, so many at once
  * can't get past the limit; a right password takes its count back, so only wrong ones add up.
  */
-export async function checkWithLimits(ctx: Ctx, email: string, key: string, stored: string | null): Promise<{ ok: boolean; rehash: boolean }> {
+export async function checkWithLimits(
+  ctx: Ctx,
+  email: string,
+  key: string,
+  stored: string | null,
+  previousKey?: unknown,
+): Promise<{ ok: boolean; rehash: boolean }> {
   const message = 'Too many wrong passwords. Wait 15 minutes, or set a new one with "Forgot password".';
   // The network first: one network trying many addresses stops there, before each address
   // writes a count of its own (D1's daily writes).
   await networkLimit(ctx, 'wrong', WRONG_PER_NETWORK, WRONG_WINDOW, message);
   await limit(ctx, `wrong:${email}`, WRONG_PER_ADDRESS, WRONG_WINDOW, message);
-  const result = await checkPasswordKey(key, stored);
+  const result = await checkPasswordKey(keyFor(ctx, stored, key, previousKey), stored, ctx.cfg.passwordIterations);
   if (result.ok) {
     await uncount(ctx, `wrong:${email}`);
     await uncountNetwork(ctx, 'wrong');
@@ -41,12 +46,24 @@ export async function checkWithLimits(ctx: Ctx, email: string, key: string, stor
   return result;
 }
 
+/**
+ * The key to check against a stored hash: the one made with today's browser rounds, or, while
+ * the rounds are changing (PASSWORD_PREVIOUS_ITERATIONS), the one made with the previous rounds
+ * when that's what the hash was made from. The browser sends both then, so nothing about the
+ * account has to be asked first (which would tell anyone whether it exists).
+ */
+export function keyFor(ctx: Ctx, stored: string | null, key: string, previousKey: unknown): string {
+  const made = browserRoundsOf(stored);
+  if (made !== ctx.cfg.passwordIterations && made === ctx.cfg.previousIterations && isPasswordKey(previousKey)) return previousKey;
+  return key;
+}
+
 export const auth = new Hono<AppEnv>();
 
 auth.get('/auth/methods', (c) => {
   const { cfg } = c.var.ctx;
   return c.json({
-    password: { saltPrefix: cfg.saltPrefix, iterations: ITERATIONS, minLength: 8 },
+    password: { saltPrefix: cfg.saltPrefix, iterations: cfg.passwordIterations, minLength: 8, previousIterations: cfg.previousIterations },
     emailCode: cfg.emailCode,
     oauth: cfg.google ? ['google'] : [],
     captcha: cfg.captcha ? { provider: 'turnstile', siteKey: cfg.captcha.siteKey } : null,
@@ -63,7 +80,7 @@ auth.post('/auth/password/signup', perNetwork, async (c) => {
   await checkCaptcha(ctx, b.captcha);
   await networkLimit(ctx, 'signups', SIGNUPS_PER_NETWORK, HOUR, 'Too many accounts made from this network. Try again in an hour.');
   const id = randomToken(12);
-  const made = await ctx.db.createUser({ id, email, verified: false, password: await hashPasswordKey(b.passwordKey), now: Date.now() });
+  const made = await ctx.db.createUser({ id, email, verified: false, password: await hashPasswordKey(b.passwordKey, ctx.cfg.passwordIterations), now: Date.now() });
   if (!made) throw emailTaken();
   const user = (await ctx.db.userById(id))!;
   if (ctx.cfg.requireVerifiedEmail) {
@@ -75,16 +92,17 @@ auth.post('/auth/password/signup', perNetwork, async (c) => {
 
 auth.post('/auth/password/signin', perNetwork, async (c) => {
   const ctx = c.var.ctx;
-  const b = await readBody(c.req.raw, ['email', 'passwordKey', 'captcha']);
+  const b = await readBody(c.req.raw, ['email', 'passwordKey', 'previousPasswordKey', 'captcha']);
   const email = cleanEmail(b.email);
   if (!email) throw notAnEmail();
   if (!isPasswordKey(b.passwordKey)) throw notAKey();
   await checkCaptcha(ctx, b.captcha);
   // An unknown address is checked against nothing, at the same cost: the same answer either way.
   const user = await ctx.db.userByEmail(email);
-  const { ok, rehash } = await checkWithLimits(ctx, email, b.passwordKey, user?.password ?? null);
+  const { ok, rehash } = await checkWithLimits(ctx, email, b.passwordKey, user?.password ?? null, b.previousPasswordKey);
   if (!ok || !user) throw wrongCredentials();
-  if (rehash) await ctx.db.setPassword(user.id, await hashPasswordKey(b.passwordKey));
+  // Behind (the Worker's rounds, or the browser's): stored again from the key made today.
+  if (rehash) await ctx.db.setPassword(user.id, await hashPasswordKey(b.passwordKey, ctx.cfg.passwordIterations));
   // Only while nothing has changed who may sign in since the password was read (a reset, the
   // owner taking the address back): else the checked password is already the old one.
   return c.json(await signedIn(ctx, user, deviceName(c.req.header('user-agent')), false, { epoch: user.auth_epoch }));
@@ -113,7 +131,7 @@ auth.post('/auth/password/reset', perNetwork, async (c) => {
   if (!user) throw wrongCode();
   notSuspended(user);
   // The code proves the address: it's confirmed, and whoever knew the old password is out.
-  await ctx.db.claimAccount(user.id, await hashPasswordKey(b.passwordKey));
+  await ctx.db.claimAccount(user.id, await hashPasswordKey(b.passwordKey, ctx.cfg.passwordIterations));
   return c.json(await signedIn(ctx, (await ctx.db.userById(user.id))!, deviceName(c.req.header('user-agent')), false));
 });
 

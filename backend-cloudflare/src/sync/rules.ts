@@ -8,7 +8,7 @@ export interface SyncWho {
   user: string;
   session: string;
   /** In a team's space, the person's role; null in their own. */
-  role: 'admin' | 'member' | null;
+  role: 'admin' | 'member' | 'viewer' | null;
   /** `user:<id>` or `team:<id>`. */
   space: string;
 }

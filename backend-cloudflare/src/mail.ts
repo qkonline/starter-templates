@@ -60,3 +60,18 @@ export function codeMail(ctx: Ctx, to: string, code: string, purpose: string): M
       `<p style="font:14px/1.5 system-ui,sans-serif;color:#5b6170">${esc(after)}</p>`,
   };
 }
+
+/** To the old address once an account has moved to another: who to tell if it wasn't them. */
+export function movedMail(ctx: Ctx, to: string, next: string): Mail {
+  const [name, domain] = next.split('@');
+  const shown = `${name!.slice(0, 2)}…@${domain}`;
+  const help = ctx.cfg.contactEmail ? ` If this wasn't you, write to ${ctx.cfg.contactEmail} straight away.` : " If this wasn't you, reply to this email straight away.";
+  const text = `The email address of your ${ctx.cfg.title} account was changed to ${shown}, so this address no longer signs in.${help}`;
+  return {
+    to,
+    subject: `Your ${ctx.cfg.title} email address was changed`,
+    text,
+    html: `<p style="font:16px/1.5 system-ui,sans-serif">${esc(text)}</p>`,
+  };
+}
+

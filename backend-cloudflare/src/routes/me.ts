@@ -11,10 +11,11 @@ import { randomToken } from '../crypto';
 import type { Ctx } from '../env';
 import { emailTaken, invalid, notFound, Refusal, signedOut, wrongCode } from '../errors';
 import { HOUR, limit } from '../limits';
+import { movedMail, sendMail } from '../mail';
 import { requireUser, type AppEnv } from '../middleware';
 import { checkPasswordKey, hashPasswordKey } from '../password';
 import { clearPhotos, photoKey } from '../photos';
-import { checkWithLimits } from './auth';
+import { checkWithLimits, keyFor } from './auth';
 import { exportOf } from './export';
 import { deleteAccount } from '../deletion';
 
@@ -60,14 +61,14 @@ me.delete('/me', async (c) => {
 
 me.put('/me/password', async (c) => {
   const { ctx, user, session } = c.var;
-  const b = await readBody(c.req.raw, ['currentPasswordKey', 'passwordKey']);
+  const b = await readBody(c.req.raw, ['currentPasswordKey', 'previousCurrentPasswordKey', 'passwordKey']);
   if (!isPasswordKey(b.currentPasswordKey) || !isPasswordKey(b.passwordKey))
     throw invalid("The password couldn't be read. Reload the page and try again.");
   if (!user.password) throw invalid('This account has no password yet. Set one with "Forgot password".');
-  if (!(await checkWithLimits(ctx, user.email, b.currentPasswordKey, user.password)).ok)
+  if (!(await checkWithLimits(ctx, user.email, b.currentPasswordKey, user.password, b.previousCurrentPasswordKey)).ok)
     throw new Refusal(400, 'invalid_credentials', "That isn't your current password.");
   // Whoever knew the old password is out, even mid-sign-in (auth_epoch); this device stays.
-  await ctx.db.changePassword(user.id, await hashPasswordKey(b.passwordKey), session.id);
+  await ctx.db.changePassword(user.id, await hashPasswordKey(b.passwordKey, ctx.cfg.passwordIterations), session.id);
   return c.body(null, 204);
 });
 
@@ -99,12 +100,15 @@ me.post('/me/email/send', async (c) => {
   const taken = !!(await ctx.db.userByEmail(email));
   // Kept under this account and the new address: good only for this account (bind).
   await sendCode(ctx, { purpose: 'change', subject: email, bind: user.id }, email, { deliver: !taken });
+  // No password to prove who's asking: the current inbox must agree too, or a stolen session
+  // would be enough to take the account.
+  if (!user.password) await sendCode(ctx, { purpose: 'leave', subject: user.email, bind: user.id }, user.email);
   return c.body(null, 204);
 });
 
 me.post('/me/email/verify', async (c) => {
   const { ctx, user } = c.var;
-  const b = await readBody(c.req.raw, ['email', 'code', 'currentPasswordKey', 'passwordKey']);
+  const b = await readBody(c.req.raw, ['email', 'code', 'currentPasswordKey', 'previousCurrentPasswordKey', 'passwordKey', 'currentCode']);
   // The email salts the password key, so a password account sends the key made with the old
   // address (to prove the password) and the one made with the new (to store).
   if (user.password) {
@@ -112,7 +116,11 @@ me.post('/me/email/verify', async (c) => {
       throw invalid('Give your current password to move your account to a new address.');
   } else if (b.currentPasswordKey !== undefined || b.passwordKey !== undefined) {
     throw invalid("This account has no password, so there's none to give.");
+  } else if (b.currentCode === undefined) {
+    throw invalid(`Enter the code we sent to ${user.email} as well.`);
   }
+  const leaving = { purpose: 'leave' as const, subject: user.email, bind: user.id };
+  const currentCode = user.password ? null : cleanCode(b.currentCode);
   const email = cleanEmail(b.email);
   const code = cleanCode(b.code);
   const which = { purpose: 'change' as const, subject: email ?? '', bind: user.id };
@@ -122,11 +130,18 @@ me.post('/me/email/verify', async (c) => {
   if (!(await matchCode(ctx, which, code))) throw wrongCode();
   // Only once the code is right: whoever has it owns the address, so this tells them nothing new.
   if (await ctx.db.userByEmail(email)) throw emailTaken();
-  if (user.password && !(await checkPasswordKey(b.currentPasswordKey as string, user.password)).ok)
+  if (
+    user.password &&
+    !(await checkPasswordKey(keyFor(ctx, user.password, b.currentPasswordKey as string, b.previousCurrentPasswordKey), user.password)).ok
+  )
     throw new Refusal(400, 'invalid_credentials', "That isn't your current password.");
+  if (!user.password && !(await matchCode(ctx, leaving, currentCode))) throw wrongCode();
   if (!(await useCode(ctx, which, code))) throw wrongCode();
-  const password = user.password ? await hashPasswordKey(b.passwordKey as string) : null;
+  if (!user.password && !(await useCode(ctx, leaving, currentCode!))) throw wrongCode();
+  const password = user.password ? await hashPasswordKey(b.passwordKey as string, ctx.cfg.passwordIterations) : null;
   if (!(await ctx.db.setEmail(user.id, email, password))) throw emailTaken();
+  // A password account's old inbox hasn't heard of this yet: tell it, after the reply.
+  if (user.password) ctx.waitUntil?.(sendMail(ctx, movedMail(ctx, user.email, email)).catch((e) => console.error('Moved notice', e)));
   return c.json(await fresh(ctx, user.id));
 });
 

@@ -2,6 +2,7 @@
 // read from them once per request.
 
 import type { Db } from './db';
+import type { SyncMeter } from './sync/meter';
 import type { SyncSpace } from './sync/space';
 
 export interface Env {
@@ -11,6 +12,11 @@ export interface Env {
   FILES: R2Bucket;
   /** One Durable Object per space of synced data: a person's own, or a team's. */
   SPACES: DurableObjectNamespace<SyncSpace>;
+  /** The whole app's daily sync totals (src/sync/meter.ts). */
+  METER: DurableObjectNamespace<SyncMeter>;
+  /** Caps on the whole app's sync a day: changes, and bytes of files started. */
+  SYNC_APP_CHANGES_PER_DAY?: string;
+  SYNC_APP_FILE_BYTES_PER_DAY?: string;
   /** Requests per network to the routes that need no sign-in. Absent in unit tests. */
   LIMITER?: RateLimit;
   /** The passwordKey salt prefix: lower case, digits and dashes. Never changed once in use. */
@@ -60,6 +66,14 @@ export interface Env {
    */
   CODE_PEPPER?: string;
   /**
+   * PBKDF2 rounds the browser makes the passwordKey with (600000 when unset). To raise them, set
+   * the new number here and the old one in PASSWORD_PREVIOUS_ITERATIONS: browsers then send a
+   * key made each way, and each account moves to the new rounds as it signs in. Once most have,
+   * remove PASSWORD_PREVIOUS_ITERATIONS; anyone left sets a new password with "Forgot password".
+   */
+  PASSWORD_ITERATIONS?: string;
+  PASSWORD_PREVIOUS_ITERATIONS?: string;
+  /**
    * The oldest frontend build still served (ISO 8601, as the frontend sends in X-Client-Version).
    * Raise it when a change would break copies of the app installed before it; they're told to
    * update. Unset, every build is served.
@@ -99,6 +113,9 @@ export interface Config {
   pushExtraHosts: string[];
   /** The time between sends of one invite. */
   inviteResendGapMs: number;
+  /** The browser's PBKDF2 rounds for passwords, and the ones before them while accounts move over. */
+  passwordIterations: number;
+  previousIterations: number | null;
   /** The oldest frontend build served (ms since 1970, and as set), or null. */
   minClient: { at: number; text: string } | null;
 }
@@ -110,6 +127,15 @@ const list = (v: string | undefined) =>
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+
+/** A number of PBKDF2 rounds, or null when unset; too few is a mistake worth failing loudly on. */
+function rounds(v: string | undefined): number | null {
+  const text = v?.trim();
+  if (!text) return null;
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 100_000) throw new Error(`PASSWORD_ITERATIONS must be a whole number of at least 100000, not "${text}".`);
+  return n;
+}
 
 /** MIN_CLIENT read as a time; a value that isn't one is a mistake worth failing loudly on. */
 function minClient(v: string | undefined): Config['minClient'] {
@@ -156,6 +182,8 @@ export function config(env: Env, api: string): Config {
     devMail: local && !env.RESEND_API_KEY && on(env.DEV_MAIL),
     pushExtraHosts: local ? list(env.PUSH_EXTRA_HOSTS).map((h) => h.toLowerCase()) : [],
     minClient: minClient(env.MIN_CLIENT),
+    passwordIterations: rounds(env.PASSWORD_ITERATIONS) ?? 600_000,
+    previousIterations: rounds(env.PASSWORD_PREVIOUS_ITERATIONS),
     inviteResendGapMs: (local && Number.isInteger(gap) && gap > 0 ? gap : 60) * 1000,
   };
 }

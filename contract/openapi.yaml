@@ -154,7 +154,9 @@ paths:
       summary: Sign in with an email and password
       description: |
         A wrong password and an unknown address get the same `invalid_credentials`. At most 10
-        wrong tries per address and 100 per network in 15 minutes.
+        wrong tries per address and 100 per network in 15 minutes. While the rounds are changing
+        (`previousIterations` in `/auth/methods`), `previousPasswordKey` is the key made with the
+        previous ones.
       security: []
       requestBody:
         required: true
@@ -168,6 +170,8 @@ paths:
                 email:
                   $ref: '#/components/schemas/EmailText'
                 passwordKey:
+                  $ref: '#/components/schemas/PasswordKey'
+                previousPasswordKey:
                   $ref: '#/components/schemas/PasswordKey'
                 captcha:
                   $ref: '#/components/schemas/Captcha'
@@ -578,6 +582,8 @@ paths:
               properties:
                 currentPasswordKey:
                   $ref: '#/components/schemas/PasswordKey'
+                previousCurrentPasswordKey:
+                  $ref: '#/components/schemas/PasswordKey'
                 passwordKey:
                   $ref: '#/components/schemas/PasswordKey'
       responses:
@@ -656,6 +662,10 @@ paths:
         An address another account already has gets the same 204 and no mail, so this can't be
         used to find out who has an account; `/me/email/verify` refuses it (`email_taken`) once
         a right code is given, which only the address's owner can have.
+
+        An account without a password (Google, email codes) also gets a code at its current
+        address, sent to `currentCode` in `/me/email/verify`: with nothing else to prove who's
+        asking, a session someone else got hold of mustn't be enough to take the account.
       requestBody:
         required: true
         content:
@@ -694,9 +704,11 @@ paths:
         The email is part of the password key's salt, so an account with a password sends both
         keys: `currentPasswordKey` made with the old address (proving the password) and
         `passwordKey` made with the new one (stored from now on). An account without a password
-        sends neither. A wrong current password spends one of the code's 5 tries, which is what
+        sends neither, and sends `currentCode`, the code emailed to its current address. A wrong
+        current password or current code spends one of the new code's 5 tries, which is what
         limits guessing here. An address another account has is `email_taken`, answered only
-        after the code is right.
+        after the code is right. Once moved, an account with a password is told at its old
+        address (one without already got a code there).
       requestBody:
         required: true
         content:
@@ -712,8 +724,12 @@ paths:
                   $ref: '#/components/schemas/CodeText'
                 currentPasswordKey:
                   $ref: '#/components/schemas/PasswordKey'
+                previousCurrentPasswordKey:
+                  $ref: '#/components/schemas/PasswordKey'
                 passwordKey:
                   $ref: '#/components/schemas/PasswordKey'
+                currentCode:
+                  $ref: '#/components/schemas/CodeText'
       responses:
         '200':
           $ref: '#/components/responses/UserReply'
@@ -2422,6 +2438,31 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [Sync]
+      operationId: deleteSyncFile
+      summary: Delete a file, or stop its upload (sync on)
+      description: |
+        By the person who uploaded it, or in a team's space by a team admin; anyone else gets
+        `forbidden`. Its bytes go at once; its id stays used, so starting a file with it again
+        is `conflict`. Safe to send twice: a file that's already gone, or was never there,
+        answers 204 too. Records that pointed at it keep its id; the app clears those fields.
+      parameters:
+        - $ref: '#/components/parameters/SyncTeam'
+        - $ref: '#/components/parameters/FileId'
+      responses:
+        '204':
+          description: Gone
+        '401':
+          $ref: '#/components/responses/SignedOut'
+        '403':
+          $ref: '#/components/responses/ForbiddenOrUnverified'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /dev/mail:
     get:
@@ -2571,7 +2612,15 @@ components:
               description: The app's own name, so one password gives different keys in different apps.
             iterations:
               type: integer
-              const: 600000
+              minimum: 600000
+              description: PBKDF2 rounds for the key; 600,000 unless the app has raised them.
+            previousIterations:
+              type: [integer, 'null']
+              description: |
+                While the app raises its rounds, the ones before: the frontend then also sends a
+                key made with these (`previousPasswordKey`, `previousCurrentPasswordKey`) wherever
+                it sends the current password, so an account made before the change still signs
+                in, and is moved to the new rounds as it does. Null or absent the rest of the time.
             minLength:
               type: integer
               const: 8
@@ -2798,8 +2847,12 @@ components:
 
     Role:
       type: string
-      enum: [admin, member]
-      description: Admins rename and delete the team, invite, remove and change roles; members use it.
+      enum: [admin, member, viewer]
+      description: |
+        Admins rename and delete the team, invite, remove and change roles; members use it;
+        viewers see it and its shared data but change nothing (each change of theirs to its
+        synced data is refused with `forbidden`, and so is starting a file). An app's own paths
+        decide what each role may do there.
 
     TeamInput:
       type: object

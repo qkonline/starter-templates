@@ -223,7 +223,7 @@ describe('the record of what happened', () => {
     // Started again (the object woke up): nothing runs twice.
     const s = fakeStore(undefined, db);
     pushed(s, 'a', [put(uid(), { a: 1 })]);
-    expect({ ...db.prepare("SELECT value FROM meta WHERE key = 'schema'").get() }).toEqual({ value: '2' });
+    expect({ ...db.prepare("SELECT value FROM meta WHERE key = 'schema'").get() }).toEqual({ value: '3' });
     db.exec("UPDATE meta SET value = '99' WHERE key = 'schema'");
     expect(() => fakeStore(undefined, db)).toThrow(/newer release/);
   });
@@ -285,5 +285,23 @@ describe('files', () => {
     const now = Date.UTC(2026, 10, 1);
     expect(s.fileCheck('b', { id: uid(), type: 'video/mp4', size: 2 * 1024 ** 3 }, now).ok).toBe(true);
     expect(s.fileCheck('b', { id: uid(), type: 'video/mp4', size: 1 }, now)).toMatchObject({ ok: false, code: 'rate_limited' });
+  });
+});
+
+describe('roles and deleted files', () => {
+  test("a viewer's changes are each refused with forbidden, and kept nowhere", () => {
+    const s = fakeStore();
+    const results = pushed(s, who('v', 'v-1', 'viewer'), [put(uid(), { a: 1 }), del(uid())]);
+    expect(results.map((r) => r.code)).toEqual(['forbidden', 'forbidden']);
+    expect(s.pull(0).records).toEqual([]);
+  });
+
+  test("a deleted file's id isn't used again", () => {
+    const s = fakeStore();
+    const f = { id: uid(), type: 'text/plain', size: 10 };
+    s.fileStarted('a', f, 'up');
+    s.fileDeleted(f.id);
+    expect(s.fileCheck('a', f)).toMatchObject({ ok: false, code: 'conflict' });
+    expect(s.unfinished()).toEqual([]);
   });
 });

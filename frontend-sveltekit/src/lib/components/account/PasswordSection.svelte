@@ -5,7 +5,7 @@
 <script lang="ts">
   import { api } from '#lib/api/index.ts';
   import { auth, replaceSession } from '#lib/session.svelte.ts';
-  import { makeKey, passwordProblem } from '#lib/password.ts';
+  import { makeKey, makeKeys, passwordProblem } from '#lib/password.ts';
   import { Task } from '#lib/task.svelte.ts';
   import Captcha from '../Captcha.svelte';
   import CodeInput from '../CodeInput.svelte';
@@ -39,11 +39,11 @@
       return;
     }
     task.run(async () => {
-      const [currentKey, newKey] = await Promise.all([
-        makeKey(current, user.email, methods.password),
+      const [currentKeys, newKey] = await Promise.all([
+        makeKeys(current, user.email, methods.password),
         makeKey(next, user.email, methods.password),
       ]);
-      await api.changePassword(currentKey, newKey);
+      await api.changePassword(currentKeys.key, newKey, currentKeys.previous);
       current = next = '';
       done = 'Password changed. Other devices are signed out.';
       onChanged?.();

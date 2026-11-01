@@ -80,6 +80,11 @@ export interface LocalFile {
   parts: { number: number; etag: string }[];
   /** On the backend, complete. */
   uploaded: boolean;
+  /**
+   * Only on a file fetched from the backend (made on another device): when it was last opened
+   * here, so the least recently used go first once those take more than `MAX_CACHED`.
+   */
+  cachedUse?: number;
 }
 
 /** A record the backend sent (the contract's SyncRecord). */
@@ -103,9 +108,14 @@ interface Schema extends DBSchema {
     indexes: { bySpace: [string, number]; byRecord: [string, string, string] };
   };
   meta: { key: string; value: unknown };
-  files: { key: [string, string]; value: LocalFile; indexes: { waiting: string } };
+  files: { key: [string, string]; value: LocalFile; indexes: { waiting: string; cached: number } };
   refused: { key: string; value: RefusedChange };
+  /** Files deleted here whose deletion the backend hasn't had yet. */
+  deletions: { key: [string, string]; value: { space: Space; id: string } };
 }
+
+/** Most the files fetched from the backend may take on the device; the least recently opened go first. */
+export const MAX_CACHED = 200 * 1024 * 1024;
 
 /** Most a record may be as JSON: the backend refuses more (192 KB). Larger things are files. */
 export const MAX_RECORD = 192 * 1024;
@@ -163,6 +173,11 @@ const UPGRADES: Upgrade[] = [
   },
   (d) => {
     d.createObjectStore('refused', { keyPath: 'id' });
+  },
+  (d, tx) => {
+    // Set only on files fetched from the backend, so the index lists just those.
+    tx.objectStore('files').createIndex('cached', 'cachedUse');
+    d.createObjectStore('deletions', { keyPath: ['space', 'id'] });
   },
 ];
 export const DB_VERSION = UPGRADES.length;
@@ -360,12 +375,13 @@ export async function openLocal(name: string, hooks: OpenHooks = {}) {
 
     /** Nothing here the backend doesn't have yet: no unsent changes, uploads or unseen refusals. */
     async settled() {
-      const [outbox, files, refused] = await Promise.all([
+      const [outbox, files, refused, deletions] = await Promise.all([
         db.count('outbox'),
         db.countFromIndex('files', 'waiting'),
         db.count('refused'),
+        db.count('deletions'),
       ]);
-      return outbox + files + refused === 0;
+      return outbox + files + refused + deletions === 0;
     },
 
     /** Records from the backend: each becomes the base, with this device's unsent changes on top. */
@@ -398,10 +414,11 @@ export async function openLocal(name: string, hooks: OpenHooks = {}) {
 
     /** Everything of a space this device kept (the person left the team, or it was deleted). */
     async dropSpace(space: Space) {
-      const tx = db.transaction(['records', 'outbox', 'meta', 'files'], 'readwrite');
+      const tx = db.transaction(['records', 'outbox', 'meta', 'files', 'deletions'], 'readwrite');
       const range = IDBKeyRange.bound([space], [space, []]);
       await tx.objectStore('records').delete(range);
       await tx.objectStore('files').delete(range);
+      await tx.objectStore('deletions').delete(range);
       for await (const c of tx
         .objectStore('outbox')
         .index('bySpace')
@@ -432,10 +449,52 @@ export async function openLocal(name: string, hooks: OpenHooks = {}) {
       } as LocalFile);
       return id;
     },
-    file: (space: Space, id: string) => db.get('files', [space, id]),
-    /** A file fetched from the backend, kept for next time. */
-    keepFile: (space: Space, id: string, blob: Blob) =>
-      db.put('files', { space, id, type: blob.type, size: blob.size, blob, parts: [], uploaded: true }),
+    /** A file kept here; one fetched from elsewhere is marked as just used. */
+    async file(space: Space, id: string) {
+      const f = await db.get('files', [space, id]);
+      if (f?.cachedUse !== undefined) await db.put('files', { ...f, cachedUse: Date.now() });
+      return f;
+    },
+    /**
+     * A file fetched from the backend, kept for next time; then the least recently opened of
+     * those go until they take at most `max` (files made here are never dropped this way).
+     */
+    async keepFile(space: Space, id: string, blob: Blob, max = MAX_CACHED) {
+      await db.put('files', {
+        space,
+        id,
+        type: blob.type,
+        size: blob.size,
+        blob,
+        parts: [],
+        uploaded: true,
+        cachedUse: Date.now(),
+      });
+      const cached = await db.getAllFromIndex('files', 'cached');
+      let total = cached.reduce((n, f) => n + f.size, 0);
+      for (const f of cached) {
+        if (total <= max) break;
+        if (f.space === space && f.id === id) continue;
+        await db.delete('files', [f.space, f.id]);
+        total -= f.size;
+      }
+    },
+    /**
+     * Deletes a file here at once, and on the backend when it syncs (unless it never got there).
+     * Records that point at it keep its id; the app clears those fields.
+     */
+    async removeFile(space: Space, id: string) {
+      const tx = db.transaction(['files', 'deletions'], 'readwrite');
+      const f = await tx.objectStore('files').get([space, id]);
+      // Never sent, not even a part: nothing to tell the backend.
+      const local = f && !f.uploaded && !f.parts.length && f.cachedUse === undefined;
+      await tx.objectStore('files').delete([space, id]);
+      if (!local) await tx.objectStore('deletions').put({ space, id });
+      await tx.done;
+    },
+    /** Deletions still to send. */
+    deletions: () => db.getAll('deletions'),
+    deletionSent: (space: Space, id: string) => db.delete('deletions', [space, id]),
     /** Files still to upload, oldest first. */
     waitingFiles: () => db.getAllFromIndex('files', 'waiting'),
     async updateFile(f: LocalFile) {

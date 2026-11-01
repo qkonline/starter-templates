@@ -39,6 +39,8 @@ function fakeBackend() {
     unreadable: new Set<string>(),
     partCalls: 0,
     failPartAt: 0,
+    /** File ids the person may not delete. */
+    notYours: new Set<string>(),
   };
   const check = (team?: string) => {
     if (team && backend.gone.has(team)) throw new ApiError('not_found', "That isn't here.", 404);
@@ -113,18 +115,24 @@ function fakeBackend() {
       files.get(id)!.parts.set(number, bytes);
       return `etag-${number}`;
     },
+    deletedFiles: [] as string[],
+    async syncFileDelete(id: string) {
+      if (backend.notYours.has(id)) throw new ApiError('forbidden', 'Not yours to delete.', 403);
+      files.delete(id);
+      api.deletedFiles.push(id);
+    },
     async syncFileComplete(id: string) {
       const f = files.get(id)!;
       f.complete = true;
       return { id, type: 'x/y', size: f.size, partSize: 4, complete: true };
     },
   };
-  return { backend, api: api as unknown as Api };
+  return { backend, api: api as unknown as Api, deleted: api.deletedFiles };
 }
 
 async function setup() {
   const local = await openLocal(`sync-${++n}`);
-  const { backend, api } = fakeBackend();
+  const { backend, api, deleted } = fakeBackend();
   const refused: Refused[] = [];
   const lost: string[] = [];
   const sleep = vi.fn((ms: number) => Promise.resolve(void ms));
@@ -134,7 +142,7 @@ async function setup() {
     onRefused: (r) => refused.push(...r),
     onLostSpace: (s) => lost.push(s),
   });
-  return { local, backend, api, sync, refused, lost, sleep };
+  return { local, backend, api, sync, refused, lost, sleep, deleted };
 }
 
 describe('syncing', () => {
@@ -274,5 +282,19 @@ describe('syncing', () => {
     // Part 1 went once.
     expect(backend.partCalls).toBe(4);
     expect(await local.waitingFiles()).toEqual([]);
+  });
+
+  it('a file deleted here is deleted on the backend; one that is not theirs is said, not retried', async () => {
+    const { local, backend, sync, refused, deleted } = await setup();
+    const [mine, theirs] = [newId(), newId()];
+    await local.keepFile(ME, mine, new Blob(['a']));
+    await local.keepFile(ME, theirs, new Blob(['b']));
+    backend.notYours.add(theirs);
+    await local.removeFile(ME, mine);
+    await local.removeFile(ME, theirs);
+    await sync.run();
+    expect(deleted).toEqual([mine]);
+    expect(refused).toEqual([expect.objectContaining({ record: theirs, code: 'forbidden' })]);
+    expect(await local.deletions()).toEqual([]);
   });
 });

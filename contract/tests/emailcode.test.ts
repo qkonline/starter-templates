@@ -1,7 +1,7 @@
 // Signing in by emailed code: optional per app, since every code is an email from the quota.
 
 import { describe, expect, test } from 'vitest';
-import { call, captcha, codeFrom, expectError, expectReply, freshEmail, methods, signIn, signUp } from './lib';
+import { call, captcha, codeFrom, expectError, expectReply, freshEmail, mailed, methods, signIn, signUp } from './lib';
 
 const send = (email: string, withCaptcha = true) =>
   call('post', '/auth/code/send', { json: { email, ...(withCaptcha ? captcha() : {}) } });
@@ -84,5 +84,23 @@ describe.skipIf(!methods.emailCode)('email codes', () => {
 
   test.skipIf(!methods.captcha)('without the CAPTCHA', async () => {
     expectError(await send(freshEmail(), false), 'post', '/auth/code/send', 400, 'captcha_failed');
+  });
+
+  test('an account without a password moves to a new address only with a code from its current one too', async () => {
+    const email = freshEmail();
+    const { token } = (await verify(email, await codeFrom(email, () => send(email)))).body;
+    const next = freshEmail();
+    // One request mails both addresses.
+    const { reply: code, found: currentCode } = await mailed(email, /\b(\d{6})\b/, () =>
+      codeFrom(next, () => call('post', '/me/email/send', { token, json: { email: next, ...captcha() } })),
+    );
+    const move = (json: Record<string, unknown>) => call('post', '/me/email/verify', { token, json: { email: next, code, ...json } });
+    // Without it, or with a wrong one: refused.
+    expectError(await move({}), 'post', '/me/email/verify', 400, 'invalid_input');
+    const wrong = currentCode === '000000' ? '111111' : '000000';
+    expectError(await move({ currentCode: wrong }), 'post', '/me/email/verify', 400, 'invalid_code');
+    const r = await move({ currentCode });
+    expectReply(r, 'post', '/me/email/verify', 200);
+    expect(r.body.user.email).toBe(next);
   });
 });

@@ -146,10 +146,11 @@ export function adminD1(DB: D1Database): AdminDb {
     adminUser: (id) => one(`${ADMIN_USER} WHERE u.id = ?`, id),
     async stats(now) {
       const [users, newUsers7d, suspended, teams, openMessages, errors24h] = await Promise.all([
-        count('SELECT COUNT(*) AS n FROM core_users'),
+        // Kept by triggers (migration 0006); the rest read only the rows they count, by index.
+        count("SELECT n FROM core_counts WHERE name = 'users'"),
         count('SELECT COUNT(*) AS n FROM core_users WHERE created >= ?', now - 7 * 24 * HOUR),
         count('SELECT COUNT(*) AS n FROM core_users WHERE suspended = 1'),
-        count('SELECT COUNT(*) AS n FROM core_teams'),
+        count("SELECT n FROM core_counts WHERE name = 'teams'"),
         count("SELECT COUNT(*) AS n FROM core_messages WHERE status = 'open'"),
         count('SELECT SUM(count) AS n FROM core_report_hours WHERE hour > ?', Math.floor(now / HOUR) - 24),
       ]);

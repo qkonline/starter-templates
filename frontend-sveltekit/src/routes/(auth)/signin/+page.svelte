@@ -8,7 +8,7 @@
   import { page } from '$app/state';
   import { api } from '#lib/api/index.ts';
   import { newOAuthNonce, oauthReturn } from '#lib/oauth.ts';
-  import { emailProblem, makeKey } from '#lib/password.ts';
+  import { emailProblem, makeKeys } from '#lib/password.ts';
   import {
     autofillSupported,
     passkeysSupported,
@@ -67,8 +67,11 @@
       return;
     }
     task.run(async () => {
-      const [key, token] = await Promise.all([makeKey(password, email, methods.password), captcha?.token()]);
-      await signedIn(await api.signIn(email.trim(), key, token), next);
+      const [keys, token] = await Promise.all([
+        makeKeys(password, email, methods.password),
+        captcha?.token(),
+      ]);
+      await signedIn(await api.signIn(email.trim(), keys.key, token, keys.previous), next);
     });
   }
 

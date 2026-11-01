@@ -31,6 +31,10 @@ GOOGLE_CLIENT_ID = ""
 TEAMS = "false"
 # Offline data kept in step with the backend (/sync), in a Durable Object per person and per team.
 SYNC = "false"
+# The whole app's sync per UTC day, across everyone: changes, and bytes of files started. Over
+# either, syncing waits until the next day. R2 holds 10 GB free and bills beyond.
+SYNC_APP_CHANGES_PER_DAY = "1000000"
+SYNC_APP_FILE_BYTES_PER_DAY = "5368709120"
 # The admin area, for the confirmed accounts with these (comma-separated) emails.
 ADMIN = "false"
 ADMIN_EMAILS = ""
@@ -72,9 +76,18 @@ bucket_name = "starter-photos"
 name = "SPACES"
 class_name = "SyncSpace"
 
+# The whole app's daily totals for synced data (src/sync/meter.ts), one small object a day.
+[[durable_objects.bindings]]
+name = "METER"
+class_name = "SyncMeter"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["SyncSpace"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["SyncMeter"]
 
 # Clears out what has run out (src/index.ts, scheduled; Db.sweep): codes, challenges, rate-limit
 # counts, support sessions, expired invites, notifications after 90 days, the audit log after a year.

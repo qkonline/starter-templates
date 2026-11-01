@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { call, captcha, codeFrom, confirm, expectError, expectReply, features, freshEmail, keyFor, methods, PASSWORD, signIn, signUp } from './lib';
+import { call, captcha, codeFrom, confirm, expectError, expectReply, features, freshEmail, keyFor, mailed, methods, PASSWORD, signIn, signUp } from './lib';
 
 const sendChange = (token: string, email: string, withCaptcha = true) =>
   call('post', '/me/email/send', { token, json: { email, ...(withCaptcha ? captcha() : {}) } });
@@ -43,10 +43,11 @@ describe('changing email', () => {
     const a = await signUp();
     const next = freshEmail();
     const code = await codeFrom(next, () => sendChange(a.token, next));
-    const r = await call('post', '/me/email/verify', {
-      token: a.token,
-      json: { email: next, code, currentPasswordKey: a.key, passwordKey: await keyFor(PASSWORD, next) },
-    });
+    const newKey = await keyFor(PASSWORD, next);
+    // The old address is told.
+    const { reply: r } = await mailed(a.email, /\b(changed)\b/, () =>
+      call('post', '/me/email/verify', { token: a.token, json: { email: next, code, currentPasswordKey: a.key, passwordKey: newKey } }),
+    );
     expectReply(r, 'post', '/me/email/verify', 200);
     expect(r.body.user).toEqual({ ...a.user, email: next, emailVerified: true });
     // The same password now signs in at the new address only.

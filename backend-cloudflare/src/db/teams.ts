@@ -2,7 +2,7 @@
 // left without an admin: every change that could take away the last one checks for another in
 // the same statement as the change, so two admins stepping down at once can't both get through.
 
-export type Role = 'admin' | 'member';
+export type Role = 'admin' | 'member' | 'viewer';
 
 /** A team as one of its members sees it. */
 export interface TeamRow {

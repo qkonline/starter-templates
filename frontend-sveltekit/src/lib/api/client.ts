@@ -127,8 +127,15 @@ export function createApi(options: ApiOptions) {
     // Email and password. `passwordKey` comes from #lib/password, never the password itself.
     signUp: (email: string, passwordKey: string, captcha?: string | null) =>
       call(client.POST('/auth/password/signup', { body: withCaptcha({ email, passwordKey }, captcha) })),
-    signIn: (email: string, passwordKey: string, captcha?: string | null) =>
-      call(client.POST('/auth/password/signin', { body: withCaptcha({ email, passwordKey }, captcha) })),
+    signIn: (email: string, passwordKey: string, captcha?: string | null, previousPasswordKey?: string) =>
+      call(
+        client.POST('/auth/password/signin', {
+          body: withCaptcha(
+            { email, passwordKey, ...(previousPasswordKey ? { previousPasswordKey } : {}) },
+            captcha,
+          ),
+        }),
+      ),
     forgotPassword: (email: string, captcha?: string | null) =>
       call(client.POST('/auth/password/forgot', { body: withCaptcha({ email }, captcha) })),
     resetPassword: (email: string, code: string, passwordKey: string) =>
@@ -156,8 +163,16 @@ export function createApi(options: ApiOptions) {
     me: () => call(client.GET('/me')).then((r) => r.user),
     setName: (name: string) => call(client.PATCH('/me', { body: { name } })).then((r) => r.user),
     deleteAccount: () => call(client.DELETE('/me')),
-    changePassword: (currentPasswordKey: string, passwordKey: string) =>
-      call(client.PUT('/me/password', { body: { currentPasswordKey, passwordKey } })),
+    changePassword: (currentPasswordKey: string, passwordKey: string, previousCurrentPasswordKey?: string) =>
+      call(
+        client.PUT('/me/password', {
+          body: {
+            currentPasswordKey,
+            passwordKey,
+            ...(previousCurrentPasswordKey ? { previousCurrentPasswordKey } : {}),
+          },
+        }),
+      ),
     sendEmailConfirm: () => call(client.POST('/me/email/confirm/send')),
     confirmEmail: (code: string) =>
       call(client.POST('/me/email/confirm', { body: { code } })).then((r) => r.user),
@@ -168,6 +183,8 @@ export function createApi(options: ApiOptions) {
       code: string;
       currentPasswordKey?: string;
       passwordKey?: string;
+      previousCurrentPasswordKey?: string;
+      currentCode?: string;
     }) => call(client.POST('/me/email/verify', { body })).then((r) => r.user),
     setPhoto: (image: Blob) =>
       call(
@@ -324,6 +341,12 @@ export function createApi(options: ApiOptions) {
           body: { parts },
         }),
       ).then((r) => r.file),
+    syncFileDelete: (fileId: string, team?: string) =>
+      call(
+        client.DELETE('/sync/files/{fileId}', {
+          params: { path: { fileId }, query: team ? { team } : {} },
+        }),
+      ),
     syncFileGet: (fileId: string, team?: string) =>
       call(
         client.GET('/sync/files/{fileId}', {

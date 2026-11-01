@@ -78,7 +78,9 @@ export interface paths {
         /**
          * Sign in with an email and password
          * @description A wrong password and an unknown address get the same `invalid_credentials`. At most 10
-         *     wrong tries per address and 100 per network in 15 minutes.
+         *     wrong tries per address and 100 per network in 15 minutes. While the rounds are changing
+         *     (`previousIterations` in `/auth/methods`), `previousPasswordKey` is the key made with the
+         *     previous ones.
          */
         post: operations["passwordSignIn"];
         delete?: never;
@@ -418,6 +420,10 @@ export interface paths {
          *     An address another account already has gets the same 204 and no mail, so this can't be
          *     used to find out who has an account; `/me/email/verify` refuses it (`email_taken`) once
          *     a right code is given, which only the address's owner can have.
+         *
+         *     An account without a password (Google, email codes) also gets a code at its current
+         *     address, sent to `currentCode` in `/me/email/verify`: with nothing else to prove who's
+         *     asking, a session someone else got hold of mustn't be enough to take the account.
          */
         post: operations["sendEmailChange"];
         delete?: never;
@@ -440,9 +446,11 @@ export interface paths {
          * @description The email is part of the password key's salt, so an account with a password sends both
          *     keys: `currentPasswordKey` made with the old address (proving the password) and
          *     `passwordKey` made with the new one (stored from now on). An account without a password
-         *     sends neither. A wrong current password spends one of the code's 5 tries, which is what
+         *     sends neither, and sends `currentCode`, the code emailed to its current address. A wrong
+         *     current password or current code spends one of the new code's 5 tries, which is what
          *     limits guessing here. An address another account has is `email_taken`, answered only
-         *     after the code is right.
+         *     after the code is right. Once moved, an account with a password is told at its old
+         *     address (one without already got a code there).
          */
         post: operations["verifyEmailChange"];
         delete?: never;
@@ -1400,7 +1408,14 @@ export interface paths {
         get: operations["syncFile"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a file, or stop its upload (sync on)
+         * @description By the person who uploaded it, or in a team's space by a team admin; anyone else gets
+         *     `forbidden`. Its bytes go at once; its id stays used, so starting a file with it again
+         *     is `conflict`. Safe to send twice: a file that's already gone, or was never there,
+         *     answers 204 too. Records that pointed at it keep its id; the app clears those fields.
+         */
+        delete: operations["deleteSyncFile"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1465,8 +1480,15 @@ export interface components {
             password: {
                 /** @description The app's own name, so one password gives different keys in different apps. */
                 saltPrefix: string;
-                /** @constant */
-                iterations: 600000;
+                /** @description PBKDF2 rounds for the key; 600,000 unless the app has raised them. */
+                iterations: number;
+                /**
+                 * @description While the app raises its rounds, the ones before: the frontend then also sends a
+                 *     key made with these (`previousPasswordKey`, `previousCurrentPasswordKey`) wherever
+                 *     it sends the current password, so an account made before the change still signs
+                 *     in, and is moved to the new rounds as it does. Null or absent the rest of the time.
+                 */
+                previousIterations?: number | null;
                 /**
                  * @description The frontend refuses shorter passwords; the backend never sees them.
                  * @constant
@@ -1598,10 +1620,13 @@ export interface components {
             readAt: components["schemas"]["Time"] | null;
         };
         /**
-         * @description Admins rename and delete the team, invite, remove and change roles; members use it.
+         * @description Admins rename and delete the team, invite, remove and change roles; members use it;
+         *     viewers see it and its shared data but change nothing (each change of theirs to its
+         *     synced data is refused with `forbidden`, and so is starting a file). An app's own paths
+         *     decide what each role may do there.
          * @enum {string}
          */
-        Role: "admin" | "member";
+        Role: "admin" | "member" | "viewer";
         TeamInput: {
             /** @description Spaces and control characters collapsed to single spaces and trimmed; 1 to 60 characters after that. */
             name: string;
@@ -2155,6 +2180,7 @@ export interface operations {
                 "application/json": {
                     email: components["schemas"]["EmailText"];
                     passwordKey: components["schemas"]["PasswordKey"];
+                    previousPasswordKey?: components["schemas"]["PasswordKey"];
                     captcha?: components["schemas"]["Captcha"];
                 };
             };
@@ -2482,6 +2508,7 @@ export interface operations {
             content: {
                 "application/json": {
                     currentPasswordKey: components["schemas"]["PasswordKey"];
+                    previousCurrentPasswordKey?: components["schemas"]["PasswordKey"];
                     passwordKey: components["schemas"]["PasswordKey"];
                 };
             };
@@ -2591,7 +2618,9 @@ export interface operations {
                     email: components["schemas"]["EmailText"];
                     code: components["schemas"]["CodeText"];
                     currentPasswordKey?: components["schemas"]["PasswordKey"];
+                    previousCurrentPasswordKey?: components["schemas"]["PasswordKey"];
                     passwordKey?: components["schemas"]["PasswordKey"];
+                    currentCode?: components["schemas"]["CodeText"];
                 };
             };
         };
@@ -4002,6 +4031,34 @@ export interface operations {
                 content: {
                     "application/octet-stream": string;
                 };
+            };
+            401: components["responses"]["SignedOut"];
+            403: components["responses"]["ForbiddenOrUnverified"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    deleteSyncFile: {
+        parameters: {
+            query?: {
+                /** @description The team whose data this is (teams on, a member only); omit for the person's own. */
+                team?: components["parameters"]["SyncTeam"];
+            };
+            header?: never;
+            path: {
+                fileId: components["parameters"]["FileId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Gone */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: components["responses"]["SignedOut"];
             403: components["responses"]["ForbiddenOrUnverified"];

@@ -93,7 +93,8 @@ app.onError(async (e, c) => {
   return c.json({ code: 'server_error', message: 'Something went wrong on our side. Try again in a minute.' }, 500);
 });
 
-// The one named export: a Durable Object class must be exported from the Worker's main module.
+// Durable Object classes must be exported from the Worker's main module.
+export { SyncMeter } from './sync/meter';
 export { SyncSpace } from './sync/space';
 
 export default {

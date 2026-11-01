@@ -106,6 +106,8 @@ export interface FileRow {
   complete: number;
   created_by: string;
   created: number;
+  /** Deleted: its bytes are gone and its id isn't used again. */
+  deleted: number;
 }
 
 export const isSyncId = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(v);
@@ -150,7 +152,7 @@ export function readChanges(text: string): Change[] | null {
 }
 
 /** Seconds until the next UTC midnight, when the daily counts start again. */
-const toMidnight = (now: number) => Math.max(1, Math.ceil((DAY - (now % DAY)) / 1000));
+export const toMidnight = (now: number) => Math.max(1, Math.ceil((DAY - (now % DAY)) / 1000));
 
 /**
  * The tables, as steps: step n takes a space from version n to n+1, and runs once, in a
@@ -203,6 +205,7 @@ const MIGRATIONS: string[][] = [
     'ALTER TABLE records ADD COLUMN created_session TEXT',
     'ALTER TABLE records ADD COLUMN updated_session TEXT',
   ],
+  ['ALTER TABLE files ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0'],
 ];
 
 interface RecordRow {
@@ -361,6 +364,7 @@ export class SpaceStore {
 
   /** One change; a refusal, or nothing when it was applied. */
   private apply(c: Change, who: SyncWho, seq: number, now: number): { code: Code; message: string } | null {
+    if (who.role === 'viewer') return { code: 'forbidden', message: "You can see this team's data but not change it. Ask a team admin." };
     const rules = this.rules.tables[c.table];
     if (!rules && this.rules.onlyListed) return { code: 'invalid_input', message: 'This app has no such kind of record. Update the app.' };
     const row = this.first<RecordRow>('SELECT * FROM records WHERE tbl = ? AND id = ?', c.table, c.record);
@@ -482,6 +486,7 @@ export class SpaceStore {
   fileCheck(user: string, f: { id: string; type: string; size: number }, now = Date.now()): Outcome<FileRow | null> {
     const found = this.file(f.id);
     if (found) {
+      if (found.deleted) return refuse(409, 'conflict', 'That file was deleted. A new file needs a new id.');
       if (found.size !== f.size || found.type !== f.type)
         return refuse(409, 'conflict', 'A different file was already started with this id.');
       return { ok: true, value: found };
@@ -508,13 +513,17 @@ export class SpaceStore {
     this.sql.exec('UPDATE files SET upload_id = ? WHERE id = ?', uploadId, id);
   }
 
+  fileDeleted(id: string): void {
+    this.sql.exec('UPDATE files SET deleted = 1 WHERE id = ?', id);
+  }
+
   fileCompleted(id: string): void {
     this.sql.exec('UPDATE files SET complete = 1 WHERE id = ?', id);
   }
 
   /** Files whose upload never finished, to abort when the space is wiped. */
   unfinished(): FileRow[] {
-    return this.rows<FileRow>('SELECT * FROM files WHERE complete = 0');
+    return this.rows<FileRow>('SELECT * FROM files WHERE complete = 0 AND deleted = 0');
   }
 }
 

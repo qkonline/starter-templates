@@ -209,7 +209,7 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
           await local.updateFile({ ...f, parts: [] });
           continue;
         }
-        if (e.code === 'conflict' || e.code === 'too_large') {
+        if (e.code === 'conflict' || e.code === 'too_large' || e.code === 'forbidden') {
           // Never going to fit: keep it on this device only, and say so.
           await local.updateFile({ ...f, uploaded: true });
           hooks.onRefused?.([
@@ -219,6 +219,27 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
         }
         throw e;
       }
+    }
+  }
+
+  /** Files deleted here: the backend deletes them too. One it won't (not theirs to delete) is said. */
+  async function deleteAll() {
+    for (const d of await local.deletions()) {
+      if (lost.has(d.space)) continue;
+      try {
+        await attempt(() => api.syncFileDelete(d.id, team(d.space)));
+      } catch (e) {
+        if (!(e instanceof ApiError)) throw e;
+        if (turnedAway(e) && d.space !== ME && !(await canUse(d.space))) {
+          lose(d.space);
+          continue;
+        }
+        if (e.code !== 'forbidden') throw e;
+        hooks.onRefused?.([
+          { space: d.space, table: 'files', record: d.id, code: e.code, message: e.message },
+        ]);
+      }
+      await local.deletionSent(d.space, d.id);
     }
   }
 
@@ -273,6 +294,7 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
     try {
       await pushAll();
       await uploadAll();
+      await deleteAll();
       await pullAll();
       await report({ running: false, error: null, waitUntil: null });
     } catch (e) {

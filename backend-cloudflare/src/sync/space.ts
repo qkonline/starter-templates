@@ -13,9 +13,12 @@ import { DurableObject } from 'cloudflare:workers';
 import { syncRules } from '../app/sync';
 import type { Env } from '../env';
 import type { SyncWho } from './rules';
+import type { Totals } from './meter';
 import {
+  DAY,
   fileView,
   MINUTE,
+  toMidnight,
   partLength,
   partsOf,
   refuse,
@@ -38,10 +41,53 @@ export const filePrefix = (space: string) => `sync/${space.replace(':', '/')}/`;
 export class SyncSpace extends DurableObject<Env> {
   private readonly store: SpaceStore;
   private readonly windows = new Map<string, { start: number; count: number }>();
+  /** Taken in since last told to the app's meter, when that was, and the day the app was full. */
+  private unmetered: Totals = { changes: 0, bytes: 0 };
+  private meteredAt = 0;
+  private fullDay = -1;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.store = new SpaceStore(ctx.storage.sql, (fn) => ctx.storage.transactionSync(fn), syncRules);
+  }
+
+  /** The app has taken in as much as it may today (SYNC_APP_*): wait until tomorrow (UTC). */
+  private appFull() {
+    const now = Date.now();
+    if (this.fullDay !== Math.floor(now / DAY)) return null;
+    return refuse(429, 'rate_limited', "The app has taken in as much as it can today. What's waiting is kept and goes tomorrow.", toMidnight(now));
+  }
+
+  /**
+   * Counts what this space took in towards the app's daily totals, telling the meter about once a
+   * minute (or sooner after a lot), after the reply: a request a minute per busy space at most.
+   */
+  private metered(changes: number, bytes: number) {
+    this.unmetered.changes += changes;
+    this.unmetered.bytes += bytes;
+    const now = Date.now();
+    if (now - this.meteredAt < MINUTE && this.unmetered.changes < 500 && this.unmetered.bytes < 512 * 1024 ** 2) return;
+    const sent = this.unmetered;
+    const day = Math.floor(now / DAY);
+    this.unmetered = { changes: 0, bytes: 0 };
+    this.meteredAt = now;
+    const caps = {
+      changes: Number(this.env.SYNC_APP_CHANGES_PER_DAY) || 1_000_000,
+      bytes: Number(this.env.SYNC_APP_FILE_BYTES_PER_DAY) || 5 * 1024 ** 3,
+    };
+    this.ctx.waitUntil(
+      this.env.METER.get(this.env.METER.idFromName(`meter:${day}`))
+        .add(sent.changes, sent.bytes, caps)
+        .then((r) => {
+          if (r.over) this.fullDay = day;
+        })
+        .catch((e: unknown) => {
+          // Told next time instead.
+          this.unmetered.changes += sent.changes;
+          this.unmetered.bytes += sent.bytes;
+          console.error('sync meter', e);
+        }),
+    );
   }
 
   /** A deleted space answers not_found to everything, so a request already on its way can't fill it again. */
@@ -70,8 +116,11 @@ export class SyncSpace extends DurableObject<Env> {
   async push(who: SyncWho, body: string): Promise<Outcome<{ results: Result[] }>> {
     const wait = this.busy(`push:${who.user}`, PUSHES_PER_MINUTE);
     if (wait) return this.slowDown(wait);
+    const full = this.appFull();
+    if (full) return full;
     const out = this.store.push(who, body);
     if (!out.ok) return out;
+    if (out.value.applied.length) this.metered(out.value.applied.length, 0);
     if (syncRules.afterApply && out.value.applied.length) {
       const applied = out.value.applied.map((change) => ({ change, who }));
       // After the reply: the batch is in either way, and a failure here never undoes it.
@@ -101,6 +150,9 @@ export class SyncSpace extends DurableObject<Env> {
       const check = this.store.fileCheck(user, f);
       if (!check.ok) return check;
       if (check.value) return { ok: true as const, value: { file: fileView(check.value) } };
+      const full = this.appFull();
+      if (full) return full;
+      this.metered(0, f.size);
       const upload = await this.env.FILES.createMultipartUpload(filePrefix(space) + f.id, { httpMetadata: { contentType: f.type } });
       return { ok: true as const, value: { file: fileView(this.store.fileStarted(user, f, upload.uploadId)) } };
     });
@@ -113,7 +165,7 @@ export class SyncSpace extends DurableObject<Env> {
     const wait = this.busy(`part:${user}`, PARTS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     const f = this.store.file(fileId);
-    if (!f) return refuse(404, 'not_found', "That upload isn't here. Start it again.");
+    if (!f || f.deleted) return refuse(404, 'not_found', "That upload isn't here. Start it again.");
     if (f.complete) return refuse(409, 'conflict', 'That file is already complete.');
     const want = partLength(f.size, n);
     if (want === null) return refuse(400, 'invalid_input', `That file has ${partsOf(f.size)} parts.`);
@@ -126,7 +178,7 @@ export class SyncSpace extends DurableObject<Env> {
     if (wait) return this.slowDown(wait);
     return this.ctx.blockConcurrencyWhile(async () => {
       const f = this.store.file(fileId);
-      if (!f) return refuse(404, 'not_found', "That upload isn't here. Start it again.");
+      if (!f || f.deleted) return refuse(404, 'not_found', "That upload isn't here. Start it again.");
       if (f.complete) return { ok: true as const, value: { file: fileView(f) } };
       const count = partsOf(f.size);
       if (parts.length !== count || parts.some((p, i) => p.number !== i + 1))
@@ -143,6 +195,30 @@ export class SyncSpace extends DurableObject<Env> {
       }
       this.store.fileCompleted(f.id);
       return { ok: true as const, value: { file: fileView({ ...f, complete: 1 }) } };
+    });
+  }
+
+  /**
+   * Deletes a file: by whoever uploaded it, or a team admin. Gone, or never there: done all the
+   * same, so sending it twice is harmless. The row stays, marked, so its id isn't used again.
+   */
+  async fileDelete(space: string, user: string, isAdmin: boolean, fileId: string): Promise<Outcome<null>> {
+    const gone = this.gone();
+    if (gone) return gone;
+    const wait = this.busy(`part:${user}`, PARTS_PER_MINUTE);
+    if (wait) return this.slowDown(wait);
+    return this.ctx.blockConcurrencyWhile(async () => {
+      const f = this.store.file(fileId);
+      if (!f || f.deleted) return { ok: true as const, value: null };
+      if (f.created_by !== user && !isAdmin) return refuse(403, 'forbidden', 'Only whoever added this file, or a team admin, can delete it.');
+      const key = filePrefix(space) + f.id;
+      if (f.complete) await this.env.FILES.delete(key);
+      else
+        await this.env.FILES.resumeMultipartUpload(key, f.upload_id)
+          .abort()
+          .catch(() => {});
+      this.store.fileDeleted(f.id);
+      return { ok: true as const, value: null };
     });
   }
 
@@ -170,7 +246,7 @@ export class SyncSpace extends DurableObject<Env> {
     const wait = this.busy(`pull:${user}`, PULLS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     const f = this.store.file(fileId);
-    if (!f?.complete) return refuse(404, 'not_found', "That file isn't here.");
+    if (!f?.complete || f.deleted) return refuse(404, 'not_found', "That file isn't here.");
     return { ok: true, value: { key: filePrefix(space) + f.id, type: f.type } };
   }
 

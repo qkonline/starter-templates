@@ -41,7 +41,7 @@ export async function countInviteMail(ctx: Ctx, teamId: string, userId: string):
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
-const isRole = (v: unknown): v is Role => v === 'admin' || v === 'member';
+const isRole = (v: unknown): v is Role => v === 'admin' || v === 'member' || v === 'viewer';
 
 const teamView = (t: TeamRow) => ({ id: t.id, name: t.name, role: t.role, memberCount: t.member_count, createdAt: iso(t.created) });
 const memberView = (ctx: Ctx, m: MemberRow) => ({
@@ -87,7 +87,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 async function mailInvite(ctx: Ctx, i: { email: string; role: Role; by_name: string | null; by_email: string }, teamName: string, token: string) {
   const who = i.by_name ?? i.by_email;
   const link = `${ctx.cfg.appUrl}/invite?token=${token}`;
-  const as = i.role === 'admin' ? 'an admin' : 'a member';
+  const as = i.role === 'admin' ? 'an admin' : i.role === 'viewer' ? 'a viewer (who sees but changes nothing)' : 'a member';
   const after = `Sign in with this email address (${i.email}) to join. The invite works for 7 days.`;
   await sendMail(ctx, {
     to: i.email,
@@ -152,7 +152,7 @@ teams.patch('/teams/:teamId/members/:userId', async (c) => {
   const { ctx, user } = c.var;
   const team = await adminOf(ctx, c.req.param('teamId'), user.id);
   const b = await readBody(c.req.raw, ['role']);
-  if (!isRole(b.role)) throw invalid('Pick admin or member.');
+  if (!isRole(b.role)) throw invalid('Pick admin, member or viewer.');
   const target = c.req.param('userId');
   if (!isId(target)) throw notFound();
   const done = await ctx.db.setRole(team.id, target, b.role);
@@ -184,7 +184,7 @@ teams.post('/teams/:teamId/invites', async (c) => {
   const b = await readBody(c.req.raw, ['email', 'role']);
   const email = cleanEmail(b.email);
   if (!email) throw invalid("That doesn't look like an email address.");
-  if (!isRole(b.role)) throw invalid('Pick admin or member.');
+  if (!isRole(b.role)) throw invalid('Pick admin, member or viewer.');
   const now = Date.now();
   const already = await ctx.db.alreadyIn(team.id, email, now);
   const taken = () => new Refusal(409, 'conflict', already === 'member' ? "They're already in this team." : "They're already invited.");

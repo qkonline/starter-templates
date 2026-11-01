@@ -22,13 +22,15 @@ const PER_NETWORK = 30;
  * account, changing email by the account that asked (`bind`) and the new address, so two
  * accounts moving to one address each keep their own code.
  */
-export type Purpose = 'signin' | 'reset' | 'confirm' | 'change';
+export type Purpose = 'signin' | 'reset' | 'confirm' | 'change' | 'leave';
 
 const LINES: Record<Purpose, string> = {
   signin: 'Enter it to sign in.',
   reset: 'Enter it to set a new password.',
   confirm: 'Enter it to confirm your email address.',
   change: 'Enter it to move your account to this address.',
+  leave:
+    "Enter it to move your account away from this address. If you didn't ask for this, someone else may be signed in as you: sign out your other devices in Account.",
 };
 
 interface Code {

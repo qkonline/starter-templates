@@ -183,6 +183,37 @@ describe('the data on this device', () => {
     newer.close();
   });
 
+  it('keeps fetched files within a size, dropping the least recently opened, never ones made here', async () => {
+    const d = await fresh();
+    const mine = await d.saveFile(ME, new Blob(['x'.repeat(50)], { type: 'text/plain' }));
+    const [a, b, c] = [newId(), newId(), newId()];
+    await d.keepFile(ME, a, new Blob(['a'.repeat(40)]), 100);
+    await new Promise((r) => setTimeout(r, 2));
+    await d.keepFile(ME, b, new Blob(['b'.repeat(40)]), 100);
+    await new Promise((r) => setTimeout(r, 2));
+    await d.file(ME, a); // opened again: now b is the least recent
+    await new Promise((r) => setTimeout(r, 2));
+    await d.keepFile(ME, c, new Blob(['c'.repeat(40)]), 100);
+    expect(await d.file(ME, b)).toBeUndefined();
+    expect(await d.file(ME, a)).toBeDefined();
+    expect(await d.file(ME, c)).toBeDefined();
+    expect(await d.file(ME, mine)).toBeDefined();
+  });
+
+  it('removes a file at once; the backend is told unless it never had any of it', async () => {
+    const d = await fresh();
+    const never = await d.saveFile(ME, new Blob(['x'], { type: 'text/plain' }));
+    const sent = newId();
+    await d.keepFile(ME, sent, new Blob(['y']));
+    await d.removeFile(ME, never);
+    await d.removeFile(ME, sent);
+    expect(await d.file(ME, never)).toBeUndefined();
+    expect(await d.deletions()).toEqual([{ space: ME, id: sent }]);
+    expect(await d.settled()).toBe(false);
+    await d.deletionSent(ME, sent);
+    expect(await d.settled()).toBe(true);
+  });
+
   it('drops a space with everything of it', async () => {
     const d = await fresh();
     await d.follow('team1');

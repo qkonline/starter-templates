@@ -5,10 +5,16 @@ import type { Member, Role } from '#lib/api/index.ts';
 
 export const roles: readonly { value: Role; label: string }[] = [
   { value: 'member', label: 'Member' },
+  { value: 'viewer', label: 'Viewer (sees, changes nothing)' },
   { value: 'admin', label: 'Admin' },
 ];
 
-export const roleLabel = (role: Role): string => (role === 'admin' ? 'Admin' : 'Member');
+export const roleLabel = (role: Role): string =>
+  role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'Member';
+
+/** "an admin", "a member", "a viewer". */
+export const asRole = (role: Role): string =>
+  role === 'admin' ? 'an admin' : role === 'viewer' ? 'a viewer' : 'a member';
 
 /** Said with every `last_admin` refusal: what to do instead. */
 export const lastAdminHint = 'Make someone else an admin first, or delete the team.';

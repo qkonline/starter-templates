@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { passwordKey } from '@starter/contract/password';
-import { ITERATIONS, emailProblem, makeKey, passwordProblem } from './password';
+import { ITERATIONS, emailProblem, makeKey, makeKeys, passwordProblem } from './password';
 
 describe('password rules', () => {
   it('enforces the minimum length from /auth/methods', () => {
@@ -33,10 +33,23 @@ describe('makeKey', () => {
     expect(a).not.toBe(b);
   });
 
-  it('refuses any other number of rounds than the contract’s', async () => {
-    for (const iterations of [1000, 599_999, 600_001])
+  it('refuses fewer rounds than the contract allows, or absurdly many', async () => {
+    for (const iterations of [1000, 599_999, 600_000.5, 50_000_000])
       await expect(
         makeKey('pw-123456', 'a@example.com', { saltPrefix: 'starter', iterations }),
       ).rejects.toThrow(/unsafe password settings/);
+  });
+});
+
+describe('raising the rounds', () => {
+  it('sends a key made with the previous rounds too, only while they change', async () => {
+    const now = { saltPrefix: 'starter', iterations: ITERATIONS };
+    expect(await makeKeys('pw-123456', 'a@example.com', now)).toEqual({
+      key: await makeKey('pw-123456', 'a@example.com', now),
+    });
+    const changing = { ...now, iterations: 700_000, previousIterations: ITERATIONS };
+    const keys = await makeKeys('pw-123456', 'a@example.com', changing);
+    expect(keys.previous).toBe(await makeKey('pw-123456', 'a@example.com', now));
+    expect(keys.key).not.toBe(keys.previous);
   });
 });

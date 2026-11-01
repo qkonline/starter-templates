@@ -21,7 +21,7 @@
   import { emailProblem } from '#lib/password.ts';
   import { auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
-  import { expiresIn, isLastAdmin, lastAdminHint, roleLabel, roles } from '#lib/teams.ts';
+  import { asRole, expiresIn, isLastAdmin, lastAdminHint, roleLabel, roles } from '#lib/teams.ts';
   import Avatar from '#lib/components/Avatar.svelte';
   import ConfirmButton from '#lib/components/ConfirmButton.svelte';
   import ConfirmEmailFirst from '#lib/components/ConfirmEmailFirst.svelte';
@@ -217,7 +217,7 @@
       <h1>{team.name}</h1>
       <p class="muted small">
         {members.length}
-        {members.length === 1 ? 'member' : 'members'} · You’re {admin ? 'an admin' : 'a member'}
+        {members.length === 1 ? 'member' : 'members'} · You’re {team ? asRole(team.role) : 'a member'}
       </p>
       <p class="success" role="status">{status}</p>
     </header>

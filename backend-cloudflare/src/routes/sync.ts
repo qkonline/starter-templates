@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { isId, readBody, readCapped } from '../checks';
 import type { Ctx } from '../env';
-import { invalid, notFound, Refusal, tooMany } from '../errors';
+import { forbidden, invalid, notFound, Refusal, tooMany } from '../errors';
 import { requireFeature, requireUser, requireVerifiedEmail, type AppEnv } from '../middleware';
 import type { SyncWho } from '../sync/rules';
 import { isMediaType, isSyncId, MAX_BYTES, MAX_FILE, PAGE, PART_SIZE, type Outcome } from '../sync/store';
@@ -69,7 +69,8 @@ sync.get('/sync/pull', async (c) => {
 
 sync.post('/sync/files', async (c) => {
   const { ctx, user } = c.var;
-  const space = await spaceFor(ctx, user.id, c.req.query('team'));
+  const { space, role } = await whoIn(ctx, user.id, '', c.req.query('team'));
+  if (role === 'viewer') throw forbidden("You can see this team's files but not add any. Ask a team admin.");
   const b = await readBody(c.req.raw, ['id', 'type', 'size']);
   if (!isSyncId(b.id) || !isMediaType(b.type) || !Number.isSafeInteger(b.size) || (b.size as number) < 1)
     throw invalid("That file couldn't be read. Update the app and try again.");
@@ -115,6 +116,15 @@ sync.post('/sync/files/:fileId/complete', async (c) => {
   if (!Array.isArray(parts) || parts.length < 1 || parts.length > 10_000 || !parts.every(fits))
     throw invalid("That list of parts couldn't be read. Update the app and try again.");
   return c.json(await ask(stubOf(ctx, space).fileComplete(space, user.id, fileId, parts)));
+});
+
+sync.delete('/sync/files/:fileId', async (c) => {
+  const { ctx, user } = c.var;
+  const { space, role } = await whoIn(ctx, user.id, '', c.req.query('team'));
+  const fileId = c.req.param('fileId');
+  if (!isSyncId(fileId)) throw notFound();
+  await ask(stubOf(ctx, space).fileDelete(space, user.id, role === 'admin', fileId));
+  return c.body(null, 204);
 });
 
 sync.get('/sync/files/:fileId', async (c) => {

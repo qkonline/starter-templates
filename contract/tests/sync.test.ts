@@ -255,6 +255,43 @@ describe.skipIf(!features.sync)('sync', () => {
     });
   });
 
+  describe.skipIf(!features.teams)('roles in a team', () => {
+    test("a viewer pulls the team's data but changes nothing; a file is deleted by its uploader or an admin", async () => {
+      const admin = await signUp();
+      if (!methods.requireVerifiedEmail) await confirm(admin);
+      const team = (await call('post', '/teams', { token: admin.token, json: { name: 'Ward' } })).body.team as { id: string };
+      const join = async (role: string) => {
+        const p = await signUp();
+        const { found } = await mailed(p.email, /[?&]token=([A-Za-z0-9_-]+)/, () =>
+          call('post', `/teams/${team.id}/invites`, { token: admin.token, json: { email: p.email, role } }),
+        );
+        expectReply(await call('post', '/invites/accept', { token: p.token, json: { token: found } }), 'post', '/invites/accept', 200);
+        return p;
+      };
+      const viewer = await join('viewer');
+      const member = await join('member');
+      const note = put('notes', id(), { text: 'Bed 4' });
+      await push(admin.token, [note], team.id);
+
+      expect((await pullAll(viewer.token, { team: team.id })).records.map((r) => r.id)).toEqual([note.record]);
+      const [refused] = await push(viewer.token, [put('notes', note.record, { text: 'changed' })], team.id);
+      expect(refused).toMatchObject({ status: 'refused', code: 'forbidden' });
+      const fileId = id();
+      expectError(
+        await call('post', `/sync/files?team=${team.id}`, { token: viewer.token, json: { id: fileId, type: 'text/plain', size: 3 } }),
+        'post',
+        '/sync/files',
+        403,
+        'forbidden',
+      );
+
+      // The admin's file: not the member's to delete, the admin's own is.
+      expectReply(await call('post', `/sync/files?team=${team.id}`, { token: admin.token, json: { id: fileId, type: 'text/plain', size: 3 } }), 'post', '/sync/files', 200);
+      expectError(await call('delete', `/sync/files/${fileId}?team=${team.id}`, { token: member.token }), 'delete', '/sync/files/{fileId}', 403, 'forbidden');
+      expectReply(await call('delete', `/sync/files/${fileId}?team=${team.id}`, { token: admin.token }), 'delete', '/sync/files/{fileId}', 204);
+    });
+  });
+
   describe('files', () => {
     const start = (token: string, json: unknown) => call('post', '/sync/files', { token, json });
     const part = (token: string, fileId: string, n: number, bytes: Uint8Array<ArrayBuffer>) =>
@@ -297,6 +334,22 @@ describe.skipIf(!features.sync)('sync', () => {
 
       const other = await signUp();
       expectError(await call('get', `/sync/files/${fileId}`, { token: other.token }), 'get', '/sync/files/{fileId}', 404, 'not_found');
+    });
+
+    test('deleted by the one who uploaded it, safe to send twice; its id stays used', async () => {
+      const { token } = await signUp();
+      const fileId = id();
+      const data = bytesOf(10);
+      await start(token, { id: fileId, type: 'text/plain', size: data.length });
+      const p = await part(token, fileId, 1, data);
+      await finish(token, fileId, [{ number: 1, etag: p.body.etag }]);
+      const del = () => call('delete', `/sync/files/${fileId}`, { token });
+      expectReply(await del(), 'delete', '/sync/files/{fileId}', 204);
+      expectReply(await del(), 'delete', '/sync/files/{fileId}', 204);
+      expectError(await call('get', `/sync/files/${fileId}`, { token }), 'get', '/sync/files/{fileId}', 404, 'not_found');
+      expectError(await start(token, { id: fileId, type: 'text/plain', size: data.length }), 'post', '/sync/files', 409, 'conflict');
+      // Never there: 204 as well.
+      expectReply(await call('delete', `/sync/files/${id()}`, { token }), 'delete', '/sync/files/{fileId}', 204);
     });
 
     test('a file in two parts, the first sent twice', async () => {

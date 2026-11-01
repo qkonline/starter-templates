@@ -1,13 +1,14 @@
 <!--
   Move the account to a new address (PRD R2.2): a code goes to the new address; with a
   password, the current one is needed too, since the email salts the password key. Both keys go:
-  the current one made with the old address, the new one with the new address. The CAPTCHA, when
+  the current one made with the old address, the new one with the new address. Without a
+  password, a second code goes to the current address, so a session alone can't move the account. The CAPTCHA, when
   the backend names one, guards the sending, as on forgot password.
 -->
 <script lang="ts">
   import { api } from '#lib/api/index.ts';
   import { auth } from '#lib/session.svelte.ts';
-  import { emailProblem, makeKey } from '#lib/password.ts';
+  import { emailProblem, makeKey, makeKeys } from '#lib/password.ts';
   import { Task } from '#lib/task.svelte.ts';
   import Captcha from '../Captcha.svelte';
   import CodeInput from '../CodeInput.svelte';
@@ -23,6 +24,7 @@
   let email = $state('');
   let sentTo = $state<string | null>(null);
   let code = $state('');
+  let currentCode = $state('');
   let password = $state('');
   let done = $state(false);
   let captcha = $state<ReturnType<typeof Captcha>>();
@@ -52,20 +54,30 @@
       verifyTask.error = 'Enter your password.';
       return;
     }
+    if (!user.hasPassword && !currentCode.trim()) {
+      verifyTask.error = `Enter the code we sent to ${user.email} as well.`;
+      return;
+    }
     const to = sentTo;
     verifyTask.run(async () => {
       const keys = user.hasPassword
         ? await Promise.all([
-            makeKey(password, user.email, methods.password),
+            makeKeys(password, user.email, methods.password),
             makeKey(password, to, methods.password),
           ])
         : null;
       auth.user = await api.verifyEmailChange({
         email: to,
         code,
-        ...(keys ? { currentPasswordKey: keys[0], passwordKey: keys[1] } : {}),
+        ...(keys
+          ? {
+              currentPasswordKey: keys[0].key,
+              passwordKey: keys[1],
+              ...(keys[0].previous ? { previousCurrentPasswordKey: keys[0].previous } : {}),
+            }
+          : { currentCode }),
       });
-      email = code = password = '';
+      email = code = currentCode = password = '';
       sentTo = null;
       done = true;
       onDone?.();
@@ -100,6 +112,10 @@
   <form class="stack" onsubmit={verify} novalidate>
     <p>Enter the code we sent to <strong>{sentTo}</strong>.</p>
     <CodeInput id="change-code" bind:value={code} />
+    {#if auth.user && !auth.user.hasPassword}
+      <p>And the code we sent to your current address, <strong>{auth.user.email}</strong>.</p>
+      <CodeInput id="change-current-code" label="Code from your current address" bind:value={currentCode} />
+    {/if}
     {#if auth.user?.hasPassword}
       <PasswordInput
         id="change-password"
