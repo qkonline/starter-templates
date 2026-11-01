@@ -56,6 +56,11 @@ export interface Env {
   VAPID_PRIVATE_KEY?: string;
   /** Who push services may contact about this app's pushes: a mailto: or https: address. */
   VAPID_SUBJECT?: string;
+  /**
+   * A chat webhook (Slack, Discord, Google Chat…; a secret) told when something needs a person:
+   * a server error, mail that couldn't go, a job or cleanup that keeps failing (src/alerts.ts).
+   */
+  ALERT_WEBHOOK?: string;
   /** Where contact messages are also emailed, if anywhere. */
   CONTACT_EMAIL?: string;
   /** The frontend's address, for links in emails (invites). Defaults to the first allowed origin. */

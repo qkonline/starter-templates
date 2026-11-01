@@ -23,7 +23,8 @@
     "e2e": "playwright test",
     "serve": "node scripts/pages-server.mjs",
     "icons": "node scripts/icons.mjs",
-    "deploy": "node scripts/predeploy.mjs && npm run build && wrangler pages deploy build"
+    "deploy": "node scripts/predeploy.mjs && npm run build && wrangler pages deploy build",
+    "deploy:staging": "node scripts/predeploy.mjs staging && vite build --mode staging && node scripts/postbuild.mjs staging && wrangler pages deploy build --branch staging"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

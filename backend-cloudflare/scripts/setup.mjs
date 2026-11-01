@@ -15,6 +15,9 @@
 // Before running it, set in wrangler.toml: `name`, APP_NAME (never changed once people have
 // passwords), APP_TITLE, ALLOWED_ORIGINS, RP_ID, MAIL_FROM, the database and bucket names, and the
 // switches. Then `npm run setup`, and `npm run deploy`.
+//
+// Staging: `npm run setup:staging` does the same for wrangler.staging.toml (its own Worker,
+// database and bucket), then `npm run deploy:staging`.
 
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -22,7 +25,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { vapidKeys } from './vapid.mjs';
 
-const TOML = fileURLToPath(new URL('../wrangler.toml', import.meta.url));
+// `--config wrangler.staging.toml` sets up staging instead.
+const configArg = process.argv.indexOf('--config');
+const CONFIG = configArg > 0 ? process.argv[configArg + 1] : 'wrangler.toml';
+const TOML = fileURLToPath(new URL(`../${CONFIG}`, import.meta.url));
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 
 const say = (s = '') => console.log(s);
@@ -33,7 +39,7 @@ const fail = (s) => {
 
 /** Runs wrangler; its output, or exits with what it said, unless `allowFail`. */
 function wrangler(args, { input, allowFail = false } = {}) {
-  const r = spawnSync('npx', ['wrangler', ...args], { cwd, encoding: 'utf8', input, stdio: [input === undefined ? 'inherit' : 'pipe', 'pipe', 'pipe'] });
+  const r = spawnSync('npx', ['wrangler', ...args, '-c', CONFIG], { cwd, encoding: 'utf8', input, stdio: [input === undefined ? 'inherit' : 'pipe', 'pipe', 'pipe'] });
   const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
   if (r.status !== 0 && !allowFail) fail(`wrangler ${args.join(' ')} failed:\n${out}`);
   return { ok: r.status === 0, out };
@@ -78,7 +84,7 @@ const save = () => writeFileSync(TOML, toml);
 /** Sets a [vars] value in wrangler.toml. */
 function setVar(name, value) {
   const re = new RegExp(`^${name} = ".*"$`, 'm');
-  if (!re.test(toml)) fail(`wrangler.toml has no ${name} line under [vars].`);
+  if (!re.test(toml)) fail(`${CONFIG} has no ${name} line under [vars].`);
   toml = toml.replace(re, `${name} = "${value}"`);
   save();
 }

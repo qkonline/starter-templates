@@ -5,12 +5,17 @@
 // template's password salt (APP_NAME), mail from example.com, no CAPTCHA, no CODE_PEPPER.
 //
 // PREDEPLOY_SKIP_SECRETS=1 skips checking the secrets (when `wrangler secret list` can't run).
+// `--config wrangler.staging.toml` checks staging's, and that it has the same settings and
+// bindings as wrangler.toml (values may differ), so staging tests what production will run.
 
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const toml = readFileSync(fileURLToPath(new URL('../wrangler.toml', import.meta.url)), 'utf8');
+const configArg = process.argv.indexOf('--config');
+const CONFIG = configArg > 0 ? process.argv[configArg + 1] : 'wrangler.toml';
+const fileOf = (name) => readFileSync(fileURLToPath(new URL(`../${name}`, import.meta.url)), 'utf8');
+const toml = fileOf(CONFIG);
 const value = (name) => toml.match(new RegExp(`^${name}\\s*=\\s*"(.*)"`, 'm'))?.[1];
 const problems = [];
 
@@ -57,10 +62,23 @@ for (const f of readdirSync(dir).filter((f) => f.endsWith('.sql'))) {
   if (Number.isNaN(n)) problems.push(`migrations/${f} isn't numbered: name it NNNN_what.sql (an app's from 1000).`);
 }
 
+// Staging must run what production runs: the same vars, bindings, migrations and crons.
+if (CONFIG !== 'wrangler.toml') {
+  const shape = (t) => ({
+    vars: [...(t.split(/^\[/m).find((s) => s.startsWith('vars]')) ?? '').matchAll(/^([A-Z_]+)\s*=/gm)].map((m) => m[1]).sort(),
+    bindings: [...t.matchAll(/^(?:binding|name) = "([A-Z_]+)"/gm)].map((m) => m[1]).sort(),
+    rest: [...t.matchAll(/^(compatibility_date|main|migrations_dir|new_sqlite_classes|tag|crons) = (.*)$/gm)].map((m) => m[0]).sort(),
+  });
+  const [a, b] = [shape(fileOf('wrangler.toml')), shape(toml)];
+  for (const k of Object.keys(a))
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k]))
+      problems.push(`${CONFIG} differs from wrangler.toml in its ${k}: ${JSON.stringify(b[k])} vs ${JSON.stringify(a[k])}. Keep the two alike but for names and values.`);
+}
+
 if (process.env.PREDEPLOY_SKIP_SECRETS !== '1') {
   let names = null;
   try {
-    const out = execFileSync('npx', ['wrangler', 'secret', 'list', '--format', 'json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execFileSync('npx', ['wrangler', 'secret', 'list', '--format', 'json', '-c', CONFIG], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     names = new Set(JSON.parse(out).map((s) => s.name));
   } catch {
     problems.push("Couldn't list the Worker's secrets (`npx wrangler login`?). PREDEPLOY_SKIP_SECRETS=1 skips this check.");
@@ -76,7 +94,7 @@ if (process.env.PREDEPLOY_SKIP_SECRETS !== '1') {
 }
 
 if (problems.length) {
-  console.error(`Not deploying; wrangler.toml isn't ready:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
+  console.error(`Not deploying; ${CONFIG} isn't ready:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
   process.exit(1);
 }
-console.log('wrangler.toml looks ready to deploy.');
+console.log(`${CONFIG} looks ready to deploy.`);

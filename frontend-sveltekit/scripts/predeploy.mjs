@@ -5,11 +5,13 @@
 import { loadEnv } from 'vite';
 import { apiUrlProblem } from './api-url.ts';
 
-const env = { ...loadEnv('production', process.cwd(), 'PUBLIC_'), ...process.env };
+// `staging` reads .env.staging (npm run deploy:staging); anything else is production.
+const mode = process.argv[2] === 'staging' ? 'staging' : 'production';
+const env = { ...loadEnv(mode, process.cwd(), 'PUBLIC_'), ...process.env };
 const problem = apiUrlProblem(env.PUBLIC_API_URL);
 if (problem) {
   console.error(
-    `deploy: ${problem}\nSet it to the backend's https address, e.g.\n  PUBLIC_API_URL=https://api.example.com/api npm run deploy`,
+    `deploy: ${problem}\nSet it to the backend's https address, e.g.\n  PUBLIC_API_URL=https://api.example.com/api npm run deploy\n(or, for staging, in .env.staging)`,
   );
   process.exit(1);
 }

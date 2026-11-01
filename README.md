@@ -125,6 +125,11 @@ More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#
    (see "Building on it" in each folder's README), so a later release's fixes can be taken
    without merging by hand.
 
+## Running it
+
+Staging, backups and restoring, alerting, database changes that don't break a rollback, and what
+to do when something goes wrong: [`docs/operations.md`](docs/operations.md).
+
 ## Licence
 
 MIT, see [LICENSE](LICENSE).

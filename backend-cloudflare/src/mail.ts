@@ -2,6 +2,7 @@
 // is kept for `/dev/mail` instead, so the contract tests can read the codes (PRD R10.1).
 
 import type { Ctx } from './env';
+import { alert } from './alerts';
 import { Refusal } from './errors';
 
 export interface Mail {
@@ -24,8 +25,13 @@ export async function sendMail(ctx: Ctx, mail: Mail): Promise<void> {
     return;
   }
   const failed = new Refusal(502, 'mail_failed', "The email couldn't be sent. Try again in a minute.");
+  const tell = (why: string) => {
+    const p = alert(env, "Email couldn't be sent", why, 'Resend');
+    if (ctx.waitUntil) ctx.waitUntil(p);
+  };
   if (!env.RESEND_API_KEY || !env.MAIL_FROM) {
     console.error('Mail is not set up: RESEND_API_KEY and MAIL_FROM are needed.');
+    tell('RESEND_API_KEY or MAIL_FROM is missing.');
     throw failed;
   }
   // A slow answer from Resend mustn't keep a sign-in waiting for ever.
@@ -36,10 +42,14 @@ export async function sendMail(ctx: Ctx, mail: Mail): Promise<void> {
     signal: AbortSignal.timeout(10_000),
   }).catch((e) => {
     console.error('Resend', e);
+    tell(`No answer from Resend: ${String(e)}`);
     throw failed;
   });
   if (!res.ok) {
-    console.error('Resend', res.status, await res.text().catch(() => ''));
+    const body = await res.text().catch(() => '');
+    console.error('Resend', res.status, body);
+    // 429 is the plan's daily or per-second limit; 403 a domain or key problem.
+    tell(`Resend answered ${res.status}: ${body.slice(0, 500)}`);
     throw failed;
   }
 }

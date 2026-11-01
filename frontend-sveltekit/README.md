@@ -138,6 +138,8 @@ PUBLIC_API_URL=https://api.example.com/api npm run deploy
 people's browsers; then it builds and runs `wrangler pages deploy build` with the pinned
 `wrangler` devDependency. A Cloudflare Pages Git build (`CF_PAGES=1`) fails the same way.
 `npm run build` alone doesn't check, so local builds and the e2e tests keep using localhost.
+`npm run deploy:staging` does the same with `.env.staging` (the staging API) as a Pages
+deployment on the `staging` branch (`../docs/operations.md`, "Staging").
 `wrangler.toml` names the Pages project (`name`, change it per app) and its output folder. The
 first time, `npx wrangler login`, then either let the first deploy create the project or create
 it in the dashboard (Workers & Pages → Create → Pages → Direct Upload). Then add the custom domain in the project's settings, and allow that origin in the
@@ -299,6 +301,12 @@ const back = await data.file(ME, photo);
   never edit one. When another tab opens a newer release, this one lets go of the database and
   `syncState.stale` asks for a reload.
 - Records over 192 KB are refused on the device: keep large things as files (at most 1 GB).
+- **Files**: `data.removeFile(space, id)` deletes one here at once and on the backend when it
+  syncs (whoever added it, or a team admin; anyone else's attempt comes back as refused). Files
+  fetched from other devices are kept for next time within 200 MB (`MAX_CACHED`), the least
+  recently opened dropped first; files made here are never dropped that way.
+- **Roles**: in a team, a viewer's changes are each refused (`forbidden`); hide the editing
+  controls when `team.role === 'viewer'`.
 
 ## Components and themes
 

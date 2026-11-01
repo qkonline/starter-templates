@@ -1,0 +1,31 @@
+# Every Monday (and by hand): what the deployed code depends on, checked for known
+# vulnerabilities (fails on high or critical), and what's out of date, listed in the run's
+# summary. In place of Dependabot, which would open a branch per update: the repo is main only.
+name: weekly
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Out of date (listed, never fails)
+        run: |
+          for d in contract backend-cloudflare frontend-sveltekit; do
+            (cd $d && npm ci --ignore-scripts >/dev/null && echo "### $d" && echo '```' && (npm outdated || true) && echo '```') >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Known vulnerabilities in what's deployed
+        run: |
+          status=0
+          for d in backend-cloudflare frontend-sveltekit; do
+            (cd $d && npm audit --omit=dev --audit-level=high) || status=1
+          done
+          exit $status

@@ -8,6 +8,7 @@ import { appAccount } from './app/account';
 import type { CleanupKind, CleanupRow } from './db';
 import { d1 } from './db';
 import type { Ctx, Env } from './env';
+import { alert } from './alerts';
 import { clearPhotos } from './photos';
 
 type Job = { kind: CleanupKind; target: string };
@@ -56,6 +57,9 @@ export async function runCleanups(env: Env, jobs: CleanupRow[]): Promise<void> {
     } catch (e) {
       console.error('cleanup failed; the daily sweep tries again', job.kind, job.target, e);
       await db.cleanupFailed(job.id).catch(() => {});
+      // Third time: something is wrong that waiting won't fix.
+      if (job.tries + 1 >= 3)
+        await alert(env, `Deleting ${job.kind} keeps failing`, String((e as Error)?.stack ?? e), `cleanup ${job.kind} ${job.target}`);
     }
   }
 }

@@ -89,10 +89,12 @@ new_sqlite_classes = ["SyncSpace"]
 tag = "v2"
 new_sqlite_classes = ["SyncMeter"]
 
-# Clears out what has run out (src/index.ts, scheduled; Db.sweep): codes, challenges, rate-limit
-# counts, support sessions, expired invites, notifications after 90 days, the audit log after a year.
+# Daily (03:17 UTC): clears out what has run out (src/index.ts, scheduled; Db.sweep): codes,
+# challenges, rate-limit counts, support sessions, expired invites, notifications after 90 days,
+# the audit log after a year; and finishes deletions' cleanups. Every minute: background jobs
+# (src/jobs.ts). Workers Free allows 5 cron triggers per account.
 [triggers]
-crons = ["17 3 * * *"]
+crons = ["17 3 * * *", "* * * * *"]
 
 # Workers logs: console output and uncaught errors, kept by Cloudflare (PRD R7.2). The Worker's
 # own 500s also go to the admin area's error reports.

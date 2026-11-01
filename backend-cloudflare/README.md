@@ -79,6 +79,9 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `TEAMS` | var | `true` turns on teams (`/teams`, `/invites`). Off, they're 404. |
 | `SYNC` | var | `true` turns on offline data (`/sync/*`, [Sync](#sync)). Off, it's 404. |
 | `MIN_CLIENT` | var | The oldest frontend build still served (ISO 8601). Older copies of the app get `client_outdated` and are asked to update; raise it when a change would break copies installed before it. Unset, all are served. |
+| `SYNC_APP_CHANGES_PER_DAY`, `SYNC_APP_FILE_BYTES_PER_DAY` | var | The whole app's synced changes and file bytes a day (1,000,000 and 5 GiB). Over either, syncing waits until 00:00 UTC. |
+| `PASSWORD_ITERATIONS`, `PASSWORD_PREVIOUS_ITERATIONS` | var | The browser's PBKDF2 rounds for passwords (600000). To raise them, set the new number and the old one as the previous: accounts move over as they sign in ([Passwords](#passwords)). |
+| `ALERT_WEBHOOK` | secret | A Slack, Discord or Google Chat webhook told when something needs a person (`../docs/operations.md`, "Alerting"). |
 | `ADMIN` | var | `true` turns on the admin area (`/admin/*`, `/auth/support/exchange`). Off, they're 404 and nobody is `isAdmin`. |
 | `ADMIN_EMAILS` | var | Comma-separated emails of the app's admins. An account is an admin only once its email is confirmed. |
 | `VAPID_PUBLIC_KEY` | var | With `VAPID_PRIVATE_KEY`, push is on; `/features` gives this key to browsers. Make the pair once with `npm run vapid` (setup does it). A new pair ends every subscription. |
@@ -186,10 +189,17 @@ verified signs in. No SDK: two fetches, in `src/routes/oauth.ts`.
 
 The browser sends a `passwordKey`, 600,000 rounds of PBKDF2 made on the device
 (`../contract/password.ts`). The Worker stores a salted hash of it, never the key:
-`pbkdf2-sha256$10$<16-byte salt>$<hash>` (`src/password.ts`). Ten rounds are enough because
-guessing has to go through the browser's 600,000 first; the string names its algorithm and
-rounds, so they can be raised later, and a sign-in with an older setting stores a new hash.
-Compared in constant time.
+`pbkdf2-sha256$10$<16-byte salt>$<hash>$<browser rounds>` (`src/password.ts`). Ten rounds are
+enough because guessing has to go through the browser's first; the string names its algorithm,
+its rounds and the browser's, so both can be raised later, and a sign-in with an older setting
+stores a new hash. Compared in constant time.
+
+**Raising the browser's rounds** (as phones get faster): set `PASSWORD_ITERATIONS` to the new
+number and `PASSWORD_PREVIOUS_ITERATIONS` to the old. `/auth/methods` then names both, the
+browser sends a key made each way wherever it sends a password, the Worker checks the one the
+stored hash was made from and stores a new hash from the other. Once most accounts have signed
+in, remove `PASSWORD_PREVIOUS_ITERATIONS`; anyone left resets with "Forgot password". Nothing is
+asked about an account before it signs in, so nothing says whether it exists.
 
 Measured cost of checking one: about **0.03 to 0.04 ms of CPU** (Node 24 on Apple silicon, Web
 Crypto; `npm test` prints it), against the 10 ms per request Workers Free allows. 1,000 rounds
@@ -206,6 +216,7 @@ work:
 | `src/app/routes.ts`   | the app's paths (written in `../contract/app.yaml` first), mounted after the core's               |
 | `src/app/account.ts`  | the app's rows in `/me/export`, and deleting them with an account or a team                       |
 | `src/app/sync.ts`     | checks and guarded fields for synced tables ([Sync](#sync))                                       |
+| `src/app/jobs.ts`     | background jobs by kind: `enqueue(env, kind, payload, { at, key })` from `src/jobs.ts`           |
 | `migrations/1000_…`   | the app's tables, numbered from 1000; 0001 to 0999 are the core's                                 |
 
 The core's D1 tables are all named `core_…` (`core_users`, `core_sessions`, `core_teams`…), so
@@ -242,6 +253,21 @@ Tables whose records can be made offline (on several devices at once) follow
 replace it with an auto-increment, give readable numbers in their own column, and flag clashes
 such as a slot booked twice instead of refusing the second.
 
+## Background jobs
+
+`enqueue(env, 'kind', payload, { at, key })` (`src/jobs.ts`) puts work in `core_jobs`; the cron
+that runs every minute does what's due, ten at a time, with the handler in `src/app/jobs.ts`. A
+job that fails waits 1, 2, 4… minutes and tries again; after 8 tries it's kept as dead and an
+alert goes out. `key` makes enqueueing the same job twice one job. Handlers must be safe to run
+twice. A minute with nothing due reads one index entry and writes nothing.
+
+## Alerts
+
+`alert(env, title, detail, where)` (`src/alerts.ts`) keeps a problem with the error reports in
+the admin area and posts it to `ALERT_WEBHOOK`, at most once an hour for the same one. The core
+calls it for server errors, mail that can't be sent, cleanups failing three times, jobs that
+give up, and failed cron runs; an app calls it for its own.
+
 ## Deploying
 
 Not done from this template. For a new project, in its own Cloudflare account:
@@ -254,5 +280,10 @@ Not done from this template. For a new project, in its own Cloudflare account:
    and Google secrets (Enter skips one) and puts them, applies the migrations remotely, and prints
    what's left by hand: the Turnstile widget, the Resend domain, the Google OAuth client, the
    admin emails. Safe to run again.
-3. `npm run deploy`: checks wrangler.toml (no localhost origins or RP_ID, a real database id),
-   then remote migrations, then the Worker.
+3. `npm run deploy`: checks wrangler.toml (no localhost origins or RP_ID, a real database id,
+   the app's own APP_NAME, real mail and Turnstile settings, the secrets put), then remote
+   migrations, then the Worker.
+
+Staging (`wrangler.staging.toml`, `npm run setup:staging`, `npm run deploy:staging`), backups
+(`npm run backup`), alerting and what to do when something goes wrong:
+[`../docs/operations.md`](../docs/operations.md).

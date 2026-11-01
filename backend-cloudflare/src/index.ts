@@ -11,7 +11,10 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { d1 } from './db';
 import type { Env } from './env';
+import { alert, postAlert } from './alerts';
+import { sha256 } from './crypto';
 import { finishCleanups } from './deletion';
+import { runDueJobs, whenJobDies } from './jobs';
 import { Refusal } from './errors';
 import { devOutbox } from './mail';
 import { clientCheck, context, supportGuard, type AppEnv } from './middleware';
@@ -89,7 +92,12 @@ app.onError(async (e, c) => {
   console.error(e);
   // Kept with the browsers' reports for the admin area (PRD R7.2); Workers logs keep the rest.
   const ctx = c.var.ctx;
-  if (ctx) await recordReport(ctx, serverReport(e, `${c.req.method} ${c.req.path}`));
+  if (ctx) {
+    const report = serverReport(e, `${c.req.method} ${c.req.path}`);
+    await recordReport(ctx, report);
+    const tell = postAlert(c.env, await sha256(report.key.join('\n')), report.message, report.url ?? '', report.detail ?? '');
+    ctx.waitUntil ? ctx.waitUntil(tell) : await tell;
+  }
   return c.json({ code: 'server_error', message: 'Something went wrong on our side. Try again in a minute.' }, 500);
 });
 
@@ -97,12 +105,25 @@ app.onError(async (e, c) => {
 export { SyncMeter } from './sync/meter';
 export { SyncSpace } from './sync/space';
 
+/** The daily cron (wrangler.toml); the other, every minute, runs background jobs. */
+const DAILY = '17 3 * * *';
+
+// A job that gave up after its last try needs a person.
+whenJobDies((env, kind, message) => alert(env, `Background job "${kind}" gave up`, message, `job ${kind}`));
+
 export default {
   fetch: app.fetch,
   // Once a day (wrangler.toml, [triggers]): clear out what has run out (Db.sweep): codes, counts,
   // support sessions, expired invites, notifications after 90 days, the audit log after a year.
-  async scheduled(_event, env) {
-    await d1(env.DB).sweep(Date.now());
-    await finishCleanups(env);
+  async scheduled(event, env) {
+    try {
+      if (event.cron === DAILY) {
+        await d1(env.DB).sweep(Date.now());
+        await finishCleanups(env);
+      } else await runDueJobs(env);
+    } catch (e) {
+      await alert(env, event.cron === DAILY ? 'The daily sweep failed' : 'Running background jobs failed', String((e as Error)?.stack ?? e), `cron ${event.cron}`);
+      throw e;
+    }
   },
 } satisfies ExportedHandler<Env>;

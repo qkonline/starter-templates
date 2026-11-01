@@ -12,7 +12,9 @@ import { apiUrlProblem } from './api-url.ts';
 import { buildHeaders, inlineScripts, pagePolicy, scriptHash, withPagePolicy } from './csp.ts';
 
 const out = 'build';
-const env = { ...loadEnv('production', process.cwd(), 'PUBLIC_'), ...process.env };
+// `staging` reads .env.staging (npm run deploy:staging); anything else is production.
+const mode = process.argv[2] === 'staging' ? 'staging' : 'production';
+const env = { ...loadEnv(mode, process.cwd(), 'PUBLIC_'), ...process.env };
 
 function htmlFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
