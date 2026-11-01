@@ -246,7 +246,8 @@ same for teams. What's outside D1 (photos, synced data, the app's own) is writte
 anything failed on the way.
 
 Throw a `Refusal` (`src/errors.ts`) for anything the person should see; it becomes the contract's
-`{ code, message }`. Put the app's queries in `src/db/` too if it might move to another cloud.
+`{ code, message }`. An app's own code works the same, once it's in `contract/app.yaml`:
+`throw new Refusal(409, 'slot_taken', 'Dr {name} is booked then.', undefined, { name })`. Put the app's queries in `src/db/` too if it might move to another cloud.
 
 Tables whose records can be made offline (on several devices at once) follow
 [`docs/offline-data.md`](../docs/offline-data.md): keep the `TEXT` id the device sent, never

@@ -7,6 +7,13 @@ version up, and copy over the core's files (never the app's own: `src/app/`, `sr
 
 Each entry says what an app has to do, if anything, under **To take it**.
 
+## 0.2.1 (1 November 2026)
+
+**To take it**: copy `backend-cloudflare/src/errors.ts`.
+
+- `Refusal` takes an app's own error codes (from `contract/app.yaml`) without a cast.
+- `docs/first-deploy.md`: a dry run on a throwaway Cloudflare account.
+
 ## 0.2.0 (1 November 2026)
 
 **To take it** from 0.1.0: copy the core's files over, run the new migrations (0006, 0007), add

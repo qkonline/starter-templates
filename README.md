@@ -106,7 +106,7 @@ More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#
    kept out of git):
 
    ```sh
-   git clone --depth 1 --branch v0.2.0 https://github.com/qkonline/starter-templates.git my-app
+   git clone --depth 1 --branch v0.2.1 https://github.com/qkonline/starter-templates.git my-app
    cd my-app && rm -rf .git && git init
    ```
 

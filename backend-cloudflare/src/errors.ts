@@ -27,7 +27,8 @@ export type ErrorCode =
 export class Refusal extends Error {
   constructor(
     readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 426 | 429 | 500 | 502,
-    readonly code: ErrorCode,
+    /** The contract's code, or one the app's own paths add (written in contract/app.yaml). */
+    readonly code: ErrorCode | (string & {}),
     message: string,
     /** Seconds to wait, for rate_limited. */
     readonly retryAfter?: number,
