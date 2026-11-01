@@ -63,7 +63,7 @@ push.put('/me/push', async (c) => {
   const keys = s && typeof s === 'object' && !Array.isArray(s) ? pushKeys(s.keys) : null;
   if (!s || !isPushEndpoint(s.endpoint, ctx.cfg.pushExtraHosts) || !keys)
     throw invalid("This browser's push subscription couldn't be read. Turn push off and on again.");
-  await ctx.db.savePushSub({ endpoint: s.endpoint, userId: user.id, ...keys, now: Date.now() });
+  await ctx.db.savePushSub({ endpoint: s.endpoint, userId: user.id, sessionId: c.var.session.id, ...keys, now: Date.now() });
   return c.body(null, 204);
 });
 

@@ -94,9 +94,9 @@ export interface AdminDb {
 const likeText = (q: string) => q.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const ADMIN_USER = `SELECT u.*,
-  (SELECT MAX(s.used) FROM sessions s WHERE s.user_id = u.id) AS last_active,
-  (SELECT COUNT(*) FROM members m WHERE m.user_id = u.id) AS teams
-  FROM users u`;
+  (SELECT MAX(s.used) FROM core_sessions s WHERE s.user_id = u.id) AS last_active,
+  (SELECT COUNT(*) FROM core_members m WHERE m.user_id = u.id) AS teams
+  FROM core_users u`;
 
 export function adminD1(DB: D1Database): AdminDb {
   const one = <T>(sql: string, ...args: unknown[]) => DB.prepare(sql).bind(...args).first<T>();
@@ -112,21 +112,21 @@ export function adminD1(DB: D1Database): AdminDb {
   return {
     async saveSupportCode(c) {
       await DB.batch([
-        DB.prepare('DELETE FROM support_codes WHERE expires < ?').bind(c.now),
-        DB.prepare('INSERT INTO support_codes (hash, user_id, admin_id, expires) VALUES (?, ?, ?, ?)').bind(c.hash, c.userId, c.adminId, c.expires),
+        DB.prepare('DELETE FROM core_support_codes WHERE expires < ?').bind(c.now),
+        DB.prepare('INSERT INTO core_support_codes (hash, user_id, admin_id, expires) VALUES (?, ?, ?, ?)').bind(c.hash, c.userId, c.adminId, c.expires),
       ]);
     },
-    takeSupportCode: (hash, now) => one('DELETE FROM support_codes WHERE hash = ? AND expires >= ? RETURNING user_id, admin_id', hash, now),
+    takeSupportCode: (hash, now) => one('DELETE FROM core_support_codes WHERE hash = ? AND expires >= ? RETURNING user_id, admin_id', hash, now),
     async setSuspended(userId, suspended) {
       if (!suspended) {
-        await DB.prepare('UPDATE users SET suspended = 0 WHERE id = ?').bind(userId).run();
+        await DB.prepare('UPDATE core_users SET suspended = 0 WHERE id = ?').bind(userId).run();
         return;
       }
       await DB.batch([
-        DB.prepare('UPDATE users SET suspended = 1 WHERE id = ?').bind(userId),
-        DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
-        DB.prepare('DELETE FROM support_codes WHERE user_id = ?').bind(userId),
-        DB.prepare('DELETE FROM oauth_codes WHERE user_id = ?').bind(userId),
+        DB.prepare('UPDATE core_users SET suspended = 1 WHERE id = ?').bind(userId),
+        DB.prepare('DELETE FROM core_sessions WHERE user_id = ?').bind(userId),
+        DB.prepare('DELETE FROM core_support_codes WHERE user_id = ?').bind(userId),
+        DB.prepare('DELETE FROM core_oauth_codes WHERE user_id = ?').bind(userId),
       ]);
     },
 
@@ -146,51 +146,51 @@ export function adminD1(DB: D1Database): AdminDb {
     adminUser: (id) => one(`${ADMIN_USER} WHERE u.id = ?`, id),
     async stats(now) {
       const [users, newUsers7d, suspended, teams, openMessages, errors24h] = await Promise.all([
-        count('SELECT COUNT(*) AS n FROM users'),
-        count('SELECT COUNT(*) AS n FROM users WHERE created >= ?', now - 7 * 24 * HOUR),
-        count('SELECT COUNT(*) AS n FROM users WHERE suspended = 1'),
-        count('SELECT COUNT(*) AS n FROM teams'),
-        count("SELECT COUNT(*) AS n FROM messages WHERE status = 'open'"),
-        count('SELECT SUM(count) AS n FROM report_hours WHERE hour > ?', Math.floor(now / HOUR) - 24),
+        count('SELECT COUNT(*) AS n FROM core_users'),
+        count('SELECT COUNT(*) AS n FROM core_users WHERE created >= ?', now - 7 * 24 * HOUR),
+        count('SELECT COUNT(*) AS n FROM core_users WHERE suspended = 1'),
+        count('SELECT COUNT(*) AS n FROM core_teams'),
+        count("SELECT COUNT(*) AS n FROM core_messages WHERE status = 'open'"),
+        count('SELECT SUM(count) AS n FROM core_report_hours WHERE hour > ?', Math.floor(now / HOUR) - 24),
       ]);
       return { users, newUsers7d, suspended, teams, openMessages, errors24h };
     },
 
     addMessage: async (m) =>
       void (await DB.prepare(
-        'INSERT INTO messages (id, kind, name, email, user_id, message, page, status, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO core_messages (id, kind, name, email, user_id, message, page, status, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
         .bind(m.id, m.kind, m.name, m.email, m.user_id, m.message, m.page, m.status, m.created)
         .run()),
-    messages: (status, before, limit) => page<MessageRow>('SELECT * FROM messages', 'status = ?', [status], 'created', 'id', before, limit),
-    setMessageStatus: (id, status) => one('UPDATE messages SET status = ? WHERE id = ? RETURNING *', status, id),
-    messagesBy: (userId) => all<MessageRow>('SELECT * FROM messages WHERE user_id = ? ORDER BY created DESC, id DESC', userId),
+    messages: (status, before, limit) => page<MessageRow>('SELECT * FROM core_messages', 'status = ?', [status], 'created', 'id', before, limit),
+    setMessageStatus: (id, status) => one('UPDATE core_messages SET status = ? WHERE id = ? RETURNING *', status, id),
+    messagesBy: (userId) => all<MessageRow>('SELECT * FROM core_messages WHERE user_id = ? ORDER BY created DESC, id DESC', userId),
 
     async recordReport(r, now) {
       await DB.batch([
         DB.prepare(
-          `INSERT INTO reports (id, signature, kind, message, detail, url, release, user_id, count, first_seen, last_seen)
+          `INSERT INTO core_reports (id, signature, kind, message, detail, url, release, user_id, count, first_seen, last_seen)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
            ON CONFLICT (signature) DO UPDATE SET count = count + 1, last_seen = excluded.last_seen,
              release = COALESCE(excluded.release, release), user_id = COALESCE(excluded.user_id, user_id)`,
         ).bind(r.id, r.signature, r.kind, r.message, r.detail, r.url, r.release, r.userId, now, now),
-        DB.prepare('INSERT INTO report_hours (hour, count) VALUES (?, 1) ON CONFLICT (hour) DO UPDATE SET count = count + 1').bind(
+        DB.prepare('INSERT INTO core_report_hours (hour, count) VALUES (?, 1) ON CONFLICT (hour) DO UPDATE SET count = count + 1').bind(
           Math.floor(now / HOUR),
         ),
       ]);
     },
-    reports: (before, limit) => page<ReportRow>('SELECT * FROM reports', '', [], 'last_seen', 'id', before, limit),
+    reports: (before, limit) => page<ReportRow>('SELECT * FROM core_reports', '', [], 'last_seen', 'id', before, limit),
     async clearReports() {
-      await DB.batch([DB.prepare('DELETE FROM reports'), DB.prepare('DELETE FROM report_hours')]);
+      await DB.batch([DB.prepare('DELETE FROM core_reports'), DB.prepare('DELETE FROM core_report_hours')]);
     },
 
     addAudit: async (a) =>
       void (await DB.prepare(
-        `INSERT INTO audit (id, action, admin_id, admin_name, admin_email, target_id, target_name, target_email, detail, at)
+        `INSERT INTO core_audit (id, action, admin_id, admin_name, admin_email, target_id, target_name, target_email, detail, at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(a.id, a.action, a.admin.id, a.admin.name, a.admin.email, a.target.id, a.target.name, a.target.email, a.detail, a.now)
         .run()),
-    audit: (before, limit) => page<AuditRow>('SELECT * FROM audit', '', [], 'at', 'id', before, limit),
+    audit: (before, limit) => page<AuditRow>('SELECT * FROM core_audit', '', [], 'at', 'id', before, limit),
   };
 }

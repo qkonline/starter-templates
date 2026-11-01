@@ -40,14 +40,14 @@ describe('limits', () => {
     await limit(ctx, 'old', 5, HOUR, undefined, now - 25 * HOUR);
     await limit(ctx, 'new', 5, HOUR, undefined, now);
     await ctx.db.sweep(now);
-    expect(db.prepare('SELECT key FROM limits').all()).toEqual([{ key: 'new' }]);
+    expect(db.prepare('SELECT key FROM core_limits').all()).toEqual([{ key: 'new' }]);
   });
 
   it('writes nothing once at the limit, until the window ends', async () => {
     const { ctx, db } = fakeCtx();
     const now = Date.now();
     for (let i = 0; i < 3; i++) await limit(ctx, 'k', 3, HOUR, undefined, now);
-    const row = () => db.prepare('SELECT count, start FROM limits WHERE key = ?').get('k');
+    const row = () => db.prepare('SELECT count, start FROM core_limits WHERE key = ?').get('k');
     const before = row();
     for (let i = 0; i < 5; i++) await expect(limit(ctx, 'k', 3, HOUR, undefined, now + 1000)).rejects.toMatchObject({ status: 429 });
     expect(await underLimit(ctx, 'k', 3, HOUR)).toBe(false);
@@ -144,7 +144,7 @@ describe('codes', () => {
     const stored = async (vars: Record<string, string>, api?: string) => {
       const { ctx, db } = fakeCtx({ DEV_MAIL: 'true', ...vars }, { api });
       await sendCode(ctx, which, 'a@b.test');
-      return { code: lastCode(), row: db.prepare('SELECT hash FROM codes').get() as { hash: string }, ctx };
+      return { code: lastCode(), row: db.prepare('SELECT hash FROM core_codes').get() as { hash: string }, ctx };
     };
     const a = await stored({ CODE_PEPPER: 'one' });
     expect(await takeCode(a.ctx, which, a.code)).toBe(true);

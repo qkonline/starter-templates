@@ -17,7 +17,8 @@ import {
 import { Hono } from 'hono';
 import { signedIn } from '../account';
 import { deviceName, isId, readBody } from '../checks';
-import { b64url, fromB64url, randomToken } from '../crypto';
+import { keyedHash } from '../codes';
+import { b64url, fromB64url, randomToken, sameText, sha256 } from '../crypto';
 import type { PasskeyRow } from '../db';
 import type { Ctx } from '../env';
 import { invalid, notFound, Refusal } from '../errors';
@@ -56,6 +57,36 @@ async function saveChallenge(ctx: Ctx, challenge: string, userId: string, purpos
   return id;
 }
 
+/**
+ * A sign-in challenge, held by the browser rather than stored: signed (CODE_PEPPER) with its
+ * expiry, so starting a passkey sign-in, which needs no account, writes nothing to D1 and can't
+ * spend its daily writes. It's used up when a sign-in with it succeeds (`useSignedChallenge`).
+ * Laid out as `p<expiry, 9 base-36 digits><signature, 43><challenge>`, all in the contract's Id.
+ */
+async function signedChallenge(ctx: Ctx, challenge: string): Promise<string> {
+  const expires = (Date.now() + CHALLENGE_MS).toString(36).padStart(9, '0');
+  return `p${expires}${await keyedHash(ctx, `signin|${expires}|${challenge}`)}${challenge}`;
+}
+
+/** The challenge in a token from `signedChallenge`, if it's genuine and in time. */
+async function openSignedChallenge(ctx: Ctx, token: unknown): Promise<string> {
+  const late = refused('That took too long. Try again.');
+  if (!isId(token) || token.length < 1 + 9 + 43 + 16 || token[0] !== 'p') throw late;
+  const expires = token.slice(1, 10);
+  const signature = token.slice(10, 53);
+  const challenge = token.slice(53);
+  if (!sameText(signature, await keyedHash(ctx, `signin|${expires}|${challenge}`))) throw late;
+  if (parseInt(expires, 36) < Date.now()) throw late;
+  return challenge;
+}
+
+/** After the passkey checked out: the challenge is spent, so the same answer can't sign in twice. */
+async function useSignedChallenge(ctx: Ctx, token: string): Promise<void> {
+  const id = await sha256(token);
+  const fresh = await ctx.db.spendChallenge({ id, expires: Date.now() + CHALLENGE_MS, now: Date.now() });
+  if (!fresh) throw refused('That took too long. Try again.');
+}
+
 /** The challenge, used up whether or not the answer passes, so each is tried once. */
 async function takeChallenge(ctx: Ctx, id: unknown, purpose: Purpose, userId: string) {
   const late = refused('That took too long. Try again.');
@@ -84,7 +115,7 @@ export const passkeys = new Hono<AppEnv>();
 passkeys.post('/auth/passkey/start', perNetwork, async (c) => {
   const ctx = c.var.ctx;
   const options = await generateAuthenticationOptions({ rpID: rpOf(ctx, c.req.header('origin')), userVerification: 'required' });
-  return c.json({ challengeId: await saveChallenge(ctx, options.challenge, '', 'signin'), options });
+  return c.json({ challengeId: await signedChallenge(ctx, options.challenge), options });
 });
 
 passkeys.post('/auth/passkey/finish', perNetwork, async (c) => {
@@ -92,7 +123,7 @@ passkeys.post('/auth/passkey/finish', perNetwork, async (c) => {
   const b = await readBody(c.req.raw, ['challengeId', 'response']).catch(() => {
     throw refused();
   });
-  const challenge = await takeChallenge(ctx, b.challengeId, 'signin', '');
+  const challenge = await openSignedChallenge(ctx, b.challengeId);
   const response = answerOf(b) as unknown as AuthenticationJSON;
   const key = isId(response.id) ? await ctx.db.passkey(response.id) : null;
   if (!key) throw refused("That passkey isn't one of this app's. Pick another, or sign in with your email.");
@@ -114,6 +145,7 @@ passkeys.post('/auth/passkey/finish', perNetwork, async (c) => {
     throw refused();
   }
   if (!v.verified) throw refused();
+  await useSignedChallenge(ctx, b.challengeId as string);
   await ctx.db.passkeyUsed(key.id, v.authenticationInfo.newCounter, Date.now());
   const user = await ctx.db.userById(key.user_id);
   if (!user) throw refused("That passkey's account was deleted.");

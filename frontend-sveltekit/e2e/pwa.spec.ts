@@ -16,12 +16,15 @@ test('the manifest and its icons are served', async ({ page, request }) => {
   }
 });
 
-test('Pages headers are emitted, with a report-only CSP that reports to the backend', async ({ request }) => {
+test('Pages headers are emitted, with an enforced CSP that reports to the backend', async ({ request }) => {
   const res = await request.get('/');
   const h = res.headers();
-  expect(h['content-security-policy-report-only']).toMatch(/script-src 'self' 'sha256-/);
-  expect(h['content-security-policy-report-only']).toMatch(/report-uri https?:\/\/[^ ;]+\/telemetry\/csp/);
-  expect(h['content-security-policy-report-only']).toContain("frame-ancestors 'none'");
+  expect(h['content-security-policy']).toMatch(/report-uri https?:\/\/[^ ;]+\/telemetry\/csp/);
+  expect(h['content-security-policy']).toContain("frame-ancestors 'none'");
+  // Each page's inline scripts are allowed by hash in its own policy.
+  expect(await res.text()).toMatch(
+    /<head[^>]*><meta http-equiv="Content-Security-Policy" content="script-src 'self' 'sha256-/,
+  );
   expect(h['x-content-type-options']).toBe('nosniff');
   expect(h['x-frame-options']).toBe('DENY');
   expect(h['referrer-policy']).toBe('strict-origin-when-cross-origin');

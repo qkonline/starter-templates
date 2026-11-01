@@ -1,0 +1,72 @@
+openapi: 3.1.0
+info:
+  title: App API
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    THE APP'S OWN PATHS, beside the core's in `openapi.yaml`. An app writes its paths here and
+    never edits `openapi.yaml`, so a later release of the template replaces that file whole and
+    this one is untouched. The same conventions hold (JSON, `Authorization: Bearer`, errors as
+    `Error` with a `code` and a `message` to show).
+
+    - Refer to the core's schemas and responses from here, e.g.
+      `$ref: 'openapi.yaml#/components/responses/SignedOut'`.
+    - An app's own error codes (`slot_taken`) go in `AppErrorCode` below, and its error replies
+      use `AppError`; the frontend keeps any code the backend sends, with its message.
+    - `npm run types` makes `app-types.ts` from this file; the frontend's client is typed with
+      both. Contract tests for these paths go in `tests/app/`.
+
+    Example:
+
+    ```yaml
+    paths:
+      /notes:
+        get:
+          operationId: listNotes
+          summary: The person's notes
+          responses:
+            '200':
+              description: The notes
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    required: [notes]
+                    properties:
+                      notes: { type: array, items: { $ref: '#/components/schemas/Note' } }
+            '401':
+              $ref: 'openapi.yaml#/components/responses/SignedOut'
+    ```
+
+servers:
+  - url: http://localhost:8787/api
+    description: Local backend
+
+security:
+  - bearer: []
+
+paths: {}
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    AppErrorCode:
+      type: string
+      description: The app's own error codes, beside the core's `ErrorCode`.
+      enum: [app_error]
+    AppError:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          oneOf:
+            - $ref: 'openapi.yaml#/components/schemas/ErrorCode'
+            - $ref: '#/components/schemas/AppErrorCode'
+        message:
+          type: string

@@ -11,12 +11,14 @@
   },
   "exports": {
     "./types": "./types.ts",
+    "./app-types": "./app-types.ts",
     "./password": "./password.ts",
-    "./openapi.yaml": "./openapi.yaml"
+    "./openapi.yaml": "./openapi.yaml",
+    "./app.yaml": "./app.yaml"
   },
   "scripts": {
-    "lint": "redocly lint openapi.yaml",
-    "types": "openapi-typescript openapi.yaml -o types.ts",
+    "lint": "redocly lint openapi.yaml app.yaml",
+    "types": "openapi-typescript openapi.yaml -o types.ts && openapi-typescript app.yaml -o app-types.ts",
     "check": "npm run lint && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

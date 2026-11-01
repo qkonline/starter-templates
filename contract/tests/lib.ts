@@ -11,13 +11,17 @@ import { cleanEmail, passwordKey, type PasswordSettings } from '../password';
 import { API } from './api';
 export { API };
 
-const spec = parse(readFileSync(new URL('../openapi.yaml', import.meta.url), 'utf8'));
-const SPEC_ID = 'https://starter.local/openapi.json';
-// The whole spec as one schema document, so the refs inside it resolve. Its non-schema keywords
-// (paths, responses…) are ignored rather than refused.
+const read = (file: string) => parse(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
+/** The core's paths, and the app's own beside them (app.yaml). */
+const specs = { 'openapi.yaml': read('openapi.yaml'), 'app.yaml': read('app.yaml') } as const;
+type SpecFile = keyof typeof specs;
+const idOf = (file: SpecFile) => `https://starter.local/${file}`;
+// Each spec as one schema document, so the refs inside it resolve, and app.yaml's refs to
+// `openapi.yaml#/...` reach the core's. Their non-schema keywords (paths, responses…) are
+// ignored rather than refused.
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats.default(ajv);
-ajv.addSchema({ ...spec, $id: SPEC_ID });
+for (const file of Object.keys(specs) as SpecFile[]) ajv.addSchema({ ...specs[file], $id: idOf(file) });
 
 export type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
@@ -57,11 +61,15 @@ export async function call(
 
 const esc = (s: string) => s.replace(/~/g, '~0').replace(/\//g, '~1');
 
-function at(pointer: string): any {
-  return pointer
-    .replace(/^#\//, '')
+/** A `file#/pointer` (or `#/pointer` within `file`) as the file and the node it names. */
+function at(file: SpecFile, ref: string): { file: SpecFile; pointer: string; node: any } {
+  const [target, pointer = ''] = ref.includes('#') ? ref.split('#') : ['', ref];
+  const where = (target || file) as SpecFile;
+  const node = pointer
+    .replace(/^\//, '')
     .split('/')
-    .reduce((node, key) => node?.[key.replace(/~1/g, '/').replace(/~0/g, '~')], spec);
+    .reduce((n: any, key) => n?.[key.replace(/~1/g, '/').replace(/~0/g, '~')], specs[where]);
+  return { file: where, pointer: `#${pointer}`, node };
 }
 
 /**
@@ -71,20 +79,19 @@ function at(pointer: string): any {
 export function expectReply(r: Reply, method: Method, specPath: string, status: number) {
   const where = `${method.toUpperCase()} ${specPath}`;
   expect(r.status, `${where}: ${JSON.stringify(r.body)}`).toBe(status);
-  let pointer = `#/paths/${esc(specPath)}/${method}/responses/${status}`;
+  // The core's path, or else the app's own.
+  const file: SpecFile = specs['openapi.yaml'].paths?.[specPath] ? 'openapi.yaml' : 'app.yaml';
+  let ref = `#/paths/${esc(specPath)}/${method}/responses/${status}`;
   // Any path but these two may answer an outdated copy of the app (see the contract's conventions).
-  if (status === 426 && !['/health', '/features'].includes(specPath)) pointer = '#/components/responses/ClientOutdated';
-  let declared = at(pointer);
-  if (!declared) throw new Error(`The contract doesn't list ${status} for ${where}.`);
-  if (declared.$ref) {
-    pointer = declared.$ref;
-    declared = at(pointer);
-  }
-  if (!declared.content) {
+  if (status === 426 && !['/health', '/features'].includes(specPath)) ref = 'openapi.yaml#/components/responses/ClientOutdated';
+  let found = at(file, ref);
+  if (!found.node) throw new Error(`The contract doesn't list ${status} for ${where}.`);
+  if (found.node.$ref) found = at(found.file, found.node.$ref);
+  if (!found.node.content) {
     expect(r.body, `${where} ${status} has no body in the contract`).toBeNull();
     return;
   }
-  const validate = ajv.getSchema(`${SPEC_ID}${pointer}/content/${esc('application/json')}/schema`);
+  const validate = ajv.getSchema(`${idOf(found.file)}${found.pointer}/content/${esc('application/json')}/schema`);
   if (!validate) throw new Error(`No JSON schema for ${where} ${status}.`);
   if (!validate(r.body)) {
     throw new Error(`${where} ${status} doesn't match the contract:\n${ajv.errorsText(validate.errors, { separator: '\n' })}\n${JSON.stringify(r.body, null, 2)}`);

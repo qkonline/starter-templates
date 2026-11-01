@@ -5,6 +5,7 @@
 import { sessionView, userView } from '../account';
 import type { UserRow } from '../db';
 import type { Ctx } from '../env';
+import { appAccount } from '../app/account';
 import { messageView } from './admin';
 import { notificationView } from './notifications';
 import { passkeyView } from './passkeys';
@@ -53,7 +54,7 @@ export async function exportOf(ctx: Ctx, user: UserRow, sessionId: string) {
       expiresAt: iso(i.expires),
     })),
     invitesReceived: received.map(receivedView),
-    // An app adds its own records here.
-    data: {},
+    // The app's own records (src/app/account.ts).
+    data: await appAccount.exportUser(ctx, user),
   };
 }

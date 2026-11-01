@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 // Run by `npm run deploy` before anything reaches Cloudflare: refuses to deploy wrangler.toml as
 // the template left it, which would give the world an API that only localhost may call, passkeys
-// for localhost, and no database.
+// for localhost, and no database; and refuses what can't be put right once people sign up: the
+// template's password salt (APP_NAME), mail from example.com, no CAPTCHA, no CODE_PEPPER.
+//
+// PREDEPLOY_SKIP_SECRETS=1 skips checking the secrets (when `wrangler secret list` can't run).
 
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const toml = readFileSync(fileURLToPath(new URL('../wrangler.toml', import.meta.url)), 'utf8');
@@ -29,6 +33,47 @@ if (!rp || rp === 'localhost' || rp === '127.0.0.1') problems.push('RP_ID is loc
 
 const dbId = value('database_id') ?? '';
 if (!dbId || /^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(dbId)) problems.push('database_id is the placeholder: run `npm run setup` first.');
+
+const app = value('APP_NAME') ?? '';
+if (!/^[a-z0-9-]{1,40}$/.test(app) || app === 'starter')
+  problems.push(
+    'APP_NAME is the template\'s ("starter") or not lower case letters, digits and dashes: give the app its own name. It salts every password, so it can never change once people sign up.',
+  );
+
+const from = value('MAIL_FROM') ?? '';
+if (!/<[^@\s>]+@[^@\s>]+\.[^@\s>]+>$|^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from) || /@example\.(com|org|net)\b/i.test(from))
+  problems.push('MAIL_FROM is the template\'s example.com: put an address on a domain Resend has verified for this app.');
+
+const site = value('TURNSTILE_SITE_KEY') ?? '';
+if (!site || /^[123]x0{10,}/.test(site))
+  problems.push(
+    'TURNSTILE_SITE_KEY is empty or one of Turnstile\'s test keys: the CAPTCHA guards sign-up, sign-in and every route that sends mail; make a widget for the domain.',
+  );
+
+// The core's migrations are 0001 to 0999; an app's start at 1000, so a later release's never collide.
+const dir = fileURLToPath(new URL('../migrations/', import.meta.url));
+for (const f of readdirSync(dir).filter((f) => f.endsWith('.sql'))) {
+  const n = Number(f.match(/^(\d+)_/)?.[1] ?? NaN);
+  if (Number.isNaN(n)) problems.push(`migrations/${f} isn't numbered: name it NNNN_what.sql (an app's from 1000).`);
+}
+
+if (process.env.PREDEPLOY_SKIP_SECRETS !== '1') {
+  let names = null;
+  try {
+    const out = execFileSync('npx', ['wrangler', 'secret', 'list', '--format', 'json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    names = new Set(JSON.parse(out).map((s) => s.name));
+  } catch {
+    problems.push("Couldn't list the Worker's secrets (`npx wrangler login`?). PREDEPLOY_SKIP_SECRETS=1 skips this check.");
+  }
+  if (names) {
+    for (const [name, why] of [
+      ['CODE_PEPPER', 'emailed codes are refused without it (npm run setup makes it)'],
+      ['TURNSTILE_SECRET', 'the CAPTCHA is off without it'],
+      ['RESEND_API_KEY', 'no email goes out without it: forgot password, confirming addresses'],
+    ])
+      if (!names.has(name)) problems.push(`The secret ${name} isn't set: ${why}. \`npx wrangler secret put ${name}\`.`);
+  }
+}
 
 if (problems.length) {
   console.error(`Not deploying; wrangler.toml isn't ready:\n${problems.map((p) => `  - ${p}`).join('\n')}`);

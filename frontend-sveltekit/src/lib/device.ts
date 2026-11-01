@@ -10,6 +10,8 @@
 // has ended: a tab that ever held one is marked (`starter:support-tab`, kept until the tab
 // closes), and the writers below check the mark rather than whether a session is still there.
 
+import { appDeviceKeys } from '#lib/app/shell.ts';
+
 const TOKEN = 'starter:token';
 const ACCOUNT = 'starter:account';
 const SUPPORT = 'starter:support';
@@ -20,7 +22,12 @@ const KEPT = 'starter:kept:';
 let wasSupportTab = false;
 
 /** Settings of the device rather than the person: they stay when the device forgets someone. */
-export const deviceKeys: readonly string[] = ['starter:theme', 'starter:mode', 'starter:text'];
+export const deviceKeys: readonly string[] = [
+  'starter:theme',
+  'starter:mode',
+  'starter:text',
+  ...appDeviceKeys,
+];
 
 export interface SupportSession {
   token: string;

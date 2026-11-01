@@ -13,6 +13,7 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { messageOf } from '#lib/api/index.ts';
+  import { appNav } from '#lib/app/shell.ts';
   import { appName } from '#lib/config.ts';
   import { onMount } from 'svelte';
   import { startSync, useAccount } from '#lib/db/index.svelte.ts';
@@ -104,6 +105,10 @@
           <a class="brand" href={resolve('app')}><span class="logo" aria-hidden="true"></span>{appName}</a>
           <nav aria-label="Main">
             <a href={resolve('app')} aria-current={current(resolve('app'))}>Home</a>
+            {#each appNav as item (item.path)}
+              {@const href = `${resolve('')}${item.path}`.replace(/\/\/+/g, '/')}
+              <a {href} aria-current={item.match === 'prefix' ? within(href) : current(href)}>{item.label}</a>
+            {/each}
             {#if teamsOn}
               <a href={resolve('teams')} aria-current={current(resolve('teams')) ?? current(resolve('team'))}
                 >Teams</a

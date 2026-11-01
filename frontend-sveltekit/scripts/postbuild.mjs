@@ -9,7 +9,7 @@ import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import { loadEnv } from 'vite';
 import { apiUrlProblem } from './api-url.ts';
-import { buildHeaders, inlineScripts, scriptHash } from './csp.ts';
+import { buildHeaders, inlineScripts, pagePolicy, scriptHash, withPagePolicy } from './csp.ts';
 
 const out = 'build';
 const env = { ...loadEnv('production', process.cwd(), 'PUBLIC_'), ...process.env };
@@ -36,19 +36,21 @@ if (!existsSync(join(out, '200.html'))) {
 }
 copyFileSync(join(out, '200.html'), join(out, '404.html'));
 
-const hashes = new Set();
+const apiEnv = {
+  apiUrl: (env.PUBLIC_API_URL || 'http://localhost:8787/api').replace(/\/+$/, ''),
+  posthogKey: (env.PUBLIC_POSTHOG_KEY ?? '').trim(),
+  posthogHost: (env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com').trim(),
+  gaId: (env.PUBLIC_GA_ID ?? '').trim(),
+};
+
+// Each page gets its own policy, listing the inline scripts it runs by their hashes.
+let pages = 0;
 for (const file of htmlFiles(out)) {
-  for (const body of inlineScripts(readFileSync(file, 'utf8'))) hashes.add(await scriptHash(body));
+  const html = readFileSync(file, 'utf8');
+  const hashes = await Promise.all(inlineScripts(html).map(scriptHash));
+  writeFileSync(file, withPagePolicy(html, pagePolicy(apiEnv, [...new Set(hashes)].sort())));
+  pages++;
 }
 
-const headers = buildHeaders(
-  {
-    apiUrl: (env.PUBLIC_API_URL || 'http://localhost:8787/api').replace(/\/+$/, ''),
-    posthogKey: (env.PUBLIC_POSTHOG_KEY ?? '').trim(),
-    posthogHost: (env.PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com').trim(),
-    gaId: (env.PUBLIC_GA_ID ?? '').trim(),
-  },
-  [...hashes].sort(),
-);
-writeFileSync(join(out, '_headers'), headers);
-console.log(`postbuild: wrote build/_headers (${hashes.size} inline script hashes) and build/404.html`);
+writeFileSync(join(out, '_headers'), buildHeaders(apiEnv));
+console.log(`postbuild: wrote build/_headers, each of ${pages} pages' own script policy, and build/404.html`);

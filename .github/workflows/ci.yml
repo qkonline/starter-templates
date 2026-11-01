@@ -1,7 +1,11 @@
 # Checks every push and pull request, on GitHub's free runners and with no Cloudflare account:
-# the backend runs locally under `wrangler dev`, as it does on a laptop.
+# the backend runs locally under `wrangler dev`, as it does on a laptop. Actions are pinned to a
+# commit (the tag beside it), so a moved tag can't change what runs.
 name: ci
 on: [push, pull_request]
+# Read the code, nothing else: no step here writes to the repo or its settings.
+permissions:
+  contents: read
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -10,15 +14,15 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: '*/package-lock.json'
       - name: Contract (lint, types up to date, type check)
         working-directory: contract
-        run: npm ci && npm run check && npm run types && git diff --exit-code types.ts
+        run: npm ci && npm run check && npm run types && git diff --exit-code types.ts app-types.ts
       - name: Backend (type check, unit tests)
         working-directory: backend-cloudflare
         run: npm ci && npm run check && npm test
@@ -34,8 +38,8 @@ jobs:
       matrix:
         mode: [dev, 'dev:all']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm

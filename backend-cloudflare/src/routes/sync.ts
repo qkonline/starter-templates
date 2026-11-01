@@ -45,25 +45,6 @@ async function ask<T>(work: Promise<Outcome<T>>): Promise<T> {
   return out.value;
 }
 
-/** Everything a space keeps goes: when its account or team is deleted. */
-export async function wipeSpace(ctx: Ctx, space: string): Promise<void> {
-  await stubOf(ctx, space).wipe(space);
-}
-
-/**
- * Before an account is deleted: the spaces that go with it, its own and those of the teams it's
- * alone in (deleting the account deletes those teams). Wipe them with `wipeSpaces` after.
- */
-export async function spacesOf(ctx: Ctx, userId: string): Promise<string[]> {
-  if (!ctx.cfg.sync) return [];
-  const solo = ctx.cfg.teams ? (await ctx.db.teamsOf(userId)).filter((t) => t.member_count === 1).map((t) => `team:${t.id}`) : [];
-  return [`user:${userId}`, ...solo];
-}
-
-export async function wipeSpaces(ctx: Ctx, spaces: string[]): Promise<void> {
-  for (const space of spaces) await wipeSpace(ctx, space);
-}
-
 export const sync = new Hono<AppEnv>();
 
 for (const path of ['/sync', '/sync/*']) sync.use(path, requireFeature((cfg) => cfg.sync), requireUser, requireVerifiedEmail);

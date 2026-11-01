@@ -146,7 +146,7 @@ describe('sending', () => {
     const v = await vapid();
     const { ctx } = fakeCtx({ VAPID_PUBLIC_KEY: v.keys.publicKey, VAPID_PRIVATE_KEY: v.keys.privateKey });
     const b = await browser();
-    await ctx.db.savePushSub({ endpoint: 'https://fcm.googleapis.com/fcm/send/1', userId: 'ann', ...b.sub, now: 1 });
+    await ctx.db.savePushSub({ endpoint: 'https://fcm.googleapis.com/fcm/send/1', userId: 'ann', sessionId: null, ...b.sub, now: 1 });
     const fetch = vi.fn(async () => {
       if (status === 'throw') throw new Error('no network');
       return new Response(null, { status });
@@ -172,7 +172,7 @@ describe('sending', () => {
 
   it('never posts to a stored endpoint that is no longer allowed', async () => {
     const { ctx, fetch, b } = await setup(201);
-    await ctx.db.savePushSub({ endpoint: 'https://push.invalid/old', userId: 'ann', ...b.sub, now: 2 });
+    await ctx.db.savePushSub({ endpoint: 'https://push.invalid/old', userId: 'ann', sessionId: null, ...b.sub, now: 2 });
     expect(await pushTo(ctx, 'ann', { title: 't', body: 'b', url: null })).toBe(1);
     expect(fetch).toHaveBeenCalledOnce();
   });
@@ -186,5 +186,21 @@ describe('sending', () => {
     expect(headers['content-encoding']).toBe('aes128gcm');
     expect(headers.authorization).toMatch(/^vapid t=.+, k=/);
     expect(JSON.parse((await decrypt(b, init.body as Uint8Array)).message)).toEqual({ title: 'Hi', body: 'There', url: '/x' });
+  });
+});
+
+describe('subscriptions and sessions', () => {
+  it("a device's subscription ends with its session: signed out there, it gets nothing more", async () => {
+    const { ctx, db } = fakeCtx({ VAPID_PUBLIC_KEY: 'x', VAPID_PRIVATE_KEY: 'y' });
+    const now = 1_800_000_000_000;
+    await ctx.db.createUser({ id: 'ann', email: 'ann@b.test', verified: true, password: null, now });
+    for (const id of ['phone', 'laptop']) await ctx.db.createSession({ id, hash: `h-${id}`, userId: 'ann', device: id, now });
+    for (const id of ['phone', 'laptop'])
+      await ctx.db.savePushSub({ endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, userId: 'ann', sessionId: id, p256dh: 'p', auth: 'a', now });
+    db.prepare("DELETE FROM core_sessions WHERE id = 'phone'").run();
+    expect((await ctx.db.pushSubs('ann')).map((s) => s.endpoint)).toEqual(['https://fcm.googleapis.com/fcm/send/laptop']);
+    // The daily sweep deletes it.
+    await ctx.db.sweep(now);
+    expect(db.prepare('SELECT endpoint FROM core_push_subs').all().map((r) => r.endpoint)).toEqual(['https://fcm.googleapis.com/fcm/send/laptop']);
   });
 });

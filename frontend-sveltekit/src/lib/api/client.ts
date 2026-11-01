@@ -7,8 +7,15 @@
 // including an app's own paths called through `client`.
 
 import createClient, { type Middleware } from 'openapi-fetch';
-import type { components, paths } from '@starter/contract/types';
+import type { paths as AppPaths } from '@starter/contract/app-types';
+import type { components, paths as CorePaths } from '@starter/contract/types';
 import { ApiError, errorFrom, networkError } from './errors';
+
+/**
+ * The core's paths and the app's own (contract/app.yaml). With no app paths yet, app-types.ts
+ * says `Record<string, never>`, which would make every path `never`: then it's the core's alone.
+ */
+export type paths = CorePaths & (string extends keyof AppPaths ? unknown : AppPaths);
 
 export type Schemas = components['schemas'];
 export type User = Schemas['User'];

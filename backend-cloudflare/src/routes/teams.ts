@@ -14,7 +14,7 @@ import { DAY, limit } from '../limits';
 import { sendMail } from '../mail';
 import { needsConfirmedEmail, requireFeature, requireUser, type AppEnv } from '../middleware';
 import { notify } from '../notify';
-import { wipeSpace } from './sync';
+import { deleteTeam } from '../deletion';
 
 const INVITE_MS = 7 * DAY;
 const MAX_TEAMS = 50;
@@ -144,8 +144,7 @@ teams.patch('/teams/:teamId', async (c) => {
 teams.delete('/teams/:teamId', async (c) => {
   const { ctx, user } = c.var;
   const team = await adminOf(ctx, c.req.param('teamId'), user.id);
-  await ctx.db.deleteTeam(team.id);
-  if (ctx.cfg.sync) await wipeSpace(ctx, `team:${team.id}`);
+  await deleteTeam(ctx, team.id);
   return c.body(null, 204);
 });
 
@@ -269,6 +268,9 @@ teams.post('/invites/accept', async (c) => {
   }
   // Another account's invite is not there, the same as one that never was.
   if (!invite || invite.email !== user.email || invite.expires < now) throw notFound();
+  // The same cap as making a team: joining one is how else someone's list of teams grows.
+  if ((await ctx.db.teamsOf(user.id)).length >= MAX_TEAMS && !(await ctx.db.teamOf(invite.team_id, user.id)))
+    throw invalid(`You're in ${MAX_TEAMS} teams, as many as one person can be. Leave one first.`);
   const used = await ctx.db.acceptInvite(invite.id, user.id, user.email, now);
   if (!used) throw notFound();
   // The emailed link proves the address.

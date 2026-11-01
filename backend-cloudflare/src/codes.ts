@@ -53,10 +53,13 @@ function pepper(ctx: Ctx): string {
   throw new Error('CODE_PEPPER is not set: put it with `npx wrangler secret put CODE_PEPPER` (npm run setup does).');
 }
 
-async function hashOf(ctx: Ctx, c: Code, code: string): Promise<string> {
+/** An HMAC of `text` keyed with CODE_PEPPER, as base64url (43 characters). */
+export async function keyedHash(ctx: Ctx, text: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', enc.encode(pepper(ctx)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(`${keyOf(c)}|${code}`)));
+  return b64url(await crypto.subtle.sign('HMAC', key, enc.encode(text)));
 }
+
+const hashOf = (ctx: Ctx, c: Code, code: string) => keyedHash(ctx, `${keyOf(c)}|${code}`);
 
 /**
  * Make a code and email it to `to`. `deliver: false` makes and counts one but sends nothing, so
@@ -67,9 +70,11 @@ async function hashOf(ctx: Ctx, c: Code, code: string): Promise<string> {
  */
 export async function sendCode(ctx: Ctx, c: Code, to: string, opts: { deliver?: boolean; counted?: boolean; later?: boolean } = {}): Promise<void> {
   if (opts.counted !== false) {
+    // The network first: one network asking for many addresses stops there, before each address
+    // writes counts of its own (D1's daily writes).
+    await networkLimit(ctx, `codes:${c.purpose}`, PER_NETWORK, HOUR, 'Too many codes asked for. Try again in an hour.');
     await limit(ctx, `gap:${keyOf(c)}`, 1, MINUTE, 'A code is on its way. Wait a minute before asking for another.');
     await limit(ctx, `codes:${c.purpose}:${to}`, PER_ADDRESS, HOUR, 'Too many codes asked for. Try again in an hour.');
-    await networkLimit(ctx, `codes:${c.purpose}`, PER_NETWORK, HOUR, 'Too many codes asked for. Try again in an hour.');
   }
   const code = sixDigits();
   const now = Date.now();

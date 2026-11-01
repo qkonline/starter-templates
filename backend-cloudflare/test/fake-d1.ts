@@ -17,7 +17,11 @@ export function fakeD1() {
   for (const f of readdirSync(dir).sort()) db.exec(readFileSync(dir + f, 'utf8'));
   const statement = (query: string, args: unknown[] = []) => ({
     query,
-    bind: (...b: unknown[]) => statement(query, b),
+    bind: (...b: unknown[]) => {
+      // As D1 does: at most 100 bound values in one statement.
+      if (b.length > 100) throw new Error(`D1_ERROR: too many SQL variables (${b.length})`);
+      return statement(query, b);
+    },
     async first<T>() {
       const row = db.prepare(query).get(...(args as never[]));
       return (row ? { ...row } : null) as T | null;

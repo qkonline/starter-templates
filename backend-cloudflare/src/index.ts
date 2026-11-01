@@ -5,16 +5,18 @@
 // - JSON in and out under /api, `Authorization: Bearer <token>`, no cookies (except the nonce
 //   for the round trip to Google, on this domain only).
 //
-// An app adds its own routes below the core ones, never changing those; see README.
+// An app adds its own routes in src/app/, never changing the core's; see README.
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { d1 } from './db';
 import type { Env } from './env';
+import { finishCleanups } from './deletion';
 import { Refusal } from './errors';
 import { devOutbox } from './mail';
 import { clientCheck, context, supportGuard, type AppEnv } from './middleware';
 import { recordReport, serverReport } from './reports';
+import { appRoutes } from './app/routes';
 import { admin } from './routes/admin';
 import { auth } from './routes/auth';
 import { contact } from './routes/contact';
@@ -74,8 +76,8 @@ app.route('/', admin);
 app.route('/', contact);
 app.route('/', sync);
 
-// An app's own routes go here, e.g. (README, "Adding routes"):
-//   app.get('/notes', requireUser, requireVerifiedEmail, async (c) => c.json(...));
+// The app's own paths: src/app/routes.ts (README, "Building on it").
+app.route('/', appRoutes);
 
 app.notFound((c) => c.json({ code: 'not_found', message: "That isn't here." }, 404));
 
@@ -100,5 +102,6 @@ export default {
   // support sessions, expired invites, notifications after 90 days, the audit log after a year.
   async scheduled(_event, env) {
     await d1(env.DB).sweep(Date.now());
+    await finishCleanups(env);
   },
 } satisfies ExportedHandler<Env>;

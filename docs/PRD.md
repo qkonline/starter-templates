@@ -84,10 +84,12 @@ confirming the address. Each app reads its settings from `/auth/methods`.
   sessions and devices)*
 - **R2.5 Export.** Everything stored about the person, as a download: the account, devices,
   passkeys, team memberships with roles, notifications, push subscriptions (by host), contact
-  messages sent, and invites sent and received.
+  messages sent, invites sent and received, and the app's own records (each app adds its own
+  through its export hook).
 - **R2.6 Deleting the account** removes it with its sessions, passkeys, push subscriptions,
-  notifications, contact messages and photo, at once; error reports it sent stay, without it.
-  *(boardo)*
+  notifications, contact messages and photo, its synced data and the app's own records, at once;
+  error reports it sent stay, without it. What's kept outside the database is written down with
+  the deletion and finished by the daily sweep if anything failed. *(boardo)*
 
 ## 3. The app shell (frontend)
 
@@ -97,9 +99,10 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 - **R3.2 Display preferences.** Theme (one of the looks the app offers, when it offers more than
   one), mode (light, dark, or the device's) and text size, per device, applied before first
   paint so nothing flashes. *(both exam apps: `theme`, `fontScale`)*
-- **R3.3 Security headers.** A Content-Security-Policy that starts as report-only and reports to
-  `/telemetry/csp`, plus the usual headers (HSTS, frame, referrer, content type, permissions), in
-  Cloudflare Pages' `_headers`. Move to enforcing once reports are clean. *(high-yield-prep)*
+- **R3.3 Security headers.** A Content-Security-Policy, enforced, reporting what it blocks to
+  `/telemetry/csp`; each page's inline scripts are allowed by hash in that page's own policy, so
+  the header stays short however many pages there are. Plus the usual headers (HSTS, frame,
+  referrer, content type, permissions), in Cloudflare Pages' `_headers`. *(high-yield-prep)*
 - **R3.4 Analytics, optional.** PostHog, Google Analytics 4, both, or neither, each switched on by
   its key at build time; nothing loads without a key. Neither loads, stores or sends anything
   until the person agrees in a small banner, and saying no later stops both. Only the account id
@@ -119,7 +122,8 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 - **R4.2 Push, optional.** On when the backend has VAPID keys (generated once by the setup script;
   free, no third party). The person turns it on per device from the account page and can send
   themselves a test. Push never replaces the in-app list, and goes only to the browsers'
-  known push services. *(boardo, planner, both exam apps)*
+  known push services. A device's subscription ends with its session: signed out, it gets no
+  more. *(boardo, planner, both exam apps)*
 
 ## 5. Teams (optional per app)
 

@@ -29,8 +29,10 @@ const notAKey = () => invalid("The password couldn't be read. Reload the page an
  */
 export async function checkWithLimits(ctx: Ctx, email: string, key: string, stored: string | null): Promise<{ ok: boolean; rehash: boolean }> {
   const message = 'Too many wrong passwords. Wait 15 minutes, or set a new one with "Forgot password".';
-  await limit(ctx, `wrong:${email}`, WRONG_PER_ADDRESS, WRONG_WINDOW, message);
+  // The network first: one network trying many addresses stops there, before each address
+  // writes a count of its own (D1's daily writes).
   await networkLimit(ctx, 'wrong', WRONG_PER_NETWORK, WRONG_WINDOW, message);
+  await limit(ctx, `wrong:${email}`, WRONG_PER_ADDRESS, WRONG_WINDOW, message);
   const result = await checkPasswordKey(key, stored);
   if (result.ok) {
     await uncount(ctx, `wrong:${email}`);

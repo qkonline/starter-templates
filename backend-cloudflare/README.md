@@ -29,7 +29,8 @@ npm run check      # tsc
 npm test           # unit tests (password hash, limits, codes, push encryption, reports, sessions, teams)
 npm run vapid      # print a new VAPID key pair
 npm run setup      # a new project on Cloudflare (see "Deploying"); needs `wrangler login`
-npm run deploy     # scripts/predeploy.mjs (refuses a wrangler.toml still set for localhost),
+npm run deploy     # scripts/predeploy.mjs (refuses a wrangler.toml still set for localhost, the
+                   # template's APP_NAME, example.com mail, no Turnstile, missing secrets),
                    # then remote migrations, then wrangler deploy
 ```
 
@@ -141,7 +142,8 @@ app's VAPID key (RFC 8292), then sent straight to the browser's push service. A 
 the service forgets that browser. Only the browsers' push services (Google, Mozilla, Microsoft,
 Apple) are accepted as endpoints. Push never replaces the in-app list: every notification is kept
 there (90 days) whether or not it was pushed. `POST /me/push/test` waits for delivery; other
-pushes (an invite) finish after the reply.
+pushes (an invite) finish after the reply. A subscription belongs to the session that turned it
+on: once that device is signed out (or ended from another device), it gets nothing more.
 
 ### Admins and support sessions
 
@@ -193,24 +195,44 @@ Measured cost of checking one: about **0.03 to 0.04 ms of CPU** (Node 24 on Appl
 Crypto; `npm test` prints it), against the 10 ms per request Workers Free allows. 1,000 rounds
 would still be only 0.15 ms.
 
-## Adding routes
+## Building on it
 
-The core routes are fixed; an app adds its own beside them in `src/index.ts` (or its own files
-mounted there), and its own tables in a new migration. `requireUser` gives the route the signed-in
-person; `requireVerifiedEmail` after it holds back anyone who hasn't confirmed their email when
-`REQUIRE_VERIFIED_EMAIL` is on (403 `email_unverified`, which the frontend answers by offering a
-code). The core routes never use it, so people can always confirm, change their address, or leave.
+The core is fixed; an app adds beside it, in files that are its own. A later release of the
+template replaces the core's files and never touches these, so its fixes merge without hand
+work:
+
+| File                  | What goes in it                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/app/routes.ts`   | the app's paths (written in `../contract/app.yaml` first), mounted after the core's               |
+| `src/app/account.ts`  | the app's rows in `/me/export`, and deleting them with an account or a team                       |
+| `src/app/sync.ts`     | checks and guarded fields for synced tables ([Sync](#sync))                                       |
+| `migrations/1000_…`   | the app's tables, numbered from 1000; 0001 to 0999 are the core's                                 |
+
+The core's D1 tables are all named `core_…` (`core_users`, `core_sessions`, `core_teams`…), so
+the app's can have the plain names it wants (`messages`, `members`, `notes`).
+
+`requireUser` gives a route the signed-in person; `requireVerifiedEmail` after it holds back
+anyone who hasn't confirmed their email when `REQUIRE_VERIFIED_EMAIL` is on (403
+`email_unverified`, which the frontend answers by offering a code). The core routes never use
+it, so people can always confirm, change their address, or leave.
 
 ```ts
-// src/index.ts, after the core routes
-import { requireUser, requireVerifiedEmail } from './middleware';
+// src/app/routes.ts
+import { requireUser, requireVerifiedEmail } from '../middleware';
 
-app.get('/notes', requireUser, requireVerifiedEmail, async (c) => {
+appRoutes.get('/notes', requireUser, requireVerifiedEmail, async (c) => {
   const { ctx, user } = c.var; // ctx.db, ctx.env, ctx.cfg; user is the D1 row
   const notes = await ctx.env.DB.prepare('SELECT id, text FROM notes WHERE user_id = ?').bind(user.id).all();
   return c.json({ notes: notes.results });
 });
 ```
+
+**Deleting and exporting.** Whatever the app keeps of a person goes in `src/app/account.ts`:
+`deleteUserStatements` (D1 statements run in the same batch as the core's deletion, so it's all
+or none), `afterDeleteUser` for anything outside D1, and `exportUser` for `/me/export`; the
+same for teams. What's outside D1 (photos, synced data, the app's own) is written down in
+`core_cleanups` with the deletion, done straight after, and finished by the daily sweep if
+anything failed on the way.
 
 Throw a `Refusal` (`src/errors.ts`) for anything the person should see; it becomes the contract's
 `{ code, message }`. Put the app's queries in `src/db/` too if it might move to another cloud.

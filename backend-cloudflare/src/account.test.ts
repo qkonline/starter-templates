@@ -130,7 +130,7 @@ describe('taking an address back (PRD R1.8)', () => {
     const { ctx, db } = fakeCtx({ VAPID_PUBLIC_KEY: 'x', VAPID_PRIVATE_KEY: 'y' });
     await ctx.db.createUser({ id: 'sq', email: 'owner@b.test', verified, password: 'pbkdf2-sha256$10$x$y', now });
     await ctx.db.addPasskey({ id: 'pk', user_id: 'sq', public_key: 'k', counter: 0, transports: null, device: 'Mac', created: now });
-    await ctx.db.savePushSub({ endpoint: 'https://fcm.googleapis.com/fcm/send/sq', userId: 'sq', p256dh: 'p', auth: 'a', now });
+    await ctx.db.savePushSub({ endpoint: 'https://fcm.googleapis.com/fcm/send/sq', userId: 'sq', sessionId: null, p256dh: 'p', auth: 'a', now });
     await ctx.db.saveChallenge({ id: 'ch', challenge: 'c', userId: 'sq', purpose: 'add', expires: now + 1e9, now });
     await ctx.db.saveOAuthCode({ hash: 'oc', userId: 'sq', isNew: false, expires: now + 1e9, now });
     await ctx.db.putCode({ key: 'change|sq|elsewhere@b.test', hash: 'h', sent: now, expires: now + 1e9 });
@@ -144,18 +144,18 @@ describe('taking an address back (PRD R1.8)', () => {
   it('from an unconfirmed account clears its passkeys, push, challenges, codes and sessions', async () => {
     const { ctx, db, count } = await squatted(false);
     await ctx.db.claimAccount('sq', null);
-    for (const table of ['passkeys', 'push_subs', 'challenges', 'oauth_codes', 'sessions']) expect(count(table), table).toBe(0);
+    for (const table of ['core_passkeys', 'core_push_subs', 'core_challenges', 'core_oauth_codes', 'core_sessions']) expect(count(table), table).toBe(0);
     // Another account's code, whose id merely starts the same, stays.
-    expect(db.prepare('SELECT key FROM codes').all()).toEqual([{ key: 'change|sqz|other@b.test' }]);
+    expect(db.prepare('SELECT key FROM core_codes').all()).toEqual([{ key: 'change|sqz|other@b.test' }]);
     expect(await ctx.db.userById('sq')).toMatchObject({ email_verified: 1, password: null, auth_epoch: 1 });
   });
 
   it('on a confirmed account (a plain reset) keeps its passkeys and push, and ends its sessions', async () => {
     const { ctx, count } = await squatted(true);
     await ctx.db.claimAccount('sq', 'new');
-    expect(count('passkeys')).toBe(1);
-    expect(count('push_subs')).toBe(1);
-    expect(count('sessions')).toBe(0);
+    expect(count('core_passkeys')).toBe(1);
+    expect(count('core_push_subs')).toBe(1);
+    expect(count('core_sessions')).toBe(0);
   });
 });
 
@@ -227,8 +227,8 @@ describe('deleting an account', () => {
     await ctx.db.recordReport({ id: 'r', signature: 's', kind: 'client', message: 'Boom', detail: null, url: null, release: null, userId: 'ann' }, now);
     await ctx.db.putCode({ key: 'change|ann|new@b.test', hash: 'h', sent: now, expires: now + 1e9 });
     await ctx.db.deleteUser('ann');
-    expect(db.prepare('SELECT COUNT(*) AS n FROM messages').get()).toEqual({ n: 0 });
-    expect(db.prepare('SELECT user_id FROM reports').all()).toEqual([{ user_id: null }]);
-    expect(db.prepare('SELECT COUNT(*) AS n FROM codes').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM core_messages').get()).toEqual({ n: 0 });
+    expect(db.prepare('SELECT user_id FROM core_reports').all()).toEqual([{ user_id: null }]);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM core_codes').get()).toEqual({ n: 0 });
   });
 });

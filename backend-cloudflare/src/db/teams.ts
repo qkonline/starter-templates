@@ -63,7 +63,7 @@ export interface TeamsDb {
   createTeam(t: { id: string; name: string; userId: string; now: number }): Promise<void>;
   renameTeam(id: string, name: string): Promise<void>;
   /** The team with its members and invites. */
-  deleteTeam(id: string): Promise<void>;
+  deleteTeam(id: string, extra?: D1PreparedStatement[]): Promise<void>;
   /** Longest-standing first. */
   members(teamId: string): Promise<MemberRow[]>;
   member(teamId: string, userId: string): Promise<MemberRow | null>;
@@ -96,12 +96,12 @@ export interface TeamsDb {
 }
 
 /** Holds only while another admin stays: part of the statement that makes the change. */
-const ANOTHER_ADMIN = "(role <> 'admin' OR (SELECT COUNT(*) FROM members WHERE team_id = ?1 AND role = 'admin') > 1)";
+const ANOTHER_ADMIN = "(role <> 'admin' OR (SELECT COUNT(*) FROM core_members WHERE team_id = ?1 AND role = 'admin') > 1)";
 
-const TEAM = `SELECT t.id, t.name, t.created, m.role, (SELECT COUNT(*) FROM members c WHERE c.team_id = t.id) AS member_count
-  FROM members m JOIN teams t ON t.id = m.team_id`;
-const MEMBER = `SELECT m.user_id, m.role, m.joined, u.name, u.email, u.photo FROM members m JOIN users u ON u.id = m.user_id`;
-const INVITE = 'SELECT id, team_id, email, role, by_name, by_email, created, sent, expires FROM invites';
+const TEAM = `SELECT t.id, t.name, t.created, m.role, (SELECT COUNT(*) FROM core_members c WHERE c.team_id = t.id) AS member_count
+  FROM core_members m JOIN core_teams t ON t.id = m.team_id`;
+const MEMBER = `SELECT m.user_id, m.role, m.joined, u.name, u.email, u.photo FROM core_members m JOIN core_users u ON u.id = m.user_id`;
+const INVITE = 'SELECT id, team_id, email, role, by_name, by_email, created, sent, expires FROM core_invites';
 
 export function teamsD1(DB: D1Database): TeamsDb {
   const one = <T>(sql: string, ...args: unknown[]) => DB.prepare(sql).bind(...args).first<T>();
@@ -110,44 +110,45 @@ export function teamsD1(DB: D1Database): TeamsDb {
 
   /** After a change was refused: because of the last-admin rule, or because they weren't in it. */
   const why = async (teamId: string, userId: string): Promise<Change> =>
-    (await exists('SELECT 1 FROM members WHERE team_id = ? AND user_id = ?', teamId, userId)) ? 'last_admin' : 'gone';
+    (await exists('SELECT 1 FROM core_members WHERE team_id = ? AND user_id = ?', teamId, userId)) ? 'last_admin' : 'gone';
 
   return {
     teamsOf: (userId) => all(`${TEAM} WHERE m.user_id = ? ORDER BY m.joined, t.id`, userId),
     teamOf: (teamId, userId) => one(`${TEAM} WHERE m.team_id = ? AND m.user_id = ?`, teamId, userId),
     memberships: (userId) =>
-      all('SELECT t.id, t.name, m.role, m.joined FROM members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.joined, t.id', userId),
+      all('SELECT t.id, t.name, m.role, m.joined FROM core_members m JOIN core_teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.joined, t.id', userId),
     invitesBy: (email, now) =>
       all(
         `SELECT i.id, i.team_id, i.email, i.role, i.by_name, i.by_email, i.created, i.sent, i.expires, t.name AS team_name
-         FROM invites i JOIN teams t ON t.id = i.team_id WHERE i.by_email = ? AND i.expires >= ? ORDER BY i.created DESC, i.id DESC`,
+         FROM core_invites i JOIN core_teams t ON t.id = i.team_id WHERE i.by_email = ? AND i.expires >= ? ORDER BY i.created DESC, i.id DESC`,
         email,
         now,
       ),
     async createTeam(t) {
       await DB.batch([
-        DB.prepare('INSERT INTO teams (id, name, created) VALUES (?, ?, ?)').bind(t.id, t.name, t.now),
-        DB.prepare("INSERT INTO members (team_id, user_id, role, joined) VALUES (?, ?, 'admin', ?)").bind(t.id, t.userId, t.now),
+        DB.prepare('INSERT INTO core_teams (id, name, created) VALUES (?, ?, ?)').bind(t.id, t.name, t.now),
+        DB.prepare("INSERT INTO core_members (team_id, user_id, role, joined) VALUES (?, ?, 'admin', ?)").bind(t.id, t.userId, t.now),
       ]);
     },
-    renameTeam: async (id, name) => void (await DB.prepare('UPDATE teams SET name = ? WHERE id = ?').bind(name, id).run()),
-    async deleteTeam(id) {
+    renameTeam: async (id, name) => void (await DB.prepare('UPDATE core_teams SET name = ? WHERE id = ?').bind(name, id).run()),
+    async deleteTeam(id, extra = []) {
       await DB.batch([
-        DB.prepare('DELETE FROM members WHERE team_id = ?').bind(id),
-        DB.prepare('DELETE FROM invites WHERE team_id = ?').bind(id),
-        DB.prepare('DELETE FROM teams WHERE id = ?').bind(id),
+        ...extra,
+        DB.prepare('DELETE FROM core_members WHERE team_id = ?').bind(id),
+        DB.prepare('DELETE FROM core_invites WHERE team_id = ?').bind(id),
+        DB.prepare('DELETE FROM core_teams WHERE id = ?').bind(id),
       ]);
     },
     members: (teamId) => all(`${MEMBER} WHERE m.team_id = ? ORDER BY m.joined, m.user_id`, teamId),
     member: (teamId, userId) => one(`${MEMBER} WHERE m.team_id = ? AND m.user_id = ?`, teamId, userId),
     async setRole(teamId, userId, role) {
-      const r = await DB.prepare(`UPDATE members SET role = ?3 WHERE team_id = ?1 AND user_id = ?2 AND (?3 = 'admin' OR ${ANOTHER_ADMIN})`)
+      const r = await DB.prepare(`UPDATE core_members SET role = ?3 WHERE team_id = ?1 AND user_id = ?2 AND (?3 = 'admin' OR ${ANOTHER_ADMIN})`)
         .bind(teamId, userId, role)
         .run();
       return r.meta.changes ? 'ok' : why(teamId, userId);
     },
     async removeMember(teamId, userId) {
-      const r = await DB.prepare(`DELETE FROM members WHERE team_id = ?1 AND user_id = ?2 AND ${ANOTHER_ADMIN}`).bind(teamId, userId).run();
+      const r = await DB.prepare(`DELETE FROM core_members WHERE team_id = ?1 AND user_id = ?2 AND ${ANOTHER_ADMIN}`).bind(teamId, userId).run();
       return r.meta.changes ? 'ok' : why(teamId, userId);
     },
 
@@ -155,22 +156,22 @@ export function teamsD1(DB: D1Database): TeamsDb {
     invitesTo: (email, now) =>
       all(
         `SELECT i.id, i.team_id, i.email, i.role, i.by_name, i.by_email, i.created, i.sent, i.expires, t.name AS team_name
-         FROM invites i JOIN teams t ON t.id = i.team_id WHERE i.email = ? AND i.expires >= ? ORDER BY i.created DESC, i.id DESC`,
+         FROM core_invites i JOIN core_teams t ON t.id = i.team_id WHERE i.email = ? AND i.expires >= ? ORDER BY i.created DESC, i.id DESC`,
         email,
         now,
       ),
     async alreadyIn(teamId, email, now) {
-      if (await exists('SELECT 1 FROM members m JOIN users u ON u.id = m.user_id WHERE m.team_id = ? AND u.email = ?', teamId, email)) return 'member';
-      if (await exists('SELECT 1 FROM invites WHERE team_id = ? AND email = ? AND expires >= ?', teamId, email, now)) return 'invited';
+      if (await exists('SELECT 1 FROM core_members m JOIN core_users u ON u.id = m.user_id WHERE m.team_id = ? AND u.email = ?', teamId, email)) return 'member';
+      if (await exists('SELECT 1 FROM core_invites WHERE team_id = ? AND email = ? AND expires >= ?', teamId, email, now)) return 'invited';
       return null;
     },
     async createInvite(i) {
       try {
         await DB.batch([
           // An expired invite to the same address makes way for the new one.
-          DB.prepare('DELETE FROM invites WHERE team_id = ? AND email = ? AND expires < ?').bind(i.team_id, i.email, i.created),
+          DB.prepare('DELETE FROM core_invites WHERE team_id = ? AND email = ? AND expires < ?').bind(i.team_id, i.email, i.created),
           DB.prepare(
-            `INSERT INTO invites (id, team_id, email, role, token_hash, by_name, by_email, created, sent, expires)
+            `INSERT INTO core_invites (id, team_id, email, role, token_hash, by_name, by_email, created, sent, expires)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(i.id, i.team_id, i.email, i.role, i.tokenHash, i.by_name, i.by_email, i.created, i.sent, i.expires),
         ]);
@@ -187,26 +188,26 @@ export function teamsD1(DB: D1Database): TeamsDb {
       // using it is the delete, so two at once can't both join.
       const [, taken] = await DB.batch([
         DB.prepare(
-          `INSERT INTO members (team_id, user_id, role, joined)
-           SELECT i.team_id, ?2, i.role, ?4 FROM invites i JOIN teams t ON t.id = i.team_id
+          `INSERT INTO core_members (team_id, user_id, role, joined)
+           SELECT i.team_id, ?2, i.role, ?4 FROM core_invites i JOIN core_teams t ON t.id = i.team_id
            WHERE i.id = ?1 AND i.email = ?3 AND i.expires >= ?4
            ON CONFLICT (team_id, user_id) DO NOTHING`,
         ).bind(id, userId, email, now),
         DB.prepare(
-          `DELETE FROM invites WHERE id = ? AND email = ? AND expires >= ?
+          `DELETE FROM core_invites WHERE id = ? AND email = ? AND expires >= ?
            RETURNING id, team_id, email, role, by_name, by_email, created, sent, expires`,
         ).bind(id, email, now),
       ]);
       return (taken?.results?.[0] as InviteRow | undefined) ?? null;
     },
     async deleteInvite(id, where) {
-      const row = await one<{ team_id: string; email: string }>('SELECT team_id, email FROM invites WHERE id = ?', id);
+      const row = await one<{ team_id: string; email: string }>('SELECT team_id, email FROM core_invites WHERE id = ?', id);
       if (!row || (where.teamId && row.team_id !== where.teamId) || (where.email && row.email !== where.email)) return false;
-      return exists('DELETE FROM invites WHERE id = ? RETURNING 1', id);
+      return exists('DELETE FROM core_invites WHERE id = ? RETURNING 1', id);
     },
     async renewInvite(id, teamId, tokenHash, now, expires, gapMs) {
       const done = await exists(
-        'UPDATE invites SET token_hash = ?, sent = ?, expires = ? WHERE id = ? AND team_id = ? AND expires >= ? AND sent <= ? RETURNING 1',
+        'UPDATE core_invites SET token_hash = ?, sent = ?, expires = ? WHERE id = ? AND team_id = ? AND expires >= ? AND sent <= ? RETURNING 1',
         tokenHash,
         now,
         expires,
@@ -216,27 +217,36 @@ export function teamsD1(DB: D1Database): TeamsDb {
         now - gapMs,
       );
       if (done) return 'ok';
-      return (await exists('SELECT 1 FROM invites WHERE id = ? AND team_id = ? AND expires >= ?', id, teamId, now)) ? 'wait' : 'gone';
+      return (await exists('SELECT 1 FROM core_invites WHERE id = ? AND team_id = ? AND expires >= ?', id, teamId, now)) ? 'wait' : 'gone';
     },
 
     async leaveAllStatements(userId) {
-      const ids = (await all<{ team_id: string }>('SELECT team_id FROM members WHERE user_id = ?', userId)).map((r) => r.team_id);
+      const ids = (await all<{ team_id: string }>('SELECT team_id FROM core_members WHERE user_id = ?', userId)).map((r) => r.team_id);
       if (!ids.length) return [];
-      const marks = ids.map(() => '?').join(',');
+      // D1 takes at most 100 values per statement: the teams go in groups.
+      const groups: string[][] = [];
+      for (let i = 0; i < ids.length; i += 90) groups.push(ids.slice(i, i + 90));
       return [
-        DB.prepare('DELETE FROM members WHERE user_id = ?').bind(userId),
-        // A team left without an admin: its longest-standing member leads it now.
-        DB.prepare(
-          `UPDATE members SET role = 'admin'
-           WHERE team_id IN (${marks})
-             AND NOT EXISTS (SELECT 1 FROM members a WHERE a.team_id = members.team_id AND a.role = 'admin')
-             AND user_id = (SELECT b.user_id FROM members b WHERE b.team_id = members.team_id ORDER BY b.joined, b.user_id LIMIT 1)`,
-        ).bind(...ids),
-        // A team they were alone in goes, with its invites.
-        DB.prepare(`DELETE FROM invites WHERE team_id IN (${marks}) AND NOT EXISTS (SELECT 1 FROM members m WHERE m.team_id = invites.team_id)`).bind(
-          ...ids,
-        ),
-        DB.prepare(`DELETE FROM teams WHERE id IN (${marks}) AND NOT EXISTS (SELECT 1 FROM members m WHERE m.team_id = teams.id)`).bind(...ids),
+        DB.prepare('DELETE FROM core_members WHERE user_id = ?').bind(userId),
+        ...groups.flatMap((group) => {
+          const marks = group.map(() => '?').join(',');
+          return [
+            // A team left without an admin: its longest-standing member leads it now.
+            DB.prepare(
+              `UPDATE core_members SET role = 'admin'
+               WHERE team_id IN (${marks})
+                 AND NOT EXISTS (SELECT 1 FROM core_members a WHERE a.team_id = core_members.team_id AND a.role = 'admin')
+                 AND user_id = (SELECT b.user_id FROM core_members b WHERE b.team_id = core_members.team_id ORDER BY b.joined, b.user_id LIMIT 1)`,
+            ).bind(...group),
+            // A team they were alone in goes, with its invites.
+            DB.prepare(
+              `DELETE FROM core_invites WHERE team_id IN (${marks}) AND NOT EXISTS (SELECT 1 FROM core_members m WHERE m.team_id = core_invites.team_id)`,
+            ).bind(...group),
+            DB.prepare(`DELETE FROM core_teams WHERE id IN (${marks}) AND NOT EXISTS (SELECT 1 FROM core_members m WHERE m.team_id = core_teams.id)`).bind(
+              ...group,
+            ),
+          ];
+        }),
       ];
     },
   };

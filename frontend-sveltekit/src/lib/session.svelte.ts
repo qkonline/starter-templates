@@ -35,6 +35,7 @@ import {
 } from '#lib/device.ts';
 import { closeForSignOut, closeSupportData } from '#lib/db/index.svelte.ts';
 import { pushOff } from '#lib/push.ts';
+import { appPublicPaths } from '#lib/app/shell.ts';
 import { homePath } from '#lib/config.ts';
 import { safeNext } from '#lib/format.ts';
 
@@ -217,7 +218,16 @@ let leaving = false;
 // The pages that check a stale token themselves, so a `signed_out` reply there needs no reload.
 // Kept as a list rather than derived from the route groups: `/contact` is a (site) page, and
 // not every (open) page an app adds will want this.
-const publicPaths = ['/signin', '/signup', '/forgot', '/auth/callback', '/support', '/invite', '/contact'];
+const publicPaths = [
+  '/signin',
+  '/signup',
+  '/forgot',
+  '/auth/callback',
+  '/support',
+  '/invite',
+  '/contact',
+  ...appPublicPaths.map((p) => `/${p.replace(/^\//, '')}`),
+];
 
 setApiHooks({
   // Any reply saying the token no longer works: back to sign in, once.

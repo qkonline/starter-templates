@@ -16,7 +16,7 @@ import { checkPasswordKey, hashPasswordKey } from '../password';
 import { clearPhotos, photoKey } from '../photos';
 import { checkWithLimits } from './auth';
 import { exportOf } from './export';
-import { spacesOf, wipeSpaces } from './sync';
+import { deleteAccount } from '../deletion';
 
 const MAX_PHOTO = 2 * 1024 * 1024;
 const PHOTOS_PER_HOUR = 20;
@@ -54,10 +54,7 @@ me.patch('/me', async (c) => {
 
 me.delete('/me', async (c) => {
   const { ctx, user } = c.var;
-  const spaces = await spacesOf(ctx, user.id);
-  await ctx.db.deleteUser(user.id);
-  await clearPhotos(ctx.env.PHOTOS, user.id);
-  await wipeSpaces(ctx, spaces);
+  await deleteAccount(ctx, user.id);
   return c.body(null, 204);
 });
 

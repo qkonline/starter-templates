@@ -20,7 +20,8 @@ And the optional parts each app switches on, listed at `/features`:
 - sync: offline data pushed in batches and pulled in pages, files uploaded in parts
   (PRD section 11, `docs/offline-data.md`).
 
-An app adds its own paths beside these and leaves these as they are.
+An app writes its own paths in `app.yaml`, beside these, and never edits `openapi.yaml`: a later
+release of the template replaces that file whole, and `app.yaml` is untouched.
 
 ## Files
 
@@ -28,6 +29,11 @@ An app adds its own paths beside these and leaves these as they are.
   error for what) is written in its descriptions.
 - `types.ts`: TypeScript types generated from it, for frontends (`@starter/contract/types`).
   Never edit it by hand; run `npm run types`.
+- `app.yaml`: the app's own paths, schemas and error codes, referring to the core's
+  (`openapi.yaml#/components/...`) where it needs them. `app-types.ts` is made from it by
+  `npm run types`; the frontend's client is typed with both.
+- `tests/app/`: the app's own contract tests, with the same helpers (`tests/lib.ts` checks a
+  reply against whichever file has the path).
 - `password.ts`: the one way a password becomes the `passwordKey` a backend receives
   (`@starter/contract/password`), used by frontends and the tests.
 - `tests/`: the contract tests, plain HTTP against a running backend.

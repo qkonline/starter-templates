@@ -30,8 +30,9 @@ What's in it (requirement numbers from [`../docs/PRD.md`](../docs/PRD.md)):
   the app shows "Update needed" in place of the pages, fetches the new version and switches.
 - **Display preferences** (R3.2): theme (Fusion, or the app's own), mode (device,
   light, dark) and text size, per device, applied before the first paint.
-- **Security headers** (R3.3): `_headers` for Cloudflare Pages with HSTS and a report-only CSP
-  that reports to the backend's `/telemetry/csp`.
+- **Security headers** (R3.3): `_headers` for Cloudflare Pages with HSTS and an enforced CSP
+  that reports to the backend's `/telemetry/csp`; each page's inline scripts are allowed by hash
+  in that page's own `<meta>` policy.
 - **Analytics, optional** (R3.4): PostHog and/or Google Analytics 4, each only when its key is
   set, and only after the person agrees in the consent banner; `track(event, props)`.
 - **Error reporting** (R7.2): uncaught errors and unhandled rejections go to `/telemetry/errors`.
@@ -148,21 +149,26 @@ What `build/` holds:
   Pages serves `/account` from `account.html` by itself;
 - `200.html`, an empty app shell, and `404.html`, a copy of it: Pages serves `404.html` (with
   status 404) for any path that isn't a file, and the app shows its own "not found" page;
-- `_headers`: the CSP (report-only), `Strict-Transport-Security` (a year, subdomains included:
+- `_headers`: the CSP (enforced), `Strict-Transport-Security` (a year, subdomains included:
   every subdomain of the domain must serve HTTPS), `X-Frame-Options`, `X-Content-Type-Options`,
   `Referrer-Policy`, `Permissions-Policy`, and caching for `/_app/immutable/*` and the service
   worker. It is built, not a file in `static/`, because the policy names `PUBLIC_API_URL` and the
-  analytics hosts and allows the pages' inline scripts by their hashes. Edit `scripts/csp.ts`.
+  analytics hosts. Each page also gets a `<meta>` policy listing its own inline scripts by hash
+  (SvelteKit's start script, the display-preferences script), written in by the build. Hosts
+  the app loads from go in `src/lib/app/csp.ts`; the core's policy is `scripts/csp.ts`.
 - `service-worker.js`, `manifest.webmanifest`, `icons/`.
 
 Other hosts (S3/CloudFront, Azure Static Web Apps, nginx): serve `build/`, map extensionless
 paths to `.html`, use `404.html` (or `200.html`) for unknown paths, and copy the headers from
 `build/_headers` into the host's own configuration.
 
-**The CSP starts report-only.** Reports land in the admin area under Errors (kind CSP). Once
-they're clean, rename the header in `scripts/csp.ts` to `Content-Security-Policy` to enforce it.
-Each public page with content adds one script hash; Pages takes at most 2,000 characters per
-header, and the build fails with a clear message if the policy grows past that.
+**The CSP is enforced from the start**, because the session token is in localStorage and a
+script that shouldn't run is the one way to read it. What it blocks is reported to the admin
+area under Errors (kind CSP). Two policies apply to each page and a browser keeps both: the
+header (every host, for everything) allows inline scripts, and the page's own `<meta>` allows
+only the inline scripts that page has, by hash. So the header stays the same length however
+many pages an app adds (Pages takes 2,000 characters a header; the build fails clearly past it).
+A new third-party script or host goes in `src/lib/app/csp.ts`, or the browser blocks it.
 
 ## Icons
 
@@ -204,33 +210,45 @@ track('note_created', { length: 'short' }); // nothing personal in props
 
 ## Adding the app's own pages
 
+**The app's own files.** A later release of the template replaces the core's files; these are
+the app's, and it never touches them, so its fixes merge without hand work:
+
+| File                       | What goes in it                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------- |
+| `src/lib/config.ts`        | `appName`, and `homePath`, where people land after signing in                         |
+| `src/lib/app/shell.ts`     | `appNav` (links in the signed-in header), `appPublicPaths`, `appDeviceKeys`           |
+| `src/lib/app/csp.ts`       | hosts the app's pages load scripts, data, images or fonts from                        |
+| `src/routes/(app)/…`, etc. | the app's own pages (any route the core doesn't have)                                 |
+| `../contract/app.yaml`     | the app's own paths; `api.client` is typed with them (`npm run types` in `contract/`) |
+
 - **Signed-in pages** go in `src/routes/(app)/`, e.g. `src/routes/(app)/notes/+page.svelte`. The
   `(app)` layout handles sign-in, the email gate, the header, the bell and the feedback link;
-  `auth.user` from `#lib/session.svelte.ts` is the person, `auth.features` the switches. Change
-  the landing page after sign-in in `src/lib/config.ts` (`homePath`), with `appName`.
+  `auth.user` from `#lib/session.svelte.ts` is the person, `auth.features` the switches. A link
+  in the header: `appNav` in `src/lib/app/shell.ts`.
 - **One page per thing, with a query parameter** (`/team?id=…`), not a route parameter
   (`/teams/[id]`): every page is then a prerendered file, works offline from the service
   worker's cache, and needs no fallback rules on the host. If an app does add a route with a
   parameter, Pages serves the shell for it through `404.html` (with status 404). For a 200, Pages
   supports rewrites in a `static/_redirects` file (`/notes/* /200 200`); try it on a preview
   deploy first, it isn't covered by the tests here.
-- **Public pages** go in `src/routes/(site)/`; they are prerendered with their content. Each adds
-  one hash to the CSP.
+- **Public pages** go in `src/routes/(site)/`; they are prerendered with their content.
 - **Pages that work signed in or out** and decide for themselves (like `/invite`, `/support`) go
   in `src/routes/(open)/`.
-- **API calls**: add the paths to the app's contract first (`openapi.yaml`, then
-  `npm run types` there), then call them with the typed client:
-  `api.client.GET('/notes')`, or add a function next to the others in `src/lib/api/client.ts`.
-  The client already sends the token and handles `signed_out` and `email_unverified`.
+- **API calls**: add the paths to the app's contract first (`../contract/app.yaml`, then
+  `npm run types` there), then call them with the typed client: `api.client.GET('/notes')`.
+  The client already sends the token and the build's version, and handles `signed_out`,
+  `email_unverified` and `client_outdated`. An error code the app's paths add (`slot_taken`)
+  arrives as it was sent, with its message, in `ApiError.code`.
 - **Paged lists**: `Pager` from `#lib/pager.svelte.ts` takes a function returning
   `{ items, next }` and gives `items`, `more`, `loadMore()`, `reload()`.
 - **Data kept on the device** (IndexedDB, caches): register a cleaner with `onForget()` from
   `#lib/device.ts`, so it's wiped when a different account signs in or the account is deleted
   (it's told which: `previous`, `deleted`). Register it in a module the app always loads, or it
   won't be there to run.
-  Settings of the device rather than the person go in `deviceKeys` there, so they stay.
+  Settings of the device rather than the person go in `appDeviceKeys` (`src/lib/app/shell.ts`),
+  so they stay.
   Records people create or change offline go through `#lib/db` (below), which already does this.
-- **New third-party scripts or hosts**: add them to `scripts/csp.ts`, or the CSP reports them.
+- **New third-party scripts or hosts**: add them to `src/lib/app/csp.ts`, or the CSP blocks them.
 - **The look**: see [Components and themes](#components-and-themes).
 
 ## Offline data
