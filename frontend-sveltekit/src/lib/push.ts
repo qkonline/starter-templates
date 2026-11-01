@@ -68,6 +68,9 @@ export async function pushOn(vapidPublicKey: string): Promise<PushState> {
 }
 
 export async function pushOff(): Promise<PushState> {
+  // Never allowed here: there's no subscription to end, so don't ask for one (some browsers,
+  // WebKit among them, never answer `getSubscription` without permission, and hang sign-out).
+  if (!('Notification' in globalThis) || Notification.permission !== 'granted') return 'off';
   const sub = await (await registration())?.pushManager.getSubscription();
   if (sub) {
     await api.pushUnsubscribe(sub.endpoint);

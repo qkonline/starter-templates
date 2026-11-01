@@ -48,18 +48,24 @@ test('the signed-in app opens with no connection, from what the device kept', as
   await context.setOffline(false);
 });
 
-test('a copy of the app the backend no longer serves is asked to update', async ({ page }) => {
-  await signUp(page, uniqueEmail('outdated'), password);
-  await page.route('**/api/me', (route) =>
-    route.fulfill({
-      status: 426,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 'client_outdated', message: 'This version of the app is out of date.' }),
-    }),
-  );
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'Update needed' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Update now' })).toBeVisible();
+test.describe(() => {
+  // Answers made up with page.route don't reach a page a service worker controls in every
+  // browser (WebKit); this needs none.
+  test.use({ serviceWorkers: 'block' });
+
+  test('a copy of the app the backend no longer serves is asked to update', async ({ page }) => {
+    await signUp(page, uniqueEmail('outdated'), password);
+    await page.route('**/api/me', (route) =>
+      route.fulfill({
+        status: 426,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'client_outdated', message: 'This version of the app is out of date.' }),
+      }),
+    );
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Update needed' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Update now' })).toBeVisible();
+  });
 });
 
 test('feedback from inside the app, and display preferences', async ({ page }) => {

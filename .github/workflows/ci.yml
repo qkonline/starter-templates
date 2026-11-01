@@ -62,7 +62,7 @@ jobs:
         env:
           E2E_ADMIN_EMAIL: admin@example.test
           E2E_ADMIN_PASSWORD: correct horse battery staple
-        run: npm ci && npx playwright install --with-deps chromium && npm run e2e
+        run: npm ci && npx playwright install --with-deps chromium webkit && npm run e2e
       - name: Backend log
         if: failure()
         run: cat /tmp/worker.log

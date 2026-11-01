@@ -23,7 +23,12 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: IPV4 ? { args: ['--host-resolver-rules=MAP localhost 127.0.0.1'] } : {},
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Chromium, and WebKit (Safari's engine: every browser on iPhone and iPad). Tests that need
+  // Chromium's DevTools (the virtual passkey authenticator) skip on WebKit.
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
   webServer: {
     command: 'npm run build && node scripts/pages-server.mjs',
     url: `http://${IPV4 ? '127.0.0.1' : 'localhost'}:${PORT}`,
