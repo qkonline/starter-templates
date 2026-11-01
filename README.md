@@ -127,7 +127,8 @@ More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#
 
 ## Running it
 
-Staging, backups and restoring, alerting, database changes that don't break a rollback, and what
+Before the first real app: a dry run on a throwaway Cloudflare account,
+[`docs/first-deploy.md`](docs/first-deploy.md). Staging, backups and restoring, alerting, database changes that don't break a rollback, and what
 to do when something goes wrong: [`docs/operations.md`](docs/operations.md).
 
 ## Licence

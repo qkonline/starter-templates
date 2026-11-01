@@ -5,6 +5,8 @@ commands are run in `backend-cloudflare/` or `frontend-sveltekit/` as marked.
 
 ## Before going live
 
+The first time on Cloudflare at all, do the dry run in [`first-deploy.md`](first-deploy.md).
+
 - [ ] Its own Cloudflare account for the domain, and `npx wrangler login` with it.
 - [ ] `wrangler.toml`: `name`, `APP_NAME` (never changed once people have passwords), `APP_TITLE`,
       `ALLOWED_ORIGINS`, `RP_ID`, `MAIL_FROM`, the switches. `npm run setup`, then
