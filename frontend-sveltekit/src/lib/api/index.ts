@@ -2,6 +2,7 @@
 
 import { PUBLIC_API_URL } from '$app/env/public';
 import { readToken } from '#lib/device.ts';
+import { i18n } from '#lib/i18n/index.svelte.ts';
 import { createApi } from './client';
 
 const hooks: { signedOut?: () => void; unverified?: () => void; outdated?: () => void } = {};
@@ -17,6 +18,7 @@ export const api = createApi({
   onSignedOut: () => hooks.signedOut?.(),
   onUnverified: () => hooks.unverified?.(),
   clientVersion: __BUILT_AT__,
+  getLocale: () => i18n.locale,
   onOutdated: () => hooks.outdated?.(),
 });
 

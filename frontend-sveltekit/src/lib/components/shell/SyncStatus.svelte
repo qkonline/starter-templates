@@ -5,15 +5,16 @@
 <script lang="ts">
   import { pwa } from '#lib/pwa.svelte.ts';
   import { syncState } from '#lib/db/index.svelte.ts';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   const n = $derived(syncState.pending);
-  const label = $derived(n === 1 ? '1 change waiting' : `${n} changes waiting`);
+  const label = $derived(tn(n, '1 change waiting', '{count} changes waiting'));
   const why = $derived(
     !pwa.online
-      ? 'You’re offline. They’re kept on this device and sent when you’re connected.'
+      ? t('You’re offline. They’re kept on this device and sent when you’re connected.')
       : syncState.running
-        ? 'Sending them now.'
-        : (syncState.error ?? 'They’ll be sent in a moment.'),
+        ? t('Sending them now.')
+        : (syncState.error ?? t('They’ll be sent in a moment.')),
   );
 </script>
 

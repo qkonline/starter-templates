@@ -59,6 +59,8 @@ export interface ApiOptions {
   onUnverified?: () => void;
   /** Sent as X-Client-Version: when this build was made. */
   clientVersion?: string;
+  /** Sent as Accept-Language, so the backend's messages and emails come in the app's language. */
+  getLocale?: () => string;
   /** A reply said this copy of the app is too old for the backend (`client_outdated`). */
   onOutdated?: () => void;
   fetch?: typeof fetch;
@@ -76,6 +78,8 @@ export function createApi(options: ApiOptions) {
       if (token && !request.headers.has('authorization'))
         request.headers.set('authorization', `Bearer ${token}`);
       if (options.clientVersion) request.headers.set('x-client-version', options.clientVersion);
+      const locale = options.getLocale?.();
+      if (locale) request.headers.set('accept-language', locale);
       return request;
     },
     async onResponse({ request, response }) {

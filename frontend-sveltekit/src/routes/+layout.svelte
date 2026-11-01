@@ -10,6 +10,7 @@
   import { afterNavigate } from '$app/navigation';
   import { analytics, routeName } from '#lib/analytics/index.ts';
   import { isSupportTab } from '#lib/device.ts';
+  import { startI18n } from '#lib/i18n/index.svelte.ts';
   import { followThemeColor } from '#lib/preferences.ts';
   import { startPwa } from '#lib/pwa.svelte.ts';
   import { startErrorReporting } from '#lib/report.ts';
@@ -30,6 +31,7 @@
   onMount(() => {
     const stop = startErrorReporting();
     const stopThemeColor = followThemeColor();
+    startI18n();
     startPwa();
     // A support session is an admin at work, not the person: no analytics in that tab, even after
     // it ended (nor on the page that starts one).

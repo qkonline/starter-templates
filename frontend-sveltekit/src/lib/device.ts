@@ -26,6 +26,7 @@ export const deviceKeys: readonly string[] = [
   'starter:theme',
   'starter:mode',
   'starter:text',
+  'starter:locale',
   ...appDeviceKeys,
 ];
 

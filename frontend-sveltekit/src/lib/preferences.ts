@@ -5,6 +5,8 @@
 
 import { defaultTheme, isTheme, type Theme } from './themes/index.ts';
 
+import { msg } from '#lib/i18n/index.svelte.ts';
+
 export type Mode = 'system' | 'light' | 'dark';
 export type TextSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -19,16 +21,16 @@ export const MODE_KEY = 'starter:mode';
 export const TEXT_KEY = 'starter:text';
 
 export const modes: readonly { value: Mode; label: string }[] = [
-  { value: 'system', label: 'Device' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: msg('Device') },
+  { value: 'light', label: msg('Light') },
+  { value: 'dark', label: msg('Dark') },
 ];
 
 export const textSizes: readonly { value: TextSize; label: string }[] = [
-  { value: 'sm', label: 'Small' },
-  { value: 'md', label: 'Normal' },
-  { value: 'lg', label: 'Large' },
-  { value: 'xl', label: 'Larger' },
+  { value: 'sm', label: msg('Small') },
+  { value: 'md', label: msg('Normal') },
+  { value: 'lg', label: msg('Large') },
+  { value: 'xl', label: msg('Larger') },
 ];
 
 export const defaults: Preferences = { theme: defaultTheme, mode: 'system', text: 'md' };

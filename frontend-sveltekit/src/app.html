@@ -26,6 +26,12 @@
         if (themes.indexOf(t) >= 0) r.setAttribute('data-theme', t);
         if (m === 'light' || m === 'dark') r.setAttribute('data-mode', m);
         if (s === 'sm' || s === 'lg' || s === 'xl') r.setAttribute('data-text', s);
+        // The language (#lib/i18n): its code, and right to left for the scripts written that way.
+        var l = localStorage.getItem('starter:locale');
+        if (l && /^[A-Za-z-]{2,20}$/.test(l)) {
+          r.setAttribute('lang', l);
+          if (/^(ar|ur|fa|he|ps|sd|ug|yi|dv|ckb)(-|$)/i.test(l)) r.setAttribute('dir', 'rtl');
+        }
       } catch (e) {}
     </script>
     %sveltekit.head%

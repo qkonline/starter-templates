@@ -7,6 +7,9 @@
   import { analytics } from '#lib/analytics/index.ts';
   import { modes, readPreferences, setPreferences, textSizes, type Preferences } from '#lib/preferences.ts';
   import { themes } from '#lib/themes/index.ts';
+  import { i18n, locales, setLocale, t } from '#lib/i18n/index.svelte.ts';
+  import Field from '#lib/components/ui/Field.svelte';
+  import Select from '#lib/components/ui/Select.svelte';
   import Segmented from '#lib/components/ui/Segmented.svelte';
 
   let prefs = $state<Preferences>(readPreferences());
@@ -17,26 +20,34 @@
     setPreferences(prefs);
   }
 
-  const consentChoices = [
-    { value: 'granted', label: 'Allow' },
-    { value: 'denied', label: 'Don’t allow' },
-  ] as const;
+  const consentChoices = $derived([
+    { value: 'granted' as const, label: t('Allow') },
+    { value: 'denied' as const, label: t('Don’t allow') },
+  ]);
 </script>
 
 <div class="stack">
+  {#if Object.keys(locales).length > 1}
+    <Field label={t('Language')} id="language">
+      <Select value={i18n.locale} onchange={(e) => setLocale(e.currentTarget.value)}>
+        {#each Object.entries(locales) as [code, l] (code)}<option value={code} lang={code}>{l.name}</option
+          >{/each}
+      </Select>
+    </Field>
+  {/if}
   {#if themes.length > 1}
     <fieldset>
-      <legend class="label">Theme</legend>
+      <legend class="label">{t('Theme')}</legend>
       <div class="themes">
-        {#each themes as t (t.id)}
+        {#each themes as theme (theme.id)}
           <!-- Each preview carries its own theme, so it shows that theme's colours and fonts. -->
-          <label class="theme" data-theme={t.id}>
+          <label class="theme" data-theme={theme.id}>
             <input
               type="radio"
               name="theme"
-              value={t.id}
-              checked={prefs.theme === t.id}
-              onchange={() => change({ theme: t.id })}
+              value={theme.id}
+              checked={prefs.theme === theme.id}
+              onchange={() => change({ theme: theme.id })}
             />
             <span class="sample" aria-hidden="true">
               <span class="heading">Aa</span>
@@ -45,22 +56,27 @@
                 ></span></span
               >
             </span>
-            <span class="name">{t.label}</span>
+            <span class="name">{t(theme.label)}</span>
           </label>
         {/each}
       </div>
     </fieldset>
   {/if}
-  <Segmented legend="Mode" options={modes} value={prefs.mode} onchange={(mode) => change({ mode })} />
   <Segmented
-    legend="Text size"
-    options={textSizes}
+    legend={t('Mode')}
+    options={modes.map((m) => ({ ...m, label: t(m.label) }))}
+    value={prefs.mode}
+    onchange={(mode) => change({ mode })}
+  />
+  <Segmented
+    legend={t('Text size')}
+    options={textSizes.map((s) => ({ ...s, label: t(s.label) }))}
     value={prefs.text}
     onchange={(text) => change({ text })}
   />
   {#if analytics.enabled}
     <Segmented
-      legend="Analytics cookies"
+      legend={t('Analytics cookies')}
       options={consentChoices}
       value={consent ?? undefined}
       onchange={(choice) => {
@@ -69,7 +85,7 @@
       }}
     />
   {/if}
-  <p class="hint">These apply to this device only.</p>
+  <p class="hint">{t('These apply to this device only.')}</p>
 </div>
 
 <style>
