@@ -24,7 +24,12 @@ describe('errorFrom', () => {
     expect(errorFrom(502, '<html>Bad gateway</html>').code).toBe('server_error');
     expect(errorFrom(401, null).code).toBe('signed_out');
     expect(errorFrom(413, {}).code).toBe('too_large');
-    expect(errorFrom(429, { code: 'slow_down' }).code).toBe('rate_limited');
+    expect(errorFrom(429, { code: 'Not a code!' }).code).toBe('rate_limited');
+    // An app's own code, from a path the app added, is kept with its message.
+    expect(errorFrom(409, { code: 'slot_taken', message: 'Dr Khan is booked at 10:00.' })).toMatchObject({
+      code: 'slot_taken',
+      message: 'Dr Khan is booked at 10:00.',
+    });
     expect(errorFrom(500, null).message).toMatch(/server/);
   });
 

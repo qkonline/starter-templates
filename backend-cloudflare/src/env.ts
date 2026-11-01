@@ -59,6 +59,12 @@ export interface Env {
    * it). Without it, a local API uses a fixed dev value and anywhere else refuses to make codes.
    */
   CODE_PEPPER?: string;
+  /**
+   * The oldest frontend build still served (ISO 8601, as the frontend sends in X-Client-Version).
+   * Raise it when a change would break copies of the app installed before it; they're told to
+   * update. Unset, every build is served.
+   */
+  MIN_CLIENT?: string;
   /** Local development only (`npm run dev:all`): comma-separated extra push hosts, for tests. */
   PUSH_EXTRA_HOSTS?: string;
   /** Local development only: seconds between sends of one invite (60 otherwise). */
@@ -93,6 +99,8 @@ export interface Config {
   pushExtraHosts: string[];
   /** The time between sends of one invite. */
   inviteResendGapMs: number;
+  /** The oldest frontend build served (ms since 1970, and as set), or null. */
+  minClient: { at: number; text: string } | null;
 }
 
 const on = (v: string | undefined) => /^(true|1|on|yes)$/i.test(v?.trim() ?? '');
@@ -102,6 +110,15 @@ const list = (v: string | undefined) =>
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+
+/** MIN_CLIENT read as a time; a value that isn't one is a mistake worth failing loudly on. */
+function minClient(v: string | undefined): Config['minClient'] {
+  const text = v?.trim();
+  if (!text) return null;
+  const at = Date.parse(text);
+  if (Number.isNaN(at)) throw new Error(`MIN_CLIENT must be a date and time (ISO 8601), not "${text}".`);
+  return { at, text: new Date(at).toISOString() };
+}
 
 /** Whether this API address (ending in /api) is on this machine. */
 export const isLocalApi = (api: string) => /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/api$/.test(api);
@@ -138,6 +155,7 @@ export function config(env: Env, api: string): Config {
     local,
     devMail: local && !env.RESEND_API_KEY && on(env.DEV_MAIL),
     pushExtraHosts: local ? list(env.PUSH_EXTRA_HOSTS).map((h) => h.toLowerCase()) : [],
+    minClient: minClient(env.MIN_CLIENT),
     inviteResendGapMs: (local && Number.isInteger(gap) && gap > 0 ? gap : 60) * 1000,
   };
 }

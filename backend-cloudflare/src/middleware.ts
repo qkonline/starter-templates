@@ -5,7 +5,7 @@ import { createMiddleware } from 'hono/factory';
 import { isAdmin, sessionFor } from './account';
 import { d1, type SessionRow, type UserRow } from './db';
 import { config, type Config, type Ctx, type Env } from './env';
-import { forbidden, notFound, signedOut, tooMany, unverified } from './errors';
+import { forbidden, notFound, Refusal, signedOut, tooMany, unverified } from './errors';
 import { networkOf } from './network';
 
 export type AppEnv = {
@@ -35,6 +35,22 @@ export const context = createMiddleware<AppEnv>(async (c, next) => {
   });
   await next();
 });
+
+/**
+ * 426 `client_outdated` for a frontend built before MIN_CLIENT (its X-Client-Version), except on
+ * `open` paths. A request without the header (scripts, tests, other clients) is let through.
+ */
+export const clientCheck = (open: string[]) =>
+  createMiddleware<AppEnv>(async (c, next) => {
+    const min = c.var.ctx.cfg.minClient;
+    const sent = c.req.header('x-client-version');
+    if (min && sent && !open.includes(c.req.path) && c.req.method !== 'OPTIONS') {
+      const at = Date.parse(sent);
+      if (!Number.isNaN(at) && at < min.at)
+        throw new Refusal(426, 'client_outdated', 'This version of the app is out of date. Update it to carry on; nothing you saved is lost.');
+    }
+    await next();
+  });
 
 /** The bearer token sent with the request, if any. */
 export const bearer = (header: string | undefined) => header?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;

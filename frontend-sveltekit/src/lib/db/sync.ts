@@ -1,8 +1,13 @@
 // Keeping this device's data in step with the backend (PRD section 11): send the outbox in
 // batches, upload waiting files in parts, then pull what changed in each space. One run at a
 // time, in one tab at a time (a Web Lock); it waits as long as the backend says on
-// `rate_limited`, backs off on no answer, and stops on `signed_out`. Nothing is lost by stopping:
-// the outbox and the cursors are in IndexedDB, and the next run carries on from there.
+// `rate_limited`, backs off on no answer, and stops on `signed_out` or `client_outdated`. Nothing
+// is lost by stopping: the outbox and the cursors are in IndexedDB, and the next run carries on.
+//
+// Nothing made on the device is ever deleted here without the person: a refused change goes to
+// the database's `refused` list with what it set, and a team the backend turns away (the person
+// was removed, the team deleted, or teams or sync switched off by mistake) is only set aside for
+// this session, its unsent changes kept, until the person discards them (`discardSpace`).
 
 import { ApiError } from '#lib/api/errors.ts';
 import type { Api } from '#lib/api/client.ts';
@@ -28,11 +33,11 @@ export interface SyncHooks {
     error: string | null;
     waitUntil: number | null;
   }) => void;
-  /** Changes the backend refused: shown to the person who made them. */
+  /** Changes the backend refused (kept in the database's `refused` list): shown to the person who made them. */
   onRefused?: (r: Refused[]) => void;
   /** Records arrived from the backend: pages showing them read again. */
   onReceived?: (space: Space) => void;
-  /** The person can't use this space any more (left the team, or it was deleted). */
+  /** The backend turned this team's space away; its unsent changes are kept and it's skipped this session. */
   onLostSpace?: (space: Space) => void;
   /** Waits; tests replace it. */
   sleep?: (ms: number) => Promise<void>;
@@ -62,7 +67,12 @@ class Stop extends Error {
   }
 }
 
+const turnedAway = (e: unknown) =>
+  e instanceof ApiError && (e.code === 'not_found' || e.code === 'forbidden');
+
 export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
+  /** Team spaces the backend turned away, skipped until `retryLost` or the next session. */
+  const lost = new Set<Space>();
   const sleep = hooks.sleep ?? realSleep;
   const exclusive = hooks.exclusive ?? webLock;
   let running: Promise<void> | null = null;
@@ -102,6 +112,7 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
           throw new Stop(e.code === 'network' ? null : e.message, wait);
         }
         if (e.code === 'signed_out' || e.code === 'account_suspended') throw new Stop(null, null);
+        if (e.code === 'client_outdated') throw new Stop(e.message, null);
         throw e;
       }
     }
@@ -124,9 +135,10 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
         for (const one of entries) refused.push(...(await send(space, [one])));
         return refused;
       }
-      // This change alone can't be read: it can never go, so it's dropped and said so.
+      // This change alone can't be read: it can never go as it is, so it's set aside, with what it
+      // set, and said so.
       const [entry] = entries as [OutboxEntry];
-      await local.settle(space, [{ entry, applied: false }]);
+      await local.settle(space, [{ entry, applied: false, code: e.code, message: e.message }]);
       return [
         { space, table: entry.change.table, record: entry.change.record, code: e.code, message: e.message },
       ];
@@ -134,18 +146,14 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
     const refused: Refused[] = [];
     await local.settle(
       space,
-      entries.map((entry, i) => {
+      entries.flatMap((entry, i) => {
         const r = results[i];
-        const applied = r?.status === 'applied';
-        if (r && !applied)
-          refused.push({
-            space,
-            table: entry.change.table,
-            record: entry.change.record,
-            code: r.code ?? 'conflict',
-            message: r.message ?? '',
-          });
-        return { entry, applied };
+        // No answer for it (a backend that answered short): it stays in the outbox for next time.
+        if (!r) return [];
+        const applied = r.status === 'applied';
+        const why = { code: r.code ?? 'conflict', message: r.message ?? '' };
+        if (!applied) refused.push({ space, table: entry.change.table, record: entry.change.record, ...why });
+        return [{ entry, applied, ...why }];
       }),
     );
     return refused;
@@ -153,18 +161,14 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
 
   async function pushAll() {
     for (;;) {
-      const batch = await local.batch(BATCH_CHANGES, BATCH_BYTES);
+      const batch = await local.batch(BATCH_CHANGES, BATCH_BYTES, lost);
       if (!batch) return;
       try {
         const refused = await send(batch.space, batch.entries);
         if (refused.length) hooks.onRefused?.(refused);
       } catch (e) {
-        if (
-          e instanceof ApiError &&
-          (e.code === 'not_found' || e.code === 'forbidden') &&
-          batch.space !== ME
-        ) {
-          await lose(batch.space);
+        if (turnedAway(e) && batch.space !== ME) {
+          lose(batch.space);
           continue;
         }
         throw e;
@@ -175,6 +179,7 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
 
   async function uploadAll() {
     for (const f of await local.waitingFiles()) {
+      if (lost.has(f.space)) continue;
       try {
         const remote = await attempt(() =>
           api.syncFileStart({ id: f.id, type: f.type, size: f.size }, team(f.space)),
@@ -195,8 +200,8 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
         await local.updateFile({ ...f, parts: [], uploaded: true });
       } catch (e) {
         if (!(e instanceof ApiError)) throw e;
-        if (e.code === 'not_found' && f.space !== ME && !(await canUse(f.space))) {
-          await lose(f.space);
+        if (turnedAway(e) && f.space !== ME && !(await canUse(f.space))) {
+          lose(f.space);
           continue;
         }
         if (e.code === 'not_found' || e.code === 'invalid_input') {
@@ -223,18 +228,20 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
       await attempt(() => api.syncPull({ team: team(space), limit: 1, since: '999999999999999' }));
       return true;
     } catch (e) {
-      if (e instanceof ApiError && (e.code === 'not_found' || e.code === 'forbidden')) return false;
+      if (turnedAway(e)) return false;
       throw e;
     }
   }
 
-  async function lose(space: Space) {
-    await local.dropSpace(space);
+  /** Set aside for this session: nothing of it is deleted. */
+  function lose(space: Space) {
+    lost.add(space);
     hooks.onLostSpace?.(space);
   }
 
   async function pullAll() {
     for (const space of [ME, ...(await local.followed())]) {
+      if (lost.has(space)) continue;
       try {
         for (;;) {
           const since = (await local.cursor(space)) ?? undefined;
@@ -247,8 +254,8 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
           if (!page.more) break;
         }
       } catch (e) {
-        if (e instanceof ApiError && (e.code === 'not_found' || e.code === 'forbidden') && space !== ME) {
-          await lose(space);
+        if (turnedAway(e) && space !== ME) {
+          lose(space);
           continue;
         }
         throw e;
@@ -304,6 +311,18 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
 
   return {
     run,
+    /** The team spaces set aside this session. */
+    lostSpaces: (): Space[] => [...lost],
+    /** Try the set-aside spaces again (the person was added back, or a switch turned on again). */
+    retryLost() {
+      lost.clear();
+      return run();
+    },
+    /** The person chose to let a set-aside space go: everything of it on this device is deleted. */
+    async discardSpace(space: Space) {
+      await local.dropSpace(space);
+      lost.delete(space);
+    },
     /** No more runs (signed out, or the device forgot the person). */
     stop() {
       stopped = true;

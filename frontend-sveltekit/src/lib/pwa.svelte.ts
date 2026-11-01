@@ -83,3 +83,33 @@ export function applyUpdate(): void {
   // If it doesn't take over within a few seconds, a plain reload still gets the new files.
   setTimeout(() => location.reload(), 4000);
 }
+
+/**
+ * The backend said this copy is too old (`client_outdated`): fetch the newest version now and
+ * switch to it. False when no newer version could be found (the new frontend isn't out yet, or
+ * no connection); the caller says so and lets the person try again.
+ */
+export async function forceUpdate(timeoutMs = 15_000): Promise<boolean> {
+  const reg = dev || !('serviceWorker' in navigator) ? null : await navigator.serviceWorker.getRegistration();
+  if (!reg) {
+    location.reload();
+    return true;
+  }
+  await reg.update().catch(() => {});
+  const next = reg.waiting ?? reg.installing;
+  if (!next) return false;
+  const ready = await new Promise<boolean>((done) => {
+    if (next.state === 'installed') return done(true);
+    const timer = setTimeout(() => done(false), timeoutMs);
+    next.addEventListener('statechange', () => {
+      if (next.state === 'installed' || next.state === 'redundant') {
+        clearTimeout(timer);
+        done(next.state === 'installed');
+      }
+    });
+  });
+  if (!ready) return false;
+  waiting = next;
+  applyUpdate();
+  return true;
+}

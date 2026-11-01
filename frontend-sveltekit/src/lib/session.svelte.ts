@@ -4,6 +4,10 @@
 // Signing out always ends with a full page load, so nothing of the person stays in memory; a
 // different account signing in afterwards also clears what the device stored (#lib/device).
 // A support tab (PRD R6.3) is the same, with the person's session kept in that tab only.
+//
+// Starting offline: each successful read of the sign-in settings, the switches and the person is
+// kept on the device (#lib/device `keep`), and `startFromDevice` opens the app from those copies
+// at once, checking with the backend in the background; with no connection, the copies stand.
 
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
@@ -22,12 +26,14 @@ import {
   endSupport,
   forgetDevice,
   isSupportTab,
+  keep,
   keepSession,
+  kept,
   readSupport,
   readToken,
   writeToken,
 } from '#lib/device.ts';
-import { flushBeforeSignOut, stopSync } from '#lib/db/index.svelte.ts';
+import { closeForSignOut, closeSupportData } from '#lib/db/index.svelte.ts';
 import { pushOff } from '#lib/push.ts';
 import { homePath } from '#lib/config.ts';
 import { safeNext } from '#lib/format.ts';
@@ -38,10 +44,21 @@ export const auth = $state<{
   user: User | null;
   /** Set in a support tab: whose account this is, for the banner. */
   support: { email: string } | null;
-}>({ methods: null, features: null, user: null, support: null });
+  /** This copy of the app is older than the backend serves: it must update to carry on. */
+  outdated: boolean;
+}>({ methods: null, features: null, user: null, support: null, outdated: false });
 
 /** Everything optional off: what a backend without `/features` has. */
-const allOff: Features = { teams: false, admin: false, push: null, sync: false };
+const allOff: Features = { teams: false, admin: false, push: null, sync: false, minClient: null };
+
+/** No answer, or the backend failing: what a copy kept on the device can stand in for. */
+const unreachable = (e: unknown) =>
+  e instanceof ApiError && (e.code === 'network' || e.status >= 500 || e.status === 0);
+
+/** Whether this build is older than the oldest the backend serves. */
+function checkVersion(f: Features) {
+  if (f.minClient && Date.parse(__BUILT_AT__) < Date.parse(f.minClient)) auth.outdated = true;
+}
 
 let methodsLoading: Promise<Methods> | null = null;
 let featuresLoading: Promise<Features> | null = null;
@@ -49,10 +66,16 @@ let featuresLoading: Promise<Features> | null = null;
 /** /features, read once. A backend that doesn't have it has every optional part off. */
 export function loadFeatures(): Promise<Features> {
   featuresLoading ??= api.features().then(
-    (f) => (auth.features = f),
+    (f) => {
+      keep('features', f);
+      checkVersion(f);
+      return (auth.features = f);
+    },
     (e) => {
       if (e instanceof ApiError && e.code === 'not_found') return (auth.features = allOff);
       featuresLoading = null;
+      const copy = unreachable(e) ? kept<Features>('features') : null;
+      if (copy) return (auth.features = copy);
       throw e;
     },
   );
@@ -68,9 +91,14 @@ export function loadSupport(): void {
 /** /auth/methods, read once. A failure isn't kept, so trying again asks again. */
 export function loadMethods(): Promise<Methods> {
   methodsLoading ??= api.methods().then(
-    (m) => (auth.methods = m),
+    (m) => {
+      keep('methods', m);
+      return (auth.methods = m);
+    },
     (e) => {
       methodsLoading = null;
+      const copy = unreachable(e) ? kept<Methods>('methods') : null;
+      if (copy) return (auth.methods = copy);
       throw e;
     },
   );
@@ -84,9 +112,13 @@ export async function loadUser(): Promise<User | null> {
   if (!hasToken()) return (auth.user = null);
   try {
     auth.user = await api.me();
+    keep('me', auth.user);
     if (!auth.support) analytics.identify(auth.user.id);
     return auth.user;
   } catch (e) {
+    // No connection: the person as this device last saw them.
+    const copy = unreachable(e) ? kept<User>('me') : null;
+    if (copy) return (auth.user = copy);
     if ((e as { code?: string }).code === 'signed_out') {
       // In a support tab the `signedOut` hook below has already ended the support session;
       // writeToken knows the tab was one and leaves the admin's own token alone.
@@ -97,10 +129,28 @@ export async function loadUser(): Promise<User | null> {
   }
 }
 
+/**
+ * Open the signed-in app from what the device kept, without waiting for the network: true when
+ * there was a session and a copy of everything needed (then check with `loadMethods`,
+ * `loadFeatures` and `loadUser` in the background). Never in a support tab.
+ */
+export function startFromDevice(): boolean {
+  if (!hasToken() || isSupportTab()) return false;
+  const methods = kept<Methods>('methods');
+  const features = kept<Features>('features');
+  const user = kept<User>('me');
+  if (!methods || !features || !user) return false;
+  auth.methods ??= methods;
+  auth.features ??= features;
+  auth.user ??= user;
+  return true;
+}
+
 /** Keep a new session and go on into the app. */
 export async function signedIn(result: SignIn, next?: string | null): Promise<void> {
   await keepSession(result.token, result.user.id);
   auth.user = result.user;
+  keep('me', result.user);
   analytics.identify(result.user.id);
   await goto(safeNext(next) ?? resolve(homePath), { replace: true });
 }
@@ -121,10 +171,10 @@ function leaveTo(path: Path): void {
 /** Sign this device out. */
 export async function signOut(): Promise<void> {
   if (auth.support) return endSupportSession();
-  // What was done here offline gets a few seconds to reach the backend; anything left stays on
-  // the device for this person's next sign-in (another account signing in here wipes it).
-  await flushBeforeSignOut().catch(() => {});
-  stopSync();
+  // What was done here offline gets a few seconds to reach the backend. Then this account's data
+  // on the device goes, unless something hasn't reached the backend: that stays, in this
+  // person's own database, for their next sign-in here (the account page says so first).
+  await closeForSignOut().catch(() => {});
   // This device's notifications belong to the person leaving, not whoever signs in next.
   if (auth.features?.push) await withTimeout(pushOff(), 3000).catch(() => {});
   try {
@@ -139,6 +189,7 @@ export async function signOut(): Promise<void> {
 
 /** End this tab's support session; the admin's own session on the device stays. */
 export async function endSupportSession(): Promise<void> {
+  await closeSupportData().catch(() => {});
   try {
     await api.signOut();
   } catch {
@@ -150,7 +201,7 @@ export async function endSupportSession(): Promise<void> {
 
 /** After the account is deleted: nothing of it stays on the device. */
 export async function accountDeleted(): Promise<void> {
-  await forgetDevice();
+  await forgetDevice({ deleted: true });
   analytics.reset();
   leaveTo('');
 }
@@ -189,5 +240,9 @@ setApiHooks({
   // An app's own path said the email must be confirmed first: show the gate.
   unverified() {
     if (auth.user) auth.user = { ...auth.user, emailVerified: false };
+  },
+  // The backend no longer serves this copy of the app: the root layout asks for the update.
+  outdated() {
+    auth.outdated = true;
   },
 });

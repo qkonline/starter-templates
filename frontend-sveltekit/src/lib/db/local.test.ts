@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
+import { openDB } from 'idb';
 import { describe, expect, it } from 'vitest';
 import { newId } from './ids';
-import { ME, mediaType, openLocal } from './local';
+import { DB_VERSION, ME, mediaType, openLocal } from './local';
 
 let n = 0;
 const fresh = () => openLocal(`test-${++n}`);
@@ -83,6 +84,7 @@ describe('the data on this device', () => {
     const server = {
       table: 'appointments',
       id,
+      version: '7',
       deleted: false,
       createdBy: 'u1',
       updatedBy: 'u2',
@@ -95,10 +97,90 @@ describe('the data on this device', () => {
       base: { patient: 'Ali', note: 'theirs' },
       pending: 1,
       updatedBy: 'u2',
+      version: '7',
     });
+    // An edit now says which version it was made on, so the backend can tell a stale one.
+    await d.put(ME, 'appointments', id, { note: 'again' });
+    const { entries } = (await d.batch(100, 200_000))!;
+    expect(entries.map((e) => e.change.base)).toEqual([undefined, '7']);
     // Deleted on the backend: deleted here too, whatever was waiting.
     await d.receive(ME, [{ ...server, fields: {}, deleted: true }]);
     expect(await d.get(ME, 'appointments', id)).toMatchObject({ deleted: true, fields: {} });
+  });
+
+  it('keeps a refused change, with what it set, until the person has seen it', async () => {
+    const d = await fresh();
+    const id = newId();
+    await d.put(ME, 'doses', id, { mg: 7 });
+    const { entries } = (await d.batch(100, 200_000))!;
+    await d.settle(ME, [
+      { entry: entries[0]!, applied: false, code: 'conflict', message: 'Changed first elsewhere.' },
+    ]);
+    expect(await d.pendingCount()).toBe(0);
+    // The record only ever existed here, and its one change was refused: it goes from the list...
+    expect(await d.get(ME, 'doses', id)).toBeUndefined();
+    // ...but not what it said.
+    const [kept] = await d.refused();
+    expect(kept).toMatchObject({ space: ME, code: 'conflict', change: { record: id, fields: { mg: 7 } } });
+    expect(await d.settled()).toBe(false);
+    await d.dismissRefused([kept!.id]);
+    expect(await d.refused()).toEqual([]);
+    expect(await d.settled()).toBe(true);
+  });
+
+  it('passes over the spaces it is told to skip, keeping their changes', async () => {
+    const d = await fresh();
+    await d.put('gone', 'notes', newId(), { a: 1 });
+    await d.put(ME, 'notes', newId(), { b: 2 });
+    expect((await d.batch(100, 200_000, new Set(['gone'])))!.space).toBe(ME);
+    expect(await d.batch(100, 200_000, new Set(['gone', ME]))).toBeNull();
+    expect(await d.pendingIn('gone')).toBe(1);
+  });
+
+  it('a database made by an older release is brought up to date with its data kept', async () => {
+    const name = `old-${++n}`;
+    // Version 1, as the first release made it, with a change waiting.
+    const v1 = await openDB(name, 1, {
+      upgrade(db) {
+        db.createObjectStore('records', { keyPath: ['space', 'table', 'id'] }).createIndex('byTable', [
+          'space',
+          'table',
+        ]);
+        const outbox = db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+        outbox.createIndex('bySpace', ['space', 'seq']);
+        outbox.createIndex('byRecord', ['space', 'change.table', 'change.record']);
+        db.createObjectStore('meta');
+        db.createObjectStore('files', { keyPath: ['space', 'id'] }).createIndex('waiting', 'waiting');
+      },
+    });
+    const record = newId();
+    await v1.add('outbox', {
+      space: ME,
+      change: {
+        id: newId(),
+        table: 'notes',
+        record,
+        op: 'put',
+        fields: { a: 1 },
+        at: new Date().toISOString(),
+      },
+    });
+    v1.close();
+    const d = await openLocal(name);
+    expect(d.db.version).toBe(DB_VERSION);
+    expect(await d.pendingCount()).toBe(1);
+    expect(await d.refused()).toEqual([]);
+  });
+
+  it('lets a newer version in another tab upgrade, and says this tab is out of date', async () => {
+    const name = `tabs-${++n}`;
+    let stale = false;
+    await openLocal(name, { onStale: () => (stale = true) });
+    // Another tab, on a release with one more step, opens the same database.
+    const newer = await openDB(name, DB_VERSION + 1);
+    expect(stale).toBe(true);
+    expect(newer.version).toBe(DB_VERSION + 1);
+    newer.close();
   });
 
   it('drops a space with everything of it', async () => {

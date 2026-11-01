@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Starter API
-  version: 0.4.0
+  version: 0.5.0
   summary: The contract every starter backend implements and every starter frontend calls.
   license:
     name: MIT
@@ -23,7 +23,7 @@ info:
     - Paths are relative to the server URL, which ends in `/api`.
     - CORS: the frontend usually lives on another origin, so for each origin the app allows,
       the backend answers preflights allowing `Authorization` and `Content-Type` and the
-      methods used here, and exposes `Retry-After` so the frontend can show the wait. These
+      methods used here (and `X-Client-Version`), and exposes `Retry-After` so the frontend can show the wait. These
       can't be checked from the contract tests (they don't run in a browser); the frontend's
       browser tests cover them.
 
@@ -32,6 +32,13 @@ info:
     CPU budget never has to; `contract/password.ts` is the one implementation, used by frontends
     and the tests. The backend stores only a salted hash of the key, never the key itself, and
     compares in constant time.
+
+    Old copies of the app: the frontend sends `X-Client-Version` (when it was built, ISO 8601)
+    with every request. When the backend has a minimum (`minClient` in `/features`) and the
+    version sent is older, any path but `/health` and `/features` answers 426
+    `client_outdated`: the app must update before it carries on, so a change to what crosses
+    the line never meets a copy installed before it. A request without the header (the contract
+    tests, scripts) is never refused for it.
 
     Local development: a backend run without a mail provider keeps mail at `/dev/mail` and
     switches per-network limits off, so test runs don't lock themselves out.
@@ -489,12 +496,16 @@ paths:
       tags: [Account]
       operationId: getMe
       summary: The signed-in person
-      description: Works whether or not the email is confirmed, so the frontend can say what's needed.
+      description: |
+        Works whether or not the email is confirmed, so the frontend can say what's needed. Like
+        every path but `/health` and `/features`, answers 426 to an outdated copy of the app.
       responses:
         '200':
           $ref: '#/components/responses/UserReply'
         '401':
           $ref: '#/components/responses/SignedOut'
+        '426':
+          $ref: '#/components/responses/ClientOutdated'
         '500':
           $ref: '#/components/responses/ServerError'
     patch:
@@ -2087,11 +2098,21 @@ paths:
           others as they are; a record that doesn't exist yet is made. When two changes set
           the same field, the one the backend received later wins, whatever the devices'
           clocks say.
+        - **Guarded fields keep both.** An app can mark fields where losing either edit isn't
+          acceptable (a dose, an amount). A `put` setting such a field that another change
+          has set since `base` (the record's `version` the device's edit was made on) is
+          refused with `conflict`; the device keeps the refused change for the person to
+          resolve. A `put` without `base` to a record that exists is checked as if made on
+          its first version.
         - **Deletes stay as markers**, so they reach devices that were offline. A `put` to a
-          deleted record is refused with `conflict`, never brings it back.
-        - **Refused one by one.** A change that can't be applied (a record grown past 256 KB, a
-          deleted record) is refused in its own result, with an error code and a message to
-          show the person; the rest of the batch is applied. A batch that doesn't match this
+          deleted record is refused with `conflict`, never brings it back. The backend keeps
+          the deleted record's last fields, so it can be restored; pulls send its marker with
+          empty fields.
+        - **The app's own checks.** An app can check changes to its tables (a required field,
+          who may delete) and refuse one with `invalid_input` or `forbidden` in its result.
+        - **Refused one by one.** A change that can't be applied (a record grown past 192 KB, a
+          deleted record, a guarded field, an app's check) is refused in its own result, with
+          an error code and a message to show the person; the rest of the batch is applied. A batch that doesn't match this
           schema (any change in it unreadable) is refused whole with `invalid_input` and
           nothing applied, so a device can send its changes one by one to find the bad one;
           a batch over 256 KB is `too_large`.
@@ -2586,7 +2607,7 @@ components:
 
     Features:
       type: object
-      required: [teams, admin, push, sync]
+      required: [teams, admin, push, sync, minClient]
       additionalProperties: false
       properties:
         teams:
@@ -2609,6 +2630,11 @@ components:
         sync:
           type: boolean
           description: Offline data kept in step with the backend (`/sync/*`).
+        minClient:
+          type: [string, 'null']
+          description: |
+            The oldest frontend build (its `X-Client-Version`) the backend still serves; older
+            ones get `client_outdated` and must update. Null when there's no minimum.
 
     SyncId:
       type: string
@@ -2647,6 +2673,12 @@ components:
           description: '`put` sets `fields` (making the record if new); `delete` marks it deleted.'
         fields:
           $ref: '#/components/schemas/SyncFields'
+        base:
+          type: string
+          pattern: '^\d{1,15}$'
+          description: |
+            The record's `version` as the device last had it when this change was made; left
+            out for a record made on the device. Used to tell a stale edit of a guarded field.
         at:
           $ref: '#/components/schemas/Time'
           description: When it was done, by the device's clock (kept as what the person saw; never used for ordering).
@@ -2669,13 +2701,17 @@ components:
 
     SyncRecord:
       type: object
-      required: [table, id, fields, deleted, createdBy, updatedBy, createdAt, updatedAt, changedAt]
+      required: [table, id, version, fields, deleted, createdBy, updatedBy, createdAt, updatedAt, changedAt]
       additionalProperties: false
       properties:
         table:
           $ref: '#/components/schemas/SyncTable'
         id:
           $ref: '#/components/schemas/SyncId'
+        version:
+          type: string
+          pattern: '^\d{1,15}$'
+          description: Changes with every change to the record; sent back as a change's `base`.
         fields:
           $ref: '#/components/schemas/SyncFields'
         deleted:
@@ -3229,10 +3265,17 @@ components:
         - rate_limited
         - too_large
         - unsupported_type
+        - client_outdated
         - mail_failed
         - server_error
 
   responses:
+    ClientOutdated:
+      description: '`client_outdated`: this copy of the app is older than the backend serves; update it (any path but /health and /features)'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     ServerError:
       description: '`server_error`: something went wrong on the backend''s side'
       content:

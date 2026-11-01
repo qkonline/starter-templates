@@ -77,6 +77,7 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `APP_URL` | var | The frontend's address, for links in emails (invites go to `<APP_URL>/invite?token=…`). Empty: the first of `ALLOWED_ORIGINS`. |
 | `TEAMS` | var | `true` turns on teams (`/teams`, `/invites`). Off, they're 404. |
 | `SYNC` | var | `true` turns on offline data (`/sync/*`, [Sync](#sync)). Off, it's 404. |
+| `MIN_CLIENT` | var | The oldest frontend build still served (ISO 8601). Older copies of the app get `client_outdated` and are asked to update; raise it when a change would break copies installed before it. Unset, all are served. |
 | `ADMIN` | var | `true` turns on the admin area (`/admin/*`, `/auth/support/exchange`). Off, they're 404 and nobody is `isAdmin`. |
 | `ADMIN_EMAILS` | var | Comma-separated emails of the app's admins. An account is an admin only once its email is confirmed. |
 | `VAPID_PUBLIC_KEY` | var | With `VAPID_PRIVATE_KEY`, push is on; `/features` gives this key to browsers. Make the pair once with `npm run vapid` (setup does it). A new pair ends every subscription. |
@@ -104,8 +105,18 @@ the accounts; the synced records never touch it.
 - `POST /sync/push`: at most 100 changes and 256 KB a batch, applied in order in one
   transaction. Ids come from the device and are kept. Each change id is remembered for 31 days,
   so a batch sent again after a lost reply is applied once. `put` merges fields, the later one
-  winning (by arrival, never the devices' clocks); `delete` leaves a marker; a `put` to a marker is
-  refused with `conflict`.
+  winning (by arrival, never the devices' clocks); `delete` leaves a marker (the last fields are
+  kept in the object, so a record can be restored); a `put` to a marker is refused with
+  `conflict`. Each record has a `version`; a change says which it was made on (`base`).
+- **The app's rules** are in `src/app/sync.ts`, the app's own file (the core never changes it):
+  per table, `guard` lists fields where a stale edit is refused with `conflict` instead of
+  merged (a dose, an amount), and `check` refuses a change with the app's own message (a
+  missing field; only a team admin deletes). `onlyListed` refuses unknown tables, and
+  `afterApply` copies what went in elsewhere (a D1 table for reports). Each record keeps who
+  made and last changed it and the session (device) it came through.
+- **The object's tables are versioned** (`MIGRATIONS` in `src/sync/store.ts`): each object
+  brings itself up to date the first time it wakes after a release. Add steps at the end; never
+  edit one.
 - `GET /sync/pull?since=`: pages of up to 200 records or about 256 KB, in the order they last
   changed, with the cursor to come back with.
 - Files: `POST /sync/files` starts an R2 multipart upload; parts of 8 MiB go through the Worker
@@ -117,7 +128,9 @@ the accounts; the synced records never touch it.
   change is about three) and 10 ms of CPU a request, which is why batches are small: raise the
   limits in `src/sync/store.ts` and `space.ts` with the plan.
 - Deleting an account wipes its space and those of the teams it was alone in; deleting a team
-  wipes the team's. The synced data isn't in `/me/export`: it can be large, and the app reads it
+  wipes the team's. A wiped space keeps a mark and refuses everything after, so a request that
+  was already on its way can't start it again. If R2 drops an unfinished upload, the next part
+  starts a new one and the device sends the parts again. The synced data isn't in `/me/export`: it can be large, and the app reads it
   through `/sync/pull`.
 
 ### Push

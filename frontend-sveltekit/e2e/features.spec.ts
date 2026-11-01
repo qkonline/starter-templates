@@ -30,6 +30,38 @@ test('contact, signed out', async ({ page }) => {
   await expect(page.getByText('Thank you. Your message is on its way')).toBeVisible();
 });
 
+test('the signed-in app opens with no connection, from what the device kept', async ({ context, page }) => {
+  await signUp(page, uniqueEmail('offline'), password);
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  await expect(page.getByRole('heading', { name: /^Hello/ })).toBeVisible();
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /^Hello/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Can’t reach the app' })).toHaveCount(0);
+  await page.goto('/account');
+  await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
+  await context.setOffline(false);
+});
+
+test('a copy of the app the backend no longer serves is asked to update', async ({ page }) => {
+  await signUp(page, uniqueEmail('outdated'), password);
+  await page.route('**/api/me', (route) =>
+    route.fulfill({
+      status: 426,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'client_outdated', message: 'This version of the app is out of date.' }),
+    }),
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Update needed' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Update now' })).toBeVisible();
+});
+
 test('feedback from inside the app, and display preferences', async ({ page }) => {
   await signUp(page, uniqueEmail('feedback'), password);
   await page.getByRole('button', { name: 'Send feedback' }).click();

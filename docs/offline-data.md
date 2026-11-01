@@ -10,9 +10,10 @@ corrupts someone's work.
 
 The templates carry the sync (PRD section 11): `/sync/*` in the contract, `#lib/db` in the
 frontend (IndexedDB, the outbox, the sync runner) and a Durable Object per space in the
-Cloudflare backend, switched on with `SYNC = "true"`. It already keeps Rules 1, 4, 5 and 7 and
-the "later wins" half of Rule 6 for every table. Rules 2 and 3, and choosing "keep both" for a
-field, are each app's to write, since only the app knows what its records mean.
+Cloudflare backend, switched on with `SYNC = "true"`. It already keeps Rules 1, 4, 5, 6 and 7 for every table:
+fields merge "later wins" unless the app guards them in `backend-cloudflare/src/app/sync.ts`,
+where it can also check each change. Rules 2 and 3, and choosing which fields to guard, are each
+app's to write, since only the app knows what its records mean.
 
 ## The example
 
@@ -105,10 +106,15 @@ A device sends a batch, the connection drops before the reply, and it sends the 
   wrong by hours.
 - An app where losing either edit isn't acceptable (doses, amounts, anything clinical or
   financial) keeps both versions and raises a conflict like Rule 3, instead of a later-wins
-  merge. Decide this per table, when the table is designed.
+  merge. Decide this per table, when the table is designed. In the templates: list the field in
+  the table's `guard` (`src/app/sync.ts`). Each change carries the record's version it was made
+  on; an edit to a guarded field that someone else changed after that version is refused with
+  `conflict`, and the device keeps the refused change, with its values, for the person to
+  compare and enter again.
 - **Deletes are kept as markers** (`deleted_at`), not removed rows, so they sync to devices that
   were offline, and an edit to a deleted record arriving later doesn't bring it back without
-  the conflict being shown.
+  the conflict being shown. The backend keeps the deleted record's last fields, so a delete can
+  be undone; an app that wants only some people to delete says so in the table's `check`.
 
 ## Rule 7: the server is the record of what happened
 

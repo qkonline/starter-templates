@@ -6,10 +6,16 @@ import type { components } from '@starter/contract/types';
 
 export type ErrorCode = components['schemas']['ErrorCode'];
 
+/**
+ * The contract's codes, `network` when the backend couldn't be reached, or a code an app's own
+ * paths added (`slot_taken`), kept as the backend sent it.
+ */
+export type AnyCode = ErrorCode | 'network' | (string & {});
+
 export class ApiError extends Error {
   constructor(
-    /** The contract's code, or `network` when the backend couldn't be reached. */
-    readonly code: ErrorCode | 'network',
+    /** The contract's code, `network` with no answer, or an app's own code. */
+    readonly code: AnyCode,
     message: string,
     /** The HTTP status; 0 when there was no answer. */
     readonly status: number,
@@ -40,6 +46,7 @@ const codes: ReadonlySet<string> = new Set<ErrorCode>([
   'unsupported_type',
   'mail_failed',
   'server_error',
+  'client_outdated',
 ]);
 
 export const isErrorCode = (value: unknown): value is ErrorCode =>
@@ -81,7 +88,8 @@ export function errorFrom(status: number, body: unknown, headers?: Headers): Api
   const retryAfter = parseRetryAfter(headers?.get('retry-after') ?? null);
   if (body && typeof body === 'object') {
     const { code, message } = body as { code?: unknown; message?: unknown };
-    if (isErrorCode(code)) {
+    // The contract's codes, and an app's own (lower case and _), with the message as sent.
+    if (isErrorCode(code) || (typeof code === 'string' && /^[a-z][a-z0-9_]{1,39}$/.test(code))) {
       const text = typeof message === 'string' && message.trim() ? message : fallbackMessage(status);
       return new ApiError(code, text, status, retryAfter);
     }

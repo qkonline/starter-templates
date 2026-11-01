@@ -89,6 +89,7 @@ function fakeBackend() {
         records: page.map((r) => ({
           table: r.table,
           id: r.id,
+          version: String(r.seq),
           fields: r.fields,
           deleted: r.deleted,
           createdBy: 'u',
@@ -204,6 +205,10 @@ describe('syncing', () => {
     expect(await local.pendingCount()).toBe(0);
     expect(refused).toEqual([expect.objectContaining({ record: bad, code: 'invalid_input' })]);
     expect(await local.get(ME, 'notes', bad)).toBeUndefined();
+    // Set aside with what it said, not lost.
+    expect(await local.refused()).toEqual([
+      expect.objectContaining({ change: expect.objectContaining({ record: bad, fields: { ok: false } }) }),
+    ]);
     expect(await local.get(ME, 'notes', good)).toMatchObject({ fields: { ok: true } });
   });
 
@@ -220,15 +225,36 @@ describe('syncing', () => {
     expect(await local.get(ME, 'notes', id)).toMatchObject({ deleted: true, pending: 0 });
   });
 
-  it("a team the person isn't in any more is dropped from the device", async () => {
+  it('a team the backend turns away is set aside, its unsent changes kept, until the person discards it', async () => {
     const { local, backend, sync, lost } = await setup();
     await local.follow('t1');
-    await local.put('t1', 'notes', newId(), {});
+    await local.put('t1', 'notes', newId(), { a: 1 });
+    await local.put(ME, 'notes', newId(), { b: 2 });
     backend.gone.add('t1');
     await sync.run();
     expect(lost).toEqual(['t1']);
+    // The person's own change still went; the team's is kept.
+    expect(await local.pendingCount()).toBe(1);
+    expect(await local.followed()).toEqual(['t1']);
+    // Added back to the team (or the switch turned on again): it goes.
+    backend.gone.delete('t1');
+    await sync.retryLost();
+    expect(await local.pendingCount()).toBe(0);
+    // Turned away again, and this time the person lets it go.
+    await local.put('t1', 'notes', newId(), { c: 3 });
+    backend.gone.add('t1');
+    await sync.run();
+    await sync.discardSpace('t1');
     expect(await local.pendingCount()).toBe(0);
     expect(await local.followed()).toEqual([]);
+  });
+
+  it('an outdated copy of the app stops syncing and keeps everything', async () => {
+    const { local, backend, sync } = await setup();
+    await local.put(ME, 'notes', newId(), { a: 1 });
+    backend.failNext = new ApiError('client_outdated', 'Update the app.', 426);
+    await sync.run();
+    expect(await local.pendingCount()).toBe(1);
   });
 
   it('a file goes up in parts and carries on from the last part after a dropped connection', async () => {

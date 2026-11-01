@@ -31,6 +31,8 @@ const vars = {
   PUSH_EXTRA_HOSTS: 'push.invalid',
   // So the teams test waits 2 seconds to resend an invite, not a minute.
   INVITE_RESEND_GAP_S: '2',
+  // So the contract tests can check an outdated copy of the app is told to update.
+  MIN_CLIENT: '2026-01-01T00:00:00.000Z',
 };
 
 const args = ['wrangler', 'dev', ...Object.entries(vars).flatMap(([k, v]) => ['--var', `${k}:${v}`]), ...process.argv.slice(2)];

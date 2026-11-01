@@ -19,11 +19,12 @@ export type ErrorCode =
   | 'too_large'
   | 'unsupported_type'
   | 'mail_failed'
-  | 'server_error';
+  | 'server_error'
+  | 'client_outdated';
 
 export class Refusal extends Error {
   constructor(
-    readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 500 | 502,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 426 | 429 | 500 | 502,
     readonly code: ErrorCode,
     message: string,
     /** Seconds to wait, for rate_limited. */

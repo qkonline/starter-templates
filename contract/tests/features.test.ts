@@ -1,7 +1,7 @@
 // The optional parts an app switches on (`/features`): each is either fully there or answers
 // `not_found` on every one of its paths.
 
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { call, expectError, expectReply, features, signUp } from './lib';
 
 test('the switches', async () => {
@@ -13,6 +13,19 @@ test.skipIf(!features.push)("push's public key is a P-256 point, as browsers sub
   expect(features.push!.vapidPublicKey).toMatch(/^[A-Za-z0-9_-]+$/);
   expect(key).toHaveLength(65);
   expect(key[0]).toBe(4);
+});
+
+describe('an outdated copy of the app', () => {
+  test.skipIf(!features.minClient)('is refused with client_outdated; a current one, or a request that says nothing, is not', async () => {
+    const { token } = await signUp();
+    const old = { 'x-client-version': '2000-01-01T00:00:00.000Z' };
+    expectError(await call('get', '/me', { token, headers: old }), 'get', '/me', 426, 'client_outdated');
+    const now = { 'x-client-version': new Date().toISOString() };
+    expectReply(await call('get', '/me', { token, headers: now }), 'get', '/me', 200);
+    expectReply(await call('get', '/me', { token }), 'get', '/me', 200);
+    // /features still answers, so the app can say why.
+    expectReply(await call('get', '/features', { headers: old }), 'get', '/features', 200);
+  });
 });
 
 test('nobody is an admin of the app by signing up', async () => {

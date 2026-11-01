@@ -321,7 +321,8 @@ export interface paths {
         };
         /**
          * The signed-in person
-         * @description Works whether or not the email is confirmed, so the frontend can say what's needed.
+         * @description Works whether or not the email is confirmed, so the frontend can say what's needed. Like
+         *     every path but `/health` and `/features`, answers 426 to an outdated copy of the app.
          */
         get: operations["getMe"];
         put?: never;
@@ -1257,11 +1258,21 @@ export interface paths {
          *       others as they are; a record that doesn't exist yet is made. When two changes set
          *       the same field, the one the backend received later wins, whatever the devices'
          *       clocks say.
+         *     - **Guarded fields keep both.** An app can mark fields where losing either edit isn't
+         *       acceptable (a dose, an amount). A `put` setting such a field that another change
+         *       has set since `base` (the record's `version` the device's edit was made on) is
+         *       refused with `conflict`; the device keeps the refused change for the person to
+         *       resolve. A `put` without `base` to a record that exists is checked as if made on
+         *       its first version.
          *     - **Deletes stay as markers**, so they reach devices that were offline. A `put` to a
-         *       deleted record is refused with `conflict`, never brings it back.
-         *     - **Refused one by one.** A change that can't be applied (a record grown past 256 KB, a
-         *       deleted record) is refused in its own result, with an error code and a message to
-         *       show the person; the rest of the batch is applied. A batch that doesn't match this
+         *       deleted record is refused with `conflict`, never brings it back. The backend keeps
+         *       the deleted record's last fields, so it can be restored; pulls send its marker with
+         *       empty fields.
+         *     - **The app's own checks.** An app can check changes to its tables (a required field,
+         *       who may delete) and refuse one with `invalid_input` or `forbidden` in its result.
+         *     - **Refused one by one.** A change that can't be applied (a record grown past 192 KB, a
+         *       deleted record, a guarded field, an app's check) is refused in its own result, with
+         *       an error code and a message to show the person; the rest of the batch is applied. A batch that doesn't match this
          *       schema (any change in it unreadable) is refused whole with `invalid_input` and
          *       nothing applied, so a device can send its changes one by one to find the bad one;
          *       a batch over 256 KB is `too_large`.
@@ -1492,6 +1503,11 @@ export interface components {
             };
             /** @description Offline data kept in step with the backend (`/sync/*`). */
             sync: boolean;
+            /**
+             * @description The oldest frontend build (its `X-Client-Version`) the backend still serves; older
+             *     ones get `client_outdated` and must update. Null when there's no minimum.
+             */
+            minClient: string | null;
         };
         /**
          * @description Made on the device, unique everywhere: a UUID (version 7 preferred, time-ordered), or
@@ -1514,6 +1530,11 @@ export interface components {
              */
             op: "put" | "delete";
             fields?: components["schemas"]["SyncFields"];
+            /**
+             * @description The record's `version` as the device last had it when this change was made; left
+             *     out for a record made on the device. Used to tell a stale edit of a guarded field.
+             */
+            base?: string;
             /** @description When it was done, by the device's clock (kept as what the person saw; never used for ordering). */
             at: components["schemas"]["Time"];
         };
@@ -1530,6 +1551,8 @@ export interface components {
         SyncRecord: {
             table: components["schemas"]["SyncTable"];
             id: components["schemas"]["SyncId"];
+            /** @description Changes with every change to the record; sent back as a change's `base`. */
+            version: string;
             fields: components["schemas"]["SyncFields"];
             /** @description A deleted record's marker; its fields are empty. */
             deleted: boolean;
@@ -1793,9 +1816,18 @@ export interface components {
             message: string;
         };
         /** @enum {string} */
-        ErrorCode: "invalid_input" | "invalid_code" | "invalid_credentials" | "captcha_failed" | "signed_out" | "email_unverified" | "forbidden" | "account_suspended" | "last_admin" | "not_found" | "conflict" | "email_taken" | "passkey_refused" | "rate_limited" | "too_large" | "unsupported_type" | "mail_failed" | "server_error";
+        ErrorCode: "invalid_input" | "invalid_code" | "invalid_credentials" | "captcha_failed" | "signed_out" | "email_unverified" | "forbidden" | "account_suspended" | "last_admin" | "not_found" | "conflict" | "email_taken" | "passkey_refused" | "rate_limited" | "too_large" | "unsupported_type" | "client_outdated" | "mail_failed" | "server_error";
     };
     responses: {
+        /** @description `client_outdated`: this copy of the app is older than the backend serves; update it (any path but /health and /features) */
+        ClientOutdated: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description `server_error`: something went wrong on the backend's side */
         ServerError: {
             headers: {
@@ -2388,6 +2420,7 @@ export interface operations {
         responses: {
             200: components["responses"]["UserReply"];
             401: components["responses"]["SignedOut"];
+            426: components["responses"]["ClientOutdated"];
             500: components["responses"]["ServerError"];
         };
     };

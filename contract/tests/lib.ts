@@ -30,9 +30,9 @@ export interface Reply {
 export async function call(
   method: Method,
   path: string,
-  opts: { token?: string; json?: unknown; bytes?: Uint8Array<ArrayBuffer>; type?: string } = {},
+  opts: { token?: string; json?: unknown; bytes?: Uint8Array<ArrayBuffer>; type?: string; headers?: Record<string, string> } = {},
 ): Promise<Reply> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
   let body: BodyInit | undefined;
   if (opts.json !== undefined) {
@@ -72,6 +72,8 @@ export function expectReply(r: Reply, method: Method, specPath: string, status: 
   const where = `${method.toUpperCase()} ${specPath}`;
   expect(r.status, `${where}: ${JSON.stringify(r.body)}`).toBe(status);
   let pointer = `#/paths/${esc(specPath)}/${method}/responses/${status}`;
+  // Any path but these two may answer an outdated copy of the app (see the contract's conventions).
+  if (status === 426 && !['/health', '/features'].includes(specPath)) pointer = '#/components/responses/ClientOutdated';
   let declared = at(pointer);
   if (!declared) throw new Error(`The contract doesn't list ${status} for ${where}.`);
   if (declared.$ref) {
@@ -120,6 +122,7 @@ export const features = (await call('get', '/features')).body as {
   admin: boolean;
   push: { vapidPublicKey: string } | null;
   sync: boolean;
+  minClient: string | null;
 };
 
 /** The password key for this backend's settings. */

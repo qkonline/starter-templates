@@ -133,9 +133,10 @@ test('the service worker registers, and the app opens offline', async ({ context
   await expect(page.getByRole('heading', { name: 'Privacy' })).toBeVisible();
   await expect(page.getByText(/You’re offline\. What’s already open/)).toBeVisible();
 
-  // A page that was never built: the offline page.
+  // A path that wasn't prerendered gets the app shell, whose router knows every route (one with
+  // a parameter an app adds opens offline); this one is no route, so the app's own not-found page.
   await page.goto('/nowhere/at/all');
-  await expect(page.getByRole('heading', { name: 'You’re offline' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'There’s nothing here' })).toBeVisible();
 
   // A signed-in page's shell opens offline too (the team page, with its query).
   const res = await page.goto('/team?id=abc');

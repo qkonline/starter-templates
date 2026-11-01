@@ -16,6 +16,7 @@
   import { auth, loadSupport } from '#lib/session.svelte.ts';
   import ConsentBanner from '#lib/components/shell/ConsentBanner.svelte';
   import OfflineBanner from '#lib/components/shell/OfflineBanner.svelte';
+  import Outdated from '#lib/components/shell/Outdated.svelte';
   import SupportBanner from '#lib/components/shell/SupportBanner.svelte';
   import UpdateToast from '#lib/components/shell/UpdateToast.svelte';
 
@@ -50,7 +51,11 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <SupportBanner />
 <OfflineBanner />
-{@render children()}
+{#if auth.outdated}
+  <Outdated />
+{:else}
+  {@render children()}
+{/if}
 {#if started}
   <UpdateToast />
   {#if !auth.support}<ConsentBanner />{/if}

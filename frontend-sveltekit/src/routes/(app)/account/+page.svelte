@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { appName } from '#lib/config.ts';
+  import { syncState } from '#lib/db/index.svelte.ts';
   import { auth, signOut } from '#lib/session.svelte.ts';
   import ChangeEmail from '#lib/components/account/ChangeEmail.svelte';
   import ConfirmEmail from '#lib/components/account/ConfirmEmail.svelte';
@@ -35,6 +36,18 @@
     </div>
     <Button type="button" onclick={signOut}>{support ? 'End support session' : 'Sign out'}</Button>
   </header>
+
+  {#if !support && syncState.pending > 0}
+    <Notice>
+      {syncState.pending === 1 ? '1 change' : `${syncState.pending} changes`} made on this device {syncState.pending ===
+      1
+        ? 'hasn’t'
+        : 'haven’t'} reached {appName} yet. If you sign out now, {syncState.pending === 1
+        ? 'it stays'
+        : 'they stay'}
+      on this device and {syncState.pending === 1 ? 'is' : 'are'} sent the next time you sign in here.
+    </Notice>
+  {/if}
 
   {#if support}
     <Notice>

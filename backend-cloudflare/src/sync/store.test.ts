@@ -1,10 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, test } from 'vitest';
+import { refusal, type SyncRules, type SyncWho } from './rules';
 import { CHANGES_PER_DAY, DAY, partLength, partsOf, PART_SIZE, readChanges, REMEMBER_MS, SpaceStore, type Sql } from './store';
 
 /** The store on node:sqlite, shaped like a Durable Object's `ctx.storage.sql`. */
-function fakeStore() {
-  const db = new DatabaseSync(':memory:');
+function fakeStore(rules?: SyncRules, db = new DatabaseSync(':memory:')) {
   const sql: Sql = {
     exec(query, ...bindings) {
       const st = db.prepare(query);
@@ -23,8 +23,11 @@ function fakeStore() {
       throw e;
     }
   };
-  return new SpaceStore(sql, transaction);
+  return new SpaceStore(sql, transaction, rules);
 }
+
+/** Someone sending from one device: their session is `<user>-1` unless said. */
+const who = (user: string, session = `${user}-1`, role: SyncWho['role'] = null): SyncWho => ({ user, session, role, space: 'team:t' });
 
 let n = 0;
 const uid = () => `id-${String(++n).padStart(16, '0')}`;
@@ -33,8 +36,8 @@ const put = (record: string, fields: Record<string, unknown>, id = uid()) => ({ 
 const del = (record: string, id = uid()) => ({ id, table: 'notes', record, op: 'delete' as const, at: AT });
 const body = (...changes: unknown[]) => JSON.stringify({ changes });
 
-function pushed(store: SpaceStore, user: string, changes: unknown[], now?: number) {
-  const out = store.push(user, body(...changes), now);
+function pushed(store: SpaceStore, user: string | SyncWho, changes: unknown[], now?: number) {
+  const out = store.push(typeof user === 'string' ? who(user) : user, body(...changes), now);
   if (!out.ok) throw new Error(out.message);
   return out.value.results;
 }
@@ -100,11 +103,11 @@ describe('pushing', () => {
     expect(pushed(s, 'b', [put(r, { x: 1 })])[0]!.status).toBe('refused');
   });
 
-  test('a record past 256 KB is refused; the batch goes on', () => {
+  test('a record past 192 KB is refused; the batch goes on', () => {
     const s = fakeStore();
     const r = uid();
     const ok = uid();
-    pushed(s, 'a', [put(r, { a: 'x'.repeat(200_000) })]);
+    pushed(s, 'a', [put(r, { a: 'x'.repeat(150_000) })]);
     const results = pushed(s, 'a', [put(r, { b: 'y'.repeat(70_000) }), put(ok, {})]);
     expect(results.map((x) => x.code ?? x.status)).toEqual(['too_large', 'applied']);
   });
@@ -121,11 +124,11 @@ describe('pushing', () => {
         batch.map((c) => ({ ...c, id: uid() })),
         now,
       );
-    const over = s.push('a', body(put(r, { v: 2 })), now);
+    const over = s.push(who('a'), body(put(r, { v: 2 })), now);
     expect(over).toMatchObject({ ok: false, status: 429, code: 'rate_limited', retryAfter: 12 * 3600 });
     // Someone else, and the next day, are fine.
-    expect(s.push('b', body(put(r, { v: 3 })), now).ok).toBe(true);
-    expect(s.push('a', body(put(r, { v: 4 })), now + DAY).ok).toBe(true);
+    expect(s.push(who('b'), body(put(r, { v: 3 })), now).ok).toBe(true);
+    expect(s.push(who('a'), body(put(r, { v: 4 })), now + DAY).ok).toBe(true);
   });
 
   test('applied ids are forgotten after a month', () => {
@@ -139,6 +142,96 @@ describe('pushing', () => {
     const before = s.pull(0).next;
     pushed(s, 'a', [first], later);
     expect(Number(s.pull(0).next)).toBeGreaterThan(Number(before));
+  });
+});
+
+describe("the app's rules", () => {
+  const rules: SyncRules = {
+    onlyListed: true,
+    tables: {
+      notes: {},
+      doses: {
+        guard: ['mg'],
+        check: (c, current, w) => {
+          if (c.op === 'delete' && w.role !== 'admin') return refusal('forbidden', 'Only an admin can delete a dose.');
+          if (c.op === 'put' && !current && typeof c.fields?.mg !== 'number') return refusal('invalid_input', 'A dose needs mg.');
+          return null;
+        },
+      },
+    },
+  };
+  const dose = (record: string, fields: Record<string, unknown>, base?: string) => ({ ...put(record, fields), table: 'doses', ...(base ? { base } : {}) });
+
+  test('a stale edit to a guarded field is refused; other fields still merge, later wins', () => {
+    const s = fakeStore(rules);
+    const r = uid();
+    pushed(s, 'a', [dose(r, { mg: 5, note: '' })]);
+    const v1 = s.pull(0).records[0]!.version;
+    // Two devices both had v1. B changes the dose first; A's change of the dose, made on v1, is stale.
+    expect(pushed(s, who('b'), [dose(r, { mg: 10 }, v1)])[0]!.status).toBe('applied');
+    expect(pushed(s, who('a'), [dose(r, { mg: 7 }, v1)])[0]).toMatchObject({ status: 'refused', code: 'conflict' });
+    // A field that isn't guarded, from the same stale version: merged.
+    expect(pushed(s, who('a'), [dose(r, { note: 'with food' }, v1)])[0]!.status).toBe('applied');
+    expect(s.pull(0).records[0]!.fields).toEqual({ mg: 10, note: 'with food' });
+    // Made on the version after B's change: applied.
+    const now = s.pull(0).records[0]!.version;
+    expect(pushed(s, who('a'), [dose(r, { mg: 7 }, now)])[0]!.status).toBe('applied');
+  });
+
+  test("a device's own changes in a row, all made on the version it had, don't clash with each other", () => {
+    const s = fakeStore(rules);
+    const r = uid();
+    pushed(s, 'a', [dose(r, { mg: 5 })]);
+    const v1 = s.pull(0).records[0]!.version;
+    expect(pushed(s, 'a', [dose(r, { mg: 6 }, v1), dose(r, { mg: 7 }, v1)]).map((x) => x.status)).toEqual(['applied', 'applied']);
+  });
+
+  test('without a base, a guarded field changed after the record was made is a clash', () => {
+    const s = fakeStore(rules);
+    const r = uid();
+    pushed(s, 'a', [dose(r, { mg: 5 })]);
+    expect(pushed(s, who('b'), [dose(r, { mg: 6 })])[0]!.status).toBe('applied');
+    expect(pushed(s, who('c'), [dose(r, { mg: 7 })])[0]).toMatchObject({ code: 'conflict' });
+  });
+
+  test("the app's check refuses with its own code and message; unlisted tables are refused", () => {
+    const s = fakeStore(rules);
+    const r = uid();
+    expect(pushed(s, 'a', [dose(r, {})])[0]).toMatchObject({ status: 'refused', code: 'invalid_input', message: 'A dose needs mg.' });
+    pushed(s, 'a', [dose(r, { mg: 1 })]);
+    expect(pushed(s, who('a', 'a-1', 'member'), [{ ...del(r), table: 'doses' }])[0]).toMatchObject({ code: 'forbidden' });
+    expect(pushed(s, who('b', 'b-1', 'admin'), [{ ...del(r), table: 'doses' }])[0]!.status).toBe('applied');
+    expect(pushed(s, 'a', [{ ...put(uid(), {}), table: 'other' }])[0]).toMatchObject({ code: 'invalid_input' });
+  });
+});
+
+describe('the record of what happened', () => {
+  test("a delete keeps the record's last fields on the backend, and who and which device did what", () => {
+    const db = new DatabaseSync(':memory:');
+    const s = fakeStore(undefined, db);
+    const r = uid();
+    pushed(s, who('a', 'phone'), [put(r, { title: 'x' })]);
+    pushed(s, who('b', 'desk'), [del(r)]);
+    expect(s.pull(0).records[0]).toMatchObject({ deleted: true, fields: {}, createdBy: 'a', updatedBy: 'b' });
+    const row = db.prepare('SELECT kept, created_session, updated_session FROM records').get();
+    expect({ ...row }).toEqual({ kept: '{"title":"x"}', created_session: 'phone', updated_session: 'desk' });
+  });
+
+  test('the tables are made once and brought up to date step by step; a space from a newer release is refused', () => {
+    const db = new DatabaseSync(':memory:');
+    fakeStore(undefined, db);
+    // Started again (the object woke up): nothing runs twice.
+    const s = fakeStore(undefined, db);
+    pushed(s, 'a', [put(uid(), { a: 1 })]);
+    expect({ ...db.prepare("SELECT value FROM meta WHERE key = 'schema'").get() }).toEqual({ value: '2' });
+    db.exec("UPDATE meta SET value = '99' WHERE key = 'schema'");
+    expect(() => fakeStore(undefined, db)).toThrow(/newer release/);
+  });
+
+  test('a deleted space refuses changes, so a late request cannot start it again', () => {
+    const s = fakeStore();
+    s.markGone();
+    expect(s.push(who('a'), body(put(uid(), {})))).toMatchObject({ ok: false, code: 'not_found' });
   });
 });
 

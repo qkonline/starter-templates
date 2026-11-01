@@ -4,7 +4,7 @@ import { PUBLIC_API_URL } from '$app/env/public';
 import { readToken } from '#lib/device.ts';
 import { createApi } from './client';
 
-const hooks: { signedOut?: () => void; unverified?: () => void } = {};
+const hooks: { signedOut?: () => void; unverified?: () => void; outdated?: () => void } = {};
 
 /** Set what happens when any reply says the session ended or the email needs confirming. */
 export function setApiHooks(h: typeof hooks): void {
@@ -16,6 +16,8 @@ export const api = createApi({
   getToken: readToken,
   onSignedOut: () => hooks.signedOut?.(),
   onUnverified: () => hooks.unverified?.(),
+  clientVersion: __BUILT_AT__,
+  onOutdated: () => hooks.outdated?.(),
 });
 
 export { ApiError, messageOf } from './errors';

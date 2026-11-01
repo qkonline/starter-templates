@@ -10,7 +10,9 @@
 // way back to the Worker.
 
 import { DurableObject } from 'cloudflare:workers';
+import { syncRules } from '../app/sync';
 import type { Env } from '../env';
+import type { SyncWho } from './rules';
 import {
   fileView,
   MINUTE,
@@ -39,7 +41,12 @@ export class SyncSpace extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.store = new SpaceStore(ctx.storage.sql, (fn) => ctx.storage.transactionSync(fn));
+    this.store = new SpaceStore(ctx.storage.sql, (fn) => ctx.storage.transactionSync(fn), syncRules);
+  }
+
+  /** A deleted space answers not_found to everything, so a request already on its way can't fill it again. */
+  private gone() {
+    return this.store.isGone ? refuse(404, 'not_found', 'This data has been deleted.') : null;
   }
 
   /** Counts one request against `key`; the seconds to wait when it's over `max` a minute. */
@@ -60,13 +67,24 @@ export class SyncSpace extends DurableObject<Env> {
     return refuse(429, 'rate_limited', 'Syncing is going too fast. It will carry on in a moment.', wait);
   }
 
-  async push(user: string, body: string): Promise<Outcome<{ results: Result[] }>> {
-    const wait = this.busy(`push:${user}`, PUSHES_PER_MINUTE);
+  async push(who: SyncWho, body: string): Promise<Outcome<{ results: Result[] }>> {
+    const wait = this.busy(`push:${who.user}`, PUSHES_PER_MINUTE);
     if (wait) return this.slowDown(wait);
-    return this.store.push(user, body);
+    const out = this.store.push(who, body);
+    if (!out.ok) return out;
+    if (syncRules.afterApply && out.value.applied.length) {
+      const applied = out.value.applied.map((change) => ({ change, who }));
+      // After the reply: the batch is in either way, and a failure here never undoes it.
+      this.ctx.waitUntil(
+        syncRules.afterApply(this.env, who.space, applied).catch((e: unknown) => console.error('sync afterApply failed', who.space, e)),
+      );
+    }
+    return { ok: true, value: { results: out.value.results } };
   }
 
   async pull(user: string, since: number, limit?: number): Promise<Outcome<{ records: RecordView[]; next: string; more: boolean }>> {
+    const gone = this.gone();
+    if (gone) return gone;
     const wait = this.busy(`pull:${user}`, PULLS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     return { ok: true, value: this.store.pull(since, limit) };
@@ -74,6 +92,8 @@ export class SyncSpace extends DurableObject<Env> {
 
   /** Starts an upload, or answers with the file already started under this id. */
   async fileStart(space: string, user: string, f: { id: string; type: string; size: number }): Promise<Outcome<{ file: FileView }>> {
+    const gone = this.gone();
+    if (gone) return gone;
     const wait = this.busy(`part:${user}`, PARTS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     // No other request of this space runs until the upload is recorded, so one id is one upload.
@@ -88,6 +108,8 @@ export class SyncSpace extends DurableObject<Env> {
 
   /** Where part `n` of a file goes, once its length is right; the Worker sends the bytes to R2. */
   async filePart(space: string, user: string, fileId: string, n: number, length: number): Promise<Outcome<{ key: string; uploadId: string }>> {
+    const gone = this.gone();
+    if (gone) return gone;
     const wait = this.busy(`part:${user}`, PARTS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     const f = this.store.file(fileId);
@@ -114,15 +136,37 @@ export class SyncSpace extends DurableObject<Env> {
           parts.map((p) => ({ partNumber: p.number, etag: p.etag })),
         );
       } catch {
-        return refuse(400, 'invalid_input', "The parts sent don't match what was uploaded. Send the missing ones again.");
+        // The parts don't match, or R2 has dropped the upload (left unfinished for days): either
+        // way the parts go again, into a new upload, so the device never loops on a dead one.
+        await this.restart(space, f.id, f.upload_id, f.type);
+        return refuse(400, 'invalid_input', "The parts sent don't match what was uploaded. Send them again.");
       }
       this.store.fileCompleted(f.id);
       return { ok: true as const, value: { file: fileView({ ...f, complete: 1 }) } };
     });
   }
 
+  /** R2 refused a part (the upload is gone): a new upload for the same file, which the device fills from part 1. */
+  async fileRestart(space: string, fileId: string): Promise<void> {
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const f = this.store.file(fileId);
+      if (f && !f.complete) await this.restart(space, f.id, f.upload_id, f.type);
+    });
+  }
+
+  private async restart(space: string, fileId: string, uploadId: string, type: string): Promise<void> {
+    const key = filePrefix(space) + fileId;
+    await this.env.FILES.resumeMultipartUpload(key, uploadId)
+      .abort()
+      .catch(() => {});
+    const upload = await this.env.FILES.createMultipartUpload(key, { httpMetadata: { contentType: type } });
+    this.store.fileRestarted(fileId, upload.uploadId);
+  }
+
   /** Where a complete file is, for the Worker to send. */
   async fileGet(space: string, user: string, fileId: string): Promise<Outcome<{ key: string; type: string }>> {
+    const gone = this.gone();
+    if (gone) return gone;
     const wait = this.busy(`pull:${user}`, PULLS_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     const f = this.store.file(fileId);
@@ -130,8 +174,14 @@ export class SyncSpace extends DurableObject<Env> {
     return { ok: true, value: { key: filePrefix(space) + f.id, type: f.type } };
   }
 
-  /** Everything of this space goes: its files in R2, unfinished uploads, and its storage. */
+  /**
+   * Everything of this space goes: its files in R2, unfinished uploads, and its storage. A mark
+   * stays, so a request that was already on its way when the account or team went is refused
+   * rather than starting the space again.
+   */
   async wipe(space: string): Promise<void> {
+    // Marked first: other requests can run while R2 answers, and they find it gone.
+    this.store.markGone();
     for (const f of this.store.unfinished())
       await this.env.FILES.resumeMultipartUpload(filePrefix(space) + f.id, f.upload_id)
         .abort()
@@ -145,5 +195,6 @@ export class SyncSpace extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
     this.windows.clear();
     this.store.init();
+    this.store.markGone();
   }
 }

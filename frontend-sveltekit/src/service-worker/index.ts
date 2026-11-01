@@ -9,24 +9,37 @@ import { appName, homePath } from '#lib/config.ts';
 import { openUrl, readPush } from '#lib/sw/push.ts';
 import { precacheList, respond } from '#lib/sw/respond.ts';
 
-const CACHE = `app-${version}`;
+// Only caches named `app-…` are this worker's; anything else on the origin (an app's own) is left alone.
+const PREFIX = 'app-';
+const CACHE = `${PREFIX}${version}`;
 // The base path, from where the worker is registered (`/` unless the app sets `paths.base`).
 const BASE = new URL(self.registration.scope).pathname.replace(/\/$/, '');
+// Without `.html`: static hosts (Cloudflare Pages) redirect `/200.html` to `/200`, and a redirected
+// answer can't be served for a page.
+const SHELL = `${BASE}/200`;
 const PRECACHE = precacheList(BASE, immutable, assets, prerendered);
-const PRECACHED = new Set(PRECACHE);
+const PRECACHED = new Set([...PRECACHE, SHELL]);
 const OFFLINE = `${BASE}/offline`;
 const ICON = `${BASE}/icons/icon-192.png`;
 
 self.addEventListener('install', (event) => {
   // No skipWaiting here: an update waits until the person taps "Reload".
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  event.waitUntil(
+    caches.open(CACHE).then(async (cache) => {
+      await cache.addAll(PRECACHE);
+      // The shell on its own: a host that doesn't serve it (a dev preview) mustn't stop the install.
+      await cache.add(SHELL).catch(() => {});
+    }),
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -42,11 +55,15 @@ self.addEventListener('fetch', (event) => {
   // The API, analytics and the CAPTCHA go straight to the network.
   if (url.origin !== self.location.origin) return;
   event.respondWith(
-    caches
-      .open(CACHE)
-      .then((cache) =>
-        respond(request, { cache, fetch: (r) => fetch(r), precached: PRECACHED, offlinePath: OFFLINE }),
-      ),
+    caches.open(CACHE).then((cache) =>
+      respond(request, {
+        cache,
+        fetch: (r) => fetch(r),
+        precached: PRECACHED,
+        offlinePath: OFFLINE,
+        shellPath: SHELL,
+      }),
+    ),
   );
 });
 

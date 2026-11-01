@@ -13,7 +13,7 @@ import { d1 } from './db';
 import type { Env } from './env';
 import { Refusal } from './errors';
 import { devOutbox } from './mail';
-import { context, supportGuard, type AppEnv } from './middleware';
+import { clientCheck, context, supportGuard, type AppEnv } from './middleware';
 import { recordReport, serverReport } from './reports';
 import { admin } from './routes/admin';
 import { auth } from './routes/auth';
@@ -34,12 +34,14 @@ app.use(
   cors({
     origin: (origin, c) => (c.env.ALLOWED_ORIGINS ?? '').split(',').some((o: string) => o.trim() === origin) ? origin : null,
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowHeaders: ['authorization', 'content-type'],
+    allowHeaders: ['authorization', 'content-type', 'x-client-version'],
     exposeHeaders: ['retry-after'],
     maxAge: 86400,
   }),
 );
 app.use('*', context);
+// A copy of the app older than MIN_CLIENT is told to update before anything else (not on these two).
+app.use('*', clientCheck(['/api/health', '/api/features']));
 // A support session is held back from the account and security paths, whichever route has them.
 app.use('*', supportGuard);
 
@@ -47,7 +49,13 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.get('/features', (c) => {
   const { cfg } = c.var.ctx;
-  return c.json({ teams: cfg.teams, admin: !!cfg.admin, push: cfg.push ? { vapidPublicKey: cfg.push.publicKey } : null, sync: cfg.sync });
+  return c.json({
+    teams: cfg.teams,
+    admin: !!cfg.admin,
+    push: cfg.push ? { vapidPublicKey: cfg.push.publicKey } : null,
+    sync: cfg.sync,
+    minClient: cfg.minClient?.text ?? null,
+  });
 });
 
 app.get('/dev/mail', (c) => {

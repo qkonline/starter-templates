@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => ({
   // A plain constant, so the build drops the posthog-js import (and the service worker never
   // precaches it) when there's no key. `$app/env/public` values aren't folded that far.
   define: {
+    // When this build was made: sent as X-Client-Version, so a backend can tell a copy installed
+    // before a change it can't serve any more (MIN_CLIENT) to update.
+    __BUILT_AT__: JSON.stringify(new Date().toISOString()),
     __POSTHOG__: JSON.stringify(
       !!(process.env.PUBLIC_POSTHOG_KEY ?? loadEnv(mode, '.', 'PUBLIC_').PUBLIC_POSTHOG_KEY)?.trim(),
     ),

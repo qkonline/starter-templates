@@ -7,9 +7,17 @@
 // - Changes apply in the order sent; each change id once (`applied`), answered the same if sent
 //   again. Remembered for 31 days.
 // - `put` merges the fields it carries over the record's (later wins per field, by the order the
-//   space receives them, never the devices' clocks). `delete` empties the fields and leaves a
-//   marker; a `put` to a marker is refused with `conflict`.
-// - Every change gets the next `seq`, the space's own counter; pulls page by it.
+//   space receives them, never the devices' clocks). Fields the app guards (src/app/sync.ts) are
+//   the exception: an edit made on an older version than another device's change to that field
+//   is refused with `conflict`, for the person to resolve.
+// - `delete` leaves a marker that pulls send with no fields; the last fields are kept here
+//   (`kept`) so the record can be restored. A `put` to a marker is refused with `conflict`.
+// - Every change gets the next `seq`, the space's own counter: the record's version, and what
+//   pulls page by. Each field remembers the seq and session (device) that last set it.
+// - Who and which session made and last changed each record is kept (Rule 7).
+// - The tables are versioned (`MIGRATIONS`): a later release adds a step, never edits one.
+
+import { noRules, type SyncRules, type SyncWho } from './rules';
 
 /** What the Durable Object's `ctx.storage.sql` gives, and what the tests give in its place. */
 export interface Sql {
@@ -20,9 +28,11 @@ export const MINUTE = 60_000;
 export const HOUR = 60 * MINUTE;
 export const DAY = 24 * HOUR;
 
-/** Most changes in one batch, and most bytes in a batch or a record, or a pull page roughly. */
+/** Most changes in one batch, and most bytes in a batch, or a pull page roughly. */
 export const MAX_CHANGES = 100;
 export const MAX_BYTES = 256 * 1024;
+/** Most bytes a record's fields may be as JSON: under a batch's, so any record fits in one. */
+export const MAX_RECORD = 192 * 1024;
 /** Records in a pull page when the device doesn't say. */
 export const PAGE = 200;
 /** Changes a day per person in one space. Each is a few rows written (Workers Free: 100,000 a day app-wide). */
@@ -35,12 +45,12 @@ export const PART_SIZE = 8 * 1024 * 1024;
 export const MAX_FILE = 1024 ** 3;
 export const FILE_BYTES_PER_DAY = 2 * 1024 ** 3;
 
-export type Code = 'invalid_input' | 'not_found' | 'conflict' | 'too_large' | 'rate_limited';
+export type Code = 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'too_large' | 'rate_limited';
 
 /** A refusal, as plain data: it crosses from the Durable Object to the Worker. */
 export interface Refused {
   ok: false;
-  status: 400 | 404 | 409 | 413 | 429;
+  status: 400 | 403 | 404 | 409 | 413 | 429;
   code: Code;
   message: string;
   retryAfter?: number;
@@ -54,6 +64,7 @@ export const refuse = (status: Refused['status'], code: Code, message: string, r
   message,
   ...(retryAfter ? { retryAfter } : {}),
 });
+const gone = () => refuse(404, 'not_found', 'This data has been deleted.');
 const unreadable = () => refuse(400, 'invalid_input', "Those changes couldn't be read. Update the app and try again.");
 
 export interface Change {
@@ -63,6 +74,8 @@ export interface Change {
   op: 'put' | 'delete';
   fields?: Record<string, unknown>;
   at: string;
+  /** The record's version the device had when the change was made. */
+  base?: number;
 }
 
 export interface Result {
@@ -75,6 +88,7 @@ export interface Result {
 export interface RecordView {
   table: string;
   id: string;
+  version: string;
   fields: Record<string, unknown>;
   deleted: boolean;
   createdBy: string | null;
@@ -117,17 +131,19 @@ export function readChanges(text: string): Change[] | null {
   const out: Change[] = [];
   for (const c of list) {
     if (!isObject(c)) return null;
-    if (Object.keys(c).some((k) => !['id', 'table', 'record', 'op', 'fields', 'at'].includes(k))) return null;
+    if (Object.keys(c).some((k) => !['id', 'table', 'record', 'op', 'fields', 'at', 'base'].includes(k))) return null;
     if (!isSyncId(c.id) || !isTable(c.table) || !isSyncId(c.record) || !isTime(c.at)) return null;
+    if (c.base !== undefined && !(typeof c.base === 'string' && /^\d{1,15}$/.test(c.base))) return null;
+    const base = c.base === undefined ? {} : { base: Number(c.base) };
     if (c.op === 'put') {
       const fields = c.fields ?? {};
       if (!isObject(fields)) return null;
       const keys = Object.keys(fields);
       if (keys.length > 200 || !keys.every(isField)) return null;
-      out.push({ id: c.id, table: c.table, record: c.record, op: 'put', fields, at: c.at });
+      out.push({ id: c.id, table: c.table, record: c.record, op: 'put', fields, at: c.at, ...base });
     } else if (c.op === 'delete') {
       if (c.fields !== undefined) return null;
-      out.push({ id: c.id, table: c.table, record: c.record, op: 'delete', at: c.at });
+      out.push({ id: c.id, table: c.table, record: c.record, op: 'delete', at: c.at, ...base });
     } else return null;
   }
   return out;
@@ -136,43 +152,58 @@ export function readChanges(text: string): Change[] | null {
 /** Seconds until the next UTC midnight, when the daily counts start again. */
 const toMidnight = (now: number) => Math.max(1, Math.ceil((DAY - (now % DAY)) / 1000));
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS records (
-  tbl TEXT NOT NULL,
-  id TEXT NOT NULL,
-  fields TEXT NOT NULL,
-  deleted INTEGER NOT NULL DEFAULT 0,
-  seq INTEGER NOT NULL,
-  created_by TEXT,
-  updated_by TEXT,
-  created INTEGER NOT NULL,
-  updated INTEGER NOT NULL,
-  changed_at TEXT NOT NULL,
-  PRIMARY KEY (tbl, id)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS records_seq ON records (seq);
-CREATE TABLE IF NOT EXISTS applied (
-  id TEXT PRIMARY KEY,
-  at INTEGER NOT NULL,
-  code TEXT,
-  message TEXT
-);
-CREATE INDEX IF NOT EXISTS applied_at ON applied (at);
-CREATE TABLE IF NOT EXISTS usage (
-  key TEXT PRIMARY KEY,
-  day INTEGER NOT NULL,
-  count INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS files (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  size INTEGER NOT NULL,
-  upload_id TEXT NOT NULL,
-  complete INTEGER NOT NULL DEFAULT 0,
-  created_by TEXT NOT NULL,
-  created INTEGER NOT NULL
-);
-`;
+/**
+ * The tables, as steps: step n takes a space from version n to n+1, and runs once, in a
+ * transaction, the first time a space's object starts after the release that added it. A
+ * later release adds steps at the end; it never edits or removes one, since spaces already
+ * past it would never see the change.
+ */
+const MIGRATIONS: string[][] = [
+  [
+    `CREATE TABLE IF NOT EXISTS records (
+      tbl TEXT NOT NULL,
+      id TEXT NOT NULL,
+      fields TEXT NOT NULL,
+      deleted INTEGER NOT NULL DEFAULT 0,
+      seq INTEGER NOT NULL,
+      created_by TEXT,
+      updated_by TEXT,
+      created INTEGER NOT NULL,
+      updated INTEGER NOT NULL,
+      changed_at TEXT NOT NULL,
+      PRIMARY KEY (tbl, id)
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS records_seq ON records (seq)`,
+    `CREATE TABLE IF NOT EXISTS applied (
+      id TEXT PRIMARY KEY,
+      at INTEGER NOT NULL,
+      code TEXT,
+      message TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS applied_at ON applied (at)`,
+    `CREATE TABLE IF NOT EXISTS usage (
+      key TEXT PRIMARY KEY,
+      day INTEGER NOT NULL,
+      count INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS files (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      upload_id TEXT NOT NULL,
+      complete INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created INTEGER NOT NULL
+    )`,
+  ],
+  [
+    "ALTER TABLE records ADD COLUMN versions TEXT NOT NULL DEFAULT '{}'",
+    'ALTER TABLE records ADD COLUMN first INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE records ADD COLUMN kept TEXT',
+    'ALTER TABLE records ADD COLUMN created_session TEXT',
+    'ALTER TABLE records ADD COLUMN updated_session TEXT',
+  ],
+];
 
 interface RecordRow {
   tbl: string;
@@ -185,13 +216,24 @@ interface RecordRow {
   created: number;
   updated: number;
   changed_at: string;
+  /** Per field: [the seq that last set it, the session it came through]. */
+  versions: string;
+  /** The seq it was made at. */
+  first: number;
+  /** A deleted record's last fields. */
+  kept: string | null;
+  created_session: string | null;
+  updated_session: string | null;
 }
+
+type Versions = Record<string, [number, string | null]>;
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
 const view = (r: RecordRow): RecordView => ({
   table: r.tbl,
   id: r.id,
+  version: String(r.seq),
   fields: JSON.parse(r.fields) as Record<string, unknown>,
   deleted: !!r.deleted,
   createdBy: r.created_by,
@@ -208,13 +250,38 @@ export class SpaceStore {
     private readonly sql: Sql,
     /** Runs `fn` as one transaction: all of it or none. */
     private readonly transaction: <T>(fn: () => T) => T,
+    private readonly rules: SyncRules = noRules,
   ) {
     this.init();
   }
 
-  /** Makes the tables (again, after `deleteAll`). */
+  /** Brings the tables up to date (or makes them, again after `deleteAll`). */
   init(): void {
-    for (const statement of SCHEMA.split(';').map((s) => s.trim()).filter(Boolean)) this.sql.exec(statement);
+    this.sql.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+    const at = Number(this.meta('schema') ?? 0);
+    if (at > MIGRATIONS.length) throw new Error(`This space's data is from a newer release (version ${at}); deploy that release or later.`);
+    if (at === MIGRATIONS.length) return;
+    this.transaction(() => {
+      for (const step of MIGRATIONS.slice(at)) for (const statement of step) this.sql.exec(statement);
+      this.setMeta('schema', String(MIGRATIONS.length));
+    });
+  }
+
+  private meta(key: string): string | null {
+    return this.first<{ value: string }>('SELECT value FROM meta WHERE key = ?', key)?.value ?? null;
+  }
+
+  private setMeta(key: string, value: string): void {
+    this.sql.exec('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', key, value);
+  }
+
+  /** Whether the space was deleted: kept as a mark after its data goes, so nothing late writes it again. */
+  get isGone(): boolean {
+    return this.meta('gone') === '1';
+  }
+
+  markGone(): void {
+    this.setMeta('gone', '1');
   }
 
   private rows<T>(query: string, ...bindings: unknown[]): T[] {
@@ -243,10 +310,12 @@ export class SpaceStore {
     return true;
   }
 
-  /** Applies a batch for `user`, in order, as one transaction. */
-  push(user: string, text: string, now = Date.now()): Outcome<{ results: Result[] }> {
+  /** Applies a batch from `who`, in order, as one transaction. `applied` is what went in, for `afterApply`. */
+  push(who: SyncWho, text: string, now = Date.now()): Outcome<{ results: Result[]; applied: Change[] }> {
+    if (this.isGone) return gone();
     const changes = readChanges(text);
     if (!changes) return unreadable();
+    const user = who.user;
     return this.transaction(() => {
       if (now - this.lastSweep > HOUR) {
         this.sql.exec('DELETE FROM applied WHERE at < ?', now - REMEMBER_MS);
@@ -265,6 +334,7 @@ export class SpaceStore {
 
       let seq = this.first<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM records')?.seq ?? 0;
       const results: Result[] = [];
+      const applied: Change[] = [];
       for (const c of changes) {
         const before = seen.get(c.id);
         if (before) {
@@ -273,7 +343,7 @@ export class SpaceStore {
         }
         // The same change id twice in one batch: once.
         seen.set(c.id, { id: c.id, code: null, message: null });
-        const refusal = this.apply(c, user, ++seq, now);
+        const refusal = this.apply(c, who, ++seq, now);
         if (refusal) {
           seq--;
           seen.set(c.id, { id: c.id, code: refusal.code, message: refusal.message });
@@ -282,51 +352,84 @@ export class SpaceStore {
         } else {
           this.sql.exec('INSERT INTO applied (id, at) VALUES (?, ?)', c.id, now);
           results.push({ id: c.id, status: 'applied' });
+          applied.push(c);
         }
       }
-      return { ok: true as const, value: { results } };
+      return { ok: true as const, value: { results, applied } };
     });
   }
 
   /** One change; a refusal, or nothing when it was applied. */
-  private apply(c: Change, user: string, seq: number, now: number): { code: Code; message: string } | null {
+  private apply(c: Change, who: SyncWho, seq: number, now: number): { code: Code; message: string } | null {
+    const rules = this.rules.tables[c.table];
+    if (!rules && this.rules.onlyListed) return { code: 'invalid_input', message: 'This app has no such kind of record. Update the app.' };
     const row = this.first<RecordRow>('SELECT * FROM records WHERE tbl = ? AND id = ?', c.table, c.record);
+    const current = row ? { fields: JSON.parse(row.fields) as Record<string, unknown>, deleted: !!row.deleted } : null;
+    if (c.op === 'put' && current?.deleted) return { code: 'conflict', message: 'This was deleted on another device, so the change wasn’t kept.' };
+
+    if (c.op === 'put' && row && rules?.guard) {
+      // An edit made on a version older than another device's change to a guarded field.
+      const base = c.base ?? row.first;
+      const versions = JSON.parse(row.versions) as Versions;
+      const clash = Object.keys(c.fields ?? {}).filter((f) => {
+        const v = versions[f];
+        return (rules.guard === '*' || rules.guard!.includes(f)) && v && v[0] > base && v[1] !== who.session;
+      });
+      if (clash.length)
+        return {
+          code: 'conflict',
+          message: `Someone else changed ${clash.join(', ')} after you last had this record, so your change wasn’t applied. Compare the two and enter it again if it’s still right.`,
+        };
+    }
+
+    const refused = rules?.check?.(c, current, who);
+    if (refused) return refused;
+
     if (c.op === 'delete') {
-      if (row)
+      if (row) {
+        if (row.deleted) return null;
         this.sql.exec(
-          "UPDATE records SET fields = '{}', deleted = 1, seq = ?, updated_by = ?, updated = ?, changed_at = ? WHERE tbl = ? AND id = ?",
+          "UPDATE records SET kept = fields, fields = '{}', deleted = 1, seq = ?, updated_by = ?, updated_session = ?, updated = ?, changed_at = ? WHERE tbl = ? AND id = ?",
           seq,
-          user,
+          who.user,
+          who.session,
           now,
           c.at,
           c.table,
           c.record,
         );
+      }
       // Deleted before it ever arrived (made and deleted elsewhere): the marker, so a late edit is refused.
       else
         this.sql.exec(
-          "INSERT INTO records (tbl, id, fields, deleted, seq, created_by, updated_by, created, updated, changed_at) VALUES (?, ?, '{}', 1, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO records (tbl, id, fields, deleted, seq, first, created_by, updated_by, created_session, updated_session, created, updated, changed_at) VALUES (?, ?, '{}', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           c.table,
           c.record,
           seq,
-          user,
-          user,
+          seq,
+          who.user,
+          who.user,
+          who.session,
+          who.session,
           now,
           now,
           c.at,
         );
       return null;
     }
-    if (row?.deleted) return { code: 'conflict', message: 'This was deleted on another device, so the change wasn’t kept.' };
-    const fields = JSON.stringify({ ...(row ? (JSON.parse(row.fields) as object) : {}), ...c.fields });
-    if (new TextEncoder().encode(fields).length > MAX_BYTES)
-      return { code: 'too_large', message: 'This record would be over 256 KB, so the change wasn’t kept. Keep large things as files.' };
+    const fields = JSON.stringify({ ...current?.fields, ...c.fields });
+    if (new TextEncoder().encode(fields).length > MAX_RECORD)
+      return { code: 'too_large', message: 'This record would be over 192 KB, so the change wasn’t kept. Keep large things as files.' };
+    const versions = row ? (JSON.parse(row.versions) as Versions) : {};
+    for (const f of Object.keys(c.fields ?? {})) versions[f] = [seq, who.session];
     if (row)
       this.sql.exec(
-        'UPDATE records SET fields = ?, seq = ?, updated_by = ?, updated = ?, changed_at = ? WHERE tbl = ? AND id = ?',
+        'UPDATE records SET fields = ?, versions = ?, seq = ?, updated_by = ?, updated_session = ?, updated = ?, changed_at = ? WHERE tbl = ? AND id = ?',
         fields,
+        JSON.stringify(versions),
         seq,
-        user,
+        who.user,
+        who.session,
         now,
         c.at,
         c.table,
@@ -334,13 +437,17 @@ export class SpaceStore {
       );
     else
       this.sql.exec(
-        'INSERT INTO records (tbl, id, fields, deleted, seq, created_by, updated_by, created, updated, changed_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO records (tbl, id, fields, versions, deleted, seq, first, created_by, updated_by, created_session, updated_session, created, updated, changed_at) VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         c.table,
         c.record,
         fields,
+        JSON.stringify(versions),
         seq,
-        user,
-        user,
+        seq,
+        who.user,
+        who.user,
+        who.session,
+        who.session,
         now,
         now,
         c.at,
@@ -395,6 +502,10 @@ export class SpaceStore {
       now,
     );
     return this.file(f.id)!;
+  }
+
+  fileRestarted(id: string, uploadId: string): void {
+    this.sql.exec('UPDATE files SET upload_id = ? WHERE id = ?', uploadId, id);
   }
 
   fileCompleted(id: string): void {

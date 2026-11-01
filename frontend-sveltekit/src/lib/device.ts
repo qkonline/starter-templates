@@ -1,5 +1,6 @@
-// What this device keeps: the session token, and the id of the account that last signed in
-// here. When a different account signs in, everything the previous person left on the device
+// What this device keeps: the session token, the id of the account that last signed in here,
+// and copies of what the app needs to start (`keep`/`kept`: the sign-in settings, the switches,
+// the signed-in person), so a signed-in app opens with no connection. When a different account signs in, everything the previous person left on the device
 // goes first (localStorage, sessionStorage, and whatever an app registered with `onForget`),
 // except the device's own settings (`deviceKeys`: theme, mode, text size).
 //
@@ -13,6 +14,7 @@ const TOKEN = 'starter:token';
 const ACCOUNT = 'starter:account';
 const SUPPORT = 'starter:support';
 const SUPPORT_TAB = 'starter:support-tab';
+const KEPT = 'starter:kept:';
 
 /** Also kept in memory, for a browser that drops the mark from sessionStorage. */
 let wasSupportTab = false;
@@ -115,25 +117,73 @@ export function writeToken(token: string | null): void {
   }
   try {
     if (token) store()?.setItem(TOKEN, token);
-    else store()?.removeItem(TOKEN);
+    else {
+      store()?.removeItem(TOKEN);
+      // Signed out: the person's copy goes with the session.
+      store()?.removeItem(`${KEPT}me`);
+    }
   } catch {
     /* Storage full or blocked: the session lasts until the page closes. */
   }
 }
 
-const cleaners = new Set<() => void | Promise<void>>();
+/** The account that last signed in on this device (not a support tab's). */
+export function currentAccount(): string | null {
+  try {
+    return store()?.getItem(ACCOUNT) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keep a copy of something the app needs to start (`methods`, `features`, `me`) for opening
+ * offline. A support tab keeps nothing of the person it's in.
+ */
+export function keep(name: 'methods' | 'features' | 'me', value: unknown): void {
+  if (isSupportTab()) return;
+  try {
+    store()?.setItem(KEPT + name, JSON.stringify(value));
+  } catch {
+    /* Without the copy the app only needs a connection to start. */
+  }
+}
+
+/** The copy kept with `keep`, or null. */
+export function kept<T>(name: 'methods' | 'features' | 'me'): T | null {
+  if (isSupportTab()) return null;
+  try {
+    const raw = store()?.getItem(KEPT + name);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Why the device is forgetting someone, for the cleaners. */
+export interface Forgetting {
+  /** The account that was signed in here, if the device knew it. */
+  previous: string | null;
+  /** The account itself was deleted: nothing of it is worth keeping. */
+  deleted: boolean;
+}
+
+const cleaners = new Set<(why: Forgetting) => void | Promise<void>>();
 
 /**
  * Register something to wipe when the device forgets the previous person: an app's IndexedDB,
- * caches, in-memory stores. Returns a function that unregisters it.
+ * caches, in-memory stores. Returns a function that unregisters it. Register it in a module the
+ * app always loads (one imported by `#lib/session.svelte.ts` or the root layout), or it won't be
+ * there to run when someone else signs in.
  */
-export function onForget(clean: () => void | Promise<void>): () => void {
+export function onForget(clean: (why: Forgetting) => void | Promise<void>): () => void {
   cleaners.add(clean);
   return () => cleaners.delete(clean);
 }
 
 /** Remove everything this app keeps on the device, except the device's own settings. */
-export async function forgetDevice(): Promise<void> {
+export async function forgetDevice(opts: { deleted?: boolean } = {}): Promise<void> {
+  const why: Forgetting = { previous: currentAccount(), deleted: !!opts.deleted };
   // A support tab never touches the admin's device: only the tab's own storage goes, and the
   // mark that it was a support tab stays.
   const supportTab = isSupportTab();
@@ -155,7 +205,7 @@ export async function forgetDevice(): Promise<void> {
   } catch {
     /* ignore */
   }
-  await Promise.allSettled([...cleaners].map(async (clean) => clean()));
+  await Promise.allSettled([...cleaners].map(async (clean) => clean(why)));
 }
 
 /**

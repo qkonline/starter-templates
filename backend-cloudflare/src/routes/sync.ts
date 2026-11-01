@@ -8,13 +8,20 @@ import { isId, readBody, readCapped } from '../checks';
 import type { Ctx } from '../env';
 import { invalid, notFound, Refusal, tooMany } from '../errors';
 import { requireFeature, requireUser, requireVerifiedEmail, type AppEnv } from '../middleware';
+import type { SyncWho } from '../sync/rules';
 import { isMediaType, isSyncId, MAX_BYTES, MAX_FILE, PAGE, PART_SIZE, type Outcome } from '../sync/store';
 
 /** The space a request is for: `user:<id>`, or `team:<id>` for a member. Anything else is not_found. */
 async function spaceFor(ctx: Ctx, userId: string, team: string | undefined): Promise<string> {
-  if (team === undefined) return `user:${userId}`;
-  if (!ctx.cfg.teams || !isId(team) || !(await ctx.db.teamOf(team, userId))) throw notFound();
-  return `team:${team}`;
+  return (await whoIn(ctx, userId, '', team)).space;
+}
+
+/** The space, and who is asking in it: their session (one per device) and role in the team. */
+async function whoIn(ctx: Ctx, userId: string, session: string, team: string | undefined): Promise<SyncWho> {
+  if (team === undefined) return { user: userId, session, role: null, space: `user:${userId}` };
+  const membership = ctx.cfg.teams && isId(team) ? await ctx.db.teamOf(team, userId) : null;
+  if (!membership) throw notFound();
+  return { user: userId, session, role: membership.role, space: `team:${team}` };
 }
 
 const stubOf = (ctx: Ctx, space: string) => ctx.env.SPACES.get(ctx.env.SPACES.idFromName(space));
@@ -62,11 +69,11 @@ export const sync = new Hono<AppEnv>();
 for (const path of ['/sync', '/sync/*']) sync.use(path, requireFeature((cfg) => cfg.sync), requireUser, requireVerifiedEmail);
 
 sync.post('/sync/push', async (c) => {
-  const { ctx, user } = c.var;
-  const space = await spaceFor(ctx, user.id, c.req.query('team'));
+  const { ctx, user, session } = c.var;
+  const who = await whoIn(ctx, user.id, session.id, c.req.query('team'));
   const bytes = await readCapped(c.req.raw, MAX_BYTES);
   if (!bytes) throw new Refusal(413, 'too_large', 'That batch is over 256 KB. Send fewer changes at a time.');
-  return c.json(await ask(stubOf(ctx, space).push(user.id, new TextDecoder().decode(bytes))));
+  return c.json(await ask(stubOf(ctx, who.space).push(who, new TextDecoder().decode(bytes))));
 });
 
 sync.get('/sync/pull', async (c) => {
@@ -103,7 +110,8 @@ sync.put('/sync/files/:fileId/parts/:number', async (c) => {
   try {
     part = await ctx.env.FILES.resumeMultipartUpload(target.key, target.uploadId).uploadPart(n, bytes);
   } catch {
-    // R2 has dropped the upload (unfinished for days): it has to start again.
+    // R2 has dropped the upload (unfinished for days): a new one, which the device fills from part 1.
+    await stubOf(ctx, space).fileRestart(space, fileId);
     throw new Refusal(404, 'not_found', "That upload isn't here any more. Start it again.");
   }
   return c.json({ etag: part.etag });

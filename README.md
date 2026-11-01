@@ -101,9 +101,29 @@ More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#
 
 ## Starting a new app
 
-Copy `frontend-sveltekit/` and a backend, give the app its own `saltPrefix` (never changed once
-people have passwords), choose its default theme or make its own (above), then follow `backend-cloudflare/README.md` (`npm run setup`, then
-`npm run deploy`) and `frontend-sveltekit/README.md`.
+1. **Start from a release, not from a working copy.** Take a tagged version from GitHub, which
+   holds only what's meant to be shared (a working folder can also hold notes and tool files
+   kept out of git):
+
+   ```sh
+   git clone --depth 1 --branch v0.1.0 https://github.com/qkonline/starter-templates.git my-app
+   cd my-app && rm -rf .git && git init
+   ```
+
+2. **Keep the three folders side by side.** `contract/` comes too, even with only one frontend
+   and one backend: the frontend installs it (`"@starter/contract": "file:../contract"`), the
+   backend's tests and the contract suite read it, and it's where the app's own paths are
+   written first. Drop the backends the app doesn't use.
+3. **Write down where it came from.** `TEMPLATE_VERSION` at the root says which release this
+   is; keep it, and when taking a later release's fixes, read `CHANGELOG.md` from that version
+   on.
+4. Give the app its name: `APP_NAME` in `backend-cloudflare/wrangler.toml` salts every password,
+   so it's never changed once people have passwords (`npm run predeploy` refuses `starter`).
+5. Choose its default theme or make its own (above), then follow `backend-cloudflare/README.md`
+   (`npm run setup`, then `npm run deploy`) and `frontend-sveltekit/README.md`.
+6. Add the app's own paths, tables and pages beside the core ones, in the places made for them
+   (see "Building on it" in each folder's README), so a later release's fixes can be taken
+   without merging by hand.
 
 ## Licence
 

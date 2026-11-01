@@ -22,7 +22,12 @@ What's in it (requirement numbers from [`../docs/PRD.md`](../docs/PRD.md)):
   display, download my data, delete account.
 - **Installable and offline** (R3.1): a manifest, icons, a service worker that caches the app
   so it opens offline, an offline page and banner, and "A new version is ready" applied only
-  when the person taps Reload.
+  when the person taps Reload. Signed in, the app opens with no connection (or the backend
+  down) from copies of the person, the sign-in settings and the switches kept on the device,
+  and checks with the backend in the background.
+- **Old copies told to update** (R3.6): every request says when the build was made
+  (`X-Client-Version`); a backend whose `MIN_CLIENT` is later answers `client_outdated`, and
+  the app shows "Update needed" in place of the pages, fetches the new version and switches.
 - **Display preferences** (R3.2): theme (Fusion, or the app's own), mode (device,
   light, dark) and text size, per device, applied before the first paint.
 - **Security headers** (R3.3): `_headers` for Cloudflare Pages with HSTS and a report-only CSP
@@ -220,7 +225,9 @@ track('note_created', { length: 'short' }); // nothing personal in props
 - **Paged lists**: `Pager` from `#lib/pager.svelte.ts` takes a function returning
   `{ items, next }` and gives `items`, `more`, `loadMore()`, `reload()`.
 - **Data kept on the device** (IndexedDB, caches): register a cleaner with `onForget()` from
-  `#lib/device.ts`, so it's wiped when a different account signs in or the account is deleted.
+  `#lib/device.ts`, so it's wiped when a different account signs in or the account is deleted
+  (it's told which: `previous`, `deleted`). Register it in a module the app always loads, or it
+  won't be there to run.
   Settings of the device rather than the person go in `deviceKeys` there, so they stay.
   Records people create or change offline go through `#lib/db` (below), which already does this.
 - **New third-party scripts or hosts**: add them to `scripts/csp.ts`, or the CSP reports them.
@@ -253,14 +260,27 @@ const back = await data.file(ME, photo);
   outbox goes in batches of at most 100 changes; `rate_limited` waits as long as `Retry-After`
   says plus up to 2 s at random, and resends the same batch; no answer backs off up to 5 minutes.
 - **What people see**: `SyncStatus` in the header while changes are waiting, `SyncRefused` when
-  the backend refused some (with its message). `syncState` has `pending`, `running`, `error`,
-  `refused`.
-- **Merging**: each record keeps `base` (the backend's) and `fields` (`base` plus this device's
-  unsent changes). Pulled records replace `base` without losing unsent changes; a refused change
-  is dropped and `fields` worked out again.
-- **Signing out** gives the outbox 5 seconds; what's left stays for this person's next sign-in.
-  Another account signing in here, or deleting the account, wipes the database (`onForget`).
-- Records over 256 KB are refused on the device: keep large things as files (at most 1 GB).
+  the backend refused some (with its message) or turned a team away. `syncState` has `pending`,
+  `running`, `error`, `refused`, `lost` and `stale`.
+- **Nothing made here is dropped without the person.** A refused change leaves the outbox for
+  `syncState.refused` with what it set (`change.fields`), kept in IndexedDB until dismissed,
+  so a page can show it beside the record to enter again. A team the backend turns away (the
+  person removed, the team deleted, or a switch turned off by mistake) is set aside with its
+  unsent changes until the person taps Try again or Discard.
+- **Merging**: each record keeps `base` (the backend's), its `version`, and `fields` (`base`
+  plus this device's unsent changes). Each change carries the version it was made on, so the
+  backend can refuse a stale edit to a field the app guards. Pulled records replace `base`
+  without losing unsent changes.
+- **One database per account** (`starter-data-<account id>`): on a shared computer, one
+  person signing in never wipes another's unsent work. Signing out gives the outbox 5 seconds,
+  then deletes the account's database if everything reached the backend, or keeps it for the
+  person's next sign-in here (the account page says so first). Deleting the account deletes it.
+  A support tab works in its own database, filled from the backend and deleted when the
+  session ends.
+- **Its structure is versioned** (`UPGRADES` in `src/lib/db/local.ts`): add steps at the end,
+  never edit one. When another tab opens a newer release, this one lets go of the database and
+  `syncState.stale` asks for a reload.
+- Records over 192 KB are refused on the device: keep large things as files (at most 1 GB).
 
 ## Components and themes
 

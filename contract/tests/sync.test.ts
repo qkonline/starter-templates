@@ -6,8 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { describe, expect, test } from 'vitest';
 import { API, call, confirm, expectError, expectReply, features, mailed, methods, signIn, signUp as signUpOnly } from './lib';
 
-type Change = { id: string; table: string; record: string; op: 'put' | 'delete'; fields?: Record<string, unknown>; at: string };
-type SyncRecord = { table: string; id: string; fields: Record<string, unknown>; deleted: boolean; createdBy: string | null; updatedBy: string | null };
+type Change = { id: string; table: string; record: string; op: 'put' | 'delete'; fields?: Record<string, unknown>; at: string; base?: string };
+type SyncRecord = { table: string; id: string; version: string; fields: Record<string, unknown>; deleted: boolean; createdBy: string | null; updatedBy: string | null };
 
 const id = () => randomUUID();
 const at = () => new Date().toISOString();
@@ -94,6 +94,19 @@ describe.skipIf(!features.sync)('sync', () => {
     expect(byId(records, record)[0]!.fields).toEqual({ patient: 'Ali', slot: '09:30', note: 'Bring scans' });
   });
 
+  test("a record's version changes with every change, and a change can say which it was made on", async () => {
+    const { token } = await signUp();
+    const record = id();
+    await push(token, [put('notes', record, { title: 'a' })]);
+    const first = byId((await pullAll(token)).records, record)[0]!;
+    expect(first.version).toMatch(/^\d+$/);
+    const edit = { ...put('notes', record, { title: 'b' }), base: first.version };
+    expect((await push(token, [edit])).map((r) => r.status)).toEqual(['applied']);
+    const second = byId((await pullAll(token)).records, record)[0]!;
+    expect(Number(second.version)).toBeGreaterThan(Number(first.version));
+    expect(second.fields).toEqual({ title: 'b' });
+  });
+
   test('a delete stays as a marker, and a later edit to it is refused, not brought back', async () => {
     const { token } = await signUp();
     const record = id();
@@ -113,9 +126,9 @@ describe.skipIf(!features.sync)('sync', () => {
 
   test('a change that cannot be applied is refused on its own; the rest of the batch is applied', async () => {
     const { token } = await signUp();
-    // A record grown past 256 KB by merging is refused; the change next to it still goes in.
+    // A record grown past 192 KB by merging is refused; the change next to it still goes in.
     const grow = id();
-    await push(token, [put('notes', grow, { a: 'x'.repeat(200 * 1024) })]);
+    await push(token, [put('notes', grow, { a: 'x'.repeat(150 * 1024) })]);
     const good = put('notes', id(), { title: 'fine' });
     const results = await push(token, [put('notes', grow, { b: 'y'.repeat(60 * 1024) }), good]);
     expect(results.map((r) => r.status)).toEqual(['refused', 'applied']);

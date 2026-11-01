@@ -107,6 +107,10 @@ confirming the address. Each app reads its settings from `/auth/methods`.
   and attributes. Page views are sent on every client-side navigation. *(PostHog in both exam apps)*
 - **R3.5 Hosting.** The frontend builds to static files and deploys to Cloudflare Pages
   (`_headers`, SPA fallback); any static host works the same way.
+- **R3.6 Old copies told to update.** Every request carries when the frontend was built; a
+  backend can set the oldest build it serves, and an older copy is told `client_outdated`,
+  shows "Update needed" in place of its pages, and updates. Signed in, the app opens without a
+  connection from what the device kept from the last start.
 
 ## 4. Notifications
 
@@ -184,8 +188,11 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 - **R11.3 Sent in order, each change once.** The outbox goes in batches (at most 100 changes,
   256 KB) on opening the app, on reconnecting, shortly after a write and every few minutes, one
   tab at a time. Every change has its own id, so a batch sent again is applied once. Fields
-  merge, the later arrival winning a field both set; deletes stay as markers, and a later edit
-  to a deleted record is refused, shown to the person who made it, never silently dropped.
+  merge, the later arrival winning a field both set, except fields the app guards: an edit made
+  on an older version than another device's change to one is refused for the person to resolve.
+  Deletes stay as markers (the backend keeps the content), and a later edit to a deleted record
+  is refused. A refused change is kept on the device with what it set and shown to the person
+  who made it, never silently dropped. The app can check each change to its tables.
 - **R11.4 Never overwhelmed.** Each space is applied one request at a time in its own Durable
   Object, side by side with every other. Over a space's limits (60 batches a minute, 10,000
   changes a day per person) or when busy, the backend answers `rate_limited` with `Retry-After`
@@ -195,6 +202,8 @@ confirming the address. Each app reads its settings from `/auth/methods`.
   weeks, catches up a page at a time.
 - **R11.6 Files in parts** (8 MiB, up to 1 GiB a file), each part kept as it's sent, so a
   dropped connection carries on from the next one.
-- **R11.7 The device shows what's waiting** ("3 changes waiting") and what was refused. Signing
-  out gives the outbox a few seconds to go; what's left stays for that person's next sign-in, and
-  another account signing in on the device wipes it. Deleting an account or a team deletes its data.
+- **R11.7 The device shows what's waiting** ("3 changes waiting") and what was refused. Each
+  account has its own data on the device: signing out gives the outbox a few seconds to go, then
+  deletes the account's data if it all reached the backend, or keeps it for that person's next
+  sign-in; another account signing in never wipes it. A team the backend turns away keeps its
+  unsent changes until the person discards them. Deleting an account or a team deletes its data.

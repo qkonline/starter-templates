@@ -3,6 +3,10 @@
   `requireVerifiedEmail` on and the email unconfirmed, only the gate shows (PRD R1.7). The
   header shows Teams, Admin and the bell only when /features has them on. With sync on, it
   starts keeping the device's data in step and shows what's still waiting.
+
+  Offline first: when the device kept what the app needs from the last start, the app opens from
+  it at once and checks with the backend in the background (and again on reconnecting), so it
+  opens with no connection, or with the backend down. Only a first start needs the network.
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
@@ -10,8 +14,10 @@
   import { page } from '$app/state';
   import { messageOf } from '#lib/api/index.ts';
   import { appName } from '#lib/config.ts';
-  import { startSync } from '#lib/db/index.svelte.ts';
-  import { auth, loadFeatures, loadMethods, loadUser } from '#lib/session.svelte.ts';
+  import { onMount } from 'svelte';
+  import { startSync, useAccount } from '#lib/db/index.svelte.ts';
+  import type { User } from '#lib/api/index.ts';
+  import { auth, loadFeatures, loadMethods, loadUser, startFromDevice } from '#lib/session.svelte.ts';
   import Avatar from '#lib/components/Avatar.svelte';
   import Bell from '#lib/components/Bell.svelte';
   import EmailGate from '#lib/components/EmailGate.svelte';
@@ -26,26 +32,57 @@
   let phase = $state<'loading' | 'ready' | 'failed'>('loading');
   let problem = $state('');
 
+  /** Asks the backend; null when the session no longer works (then off to sign in). */
+  async function check(): Promise<User | null> {
+    const [, , user] = await Promise.all([loadMethods(), loadFeatures(), loadUser()]);
+    if (!user) {
+      const here = page.url.pathname + page.url.search;
+      await goto(`${resolve('signin')}?next=${encodeURIComponent(here)}`, { replace: true });
+    }
+    return user;
+  }
+
+  async function enter(user: User) {
+    await useAccount(user.id, !!auth.support);
+    phase = 'ready';
+    // Not for an unconfirmed person when the app requires confirming: the backend refuses them.
+    const held = !user.emailVerified && !!auth.methods?.requireVerifiedEmail;
+    if (auth.features?.sync && !held) startSync();
+  }
+
   async function start() {
     phase = 'loading';
+    if (startFromDevice()) {
+      await enter(auth.user!);
+      void recheck();
+      return;
+    }
     try {
-      const [, , user] = await Promise.all([loadMethods(), loadFeatures(), loadUser()]);
-      if (!user) {
-        const here = page.url.pathname + page.url.search;
-        await goto(`${resolve('signin')}?next=${encodeURIComponent(here)}`, { replace: true });
-        return;
-      }
-      phase = 'ready';
-      // Not for an unconfirmed person when the app requires confirming: the backend refuses them.
-      const held = !user.emailVerified && !!auth.methods?.requireVerifiedEmail;
-      if (auth.features?.sync && !held) startSync();
+      const user = await check();
+      if (user) await enter(user);
     } catch (e) {
       problem = messageOf(e);
       phase = 'failed';
     }
   }
 
+  /** In the background: what the backend says now (a switch turned on, the name changed). */
+  async function recheck() {
+    try {
+      const user = await check();
+      if (user) await enter(user);
+    } catch {
+      /* No answer: the device's copies stand until the next try. */
+    }
+  }
+
   start();
+
+  onMount(() => {
+    const online = () => void recheck();
+    addEventListener('online', online);
+    return () => removeEventListener('online', online);
+  });
 
   const user = $derived(auth.user);
   const gated = $derived(!!user && !user.emailVerified && !!auth.methods?.requireVerifiedEmail);

@@ -50,6 +50,10 @@ export interface ApiOptions {
   onSignedOut?: () => void;
   /** A reply said the app holds this person back until they confirm their email. */
   onUnverified?: () => void;
+  /** Sent as X-Client-Version: when this build was made. */
+  clientVersion?: string;
+  /** A reply said this copy of the app is too old for the backend (`client_outdated`). */
+  onOutdated?: () => void;
   fetch?: typeof fetch;
 }
 
@@ -64,9 +68,11 @@ export function createApi(options: ApiOptions) {
       const token = options.getToken();
       if (token && !request.headers.has('authorization'))
         request.headers.set('authorization', `Bearer ${token}`);
+      if (options.clientVersion) request.headers.set('x-client-version', options.clientVersion);
       return request;
     },
     async onResponse({ request, response }) {
+      if (response.status === 426) options.onOutdated?.();
       if (response.status !== 401 && response.status !== 403) return;
       const body = await response
         .clone()
