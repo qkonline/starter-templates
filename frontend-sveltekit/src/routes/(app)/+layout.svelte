@@ -27,6 +27,8 @@
   import SyncStatus from '#lib/components/shell/SyncStatus.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
   import Button from '#lib/components/ui/Button.svelte';
+  import Trans from '#lib/components/Trans.svelte';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
   let { children } = $props();
 
@@ -103,25 +105,27 @@
       <header class="bar">
         <div class="bar-in">
           <a class="brand" href={resolve('app')}><span class="logo" aria-hidden="true"></span>{appName}</a>
-          <nav aria-label="Main">
-            <a href={resolve('app')} aria-current={current(resolve('app'))}>Home</a>
+          <nav aria-label={t('Main')}>
+            <a href={resolve('app')} aria-current={current(resolve('app'))}>{t('Home')}</a>
             {#each appNav as item (item.path)}
               {@const href = `${resolve('')}${item.path}`.replace(/\/\/+/g, '/')}
-              <a {href} aria-current={item.match === 'prefix' ? within(href) : current(href)}>{item.label}</a>
+              <a {href} aria-current={item.match === 'prefix' ? within(href) : current(href)}
+                >{t(item.label)}</a
+              >
             {/each}
             {#if teamsOn}
               <a href={resolve('teams')} aria-current={current(resolve('teams')) ?? current(resolve('team'))}
-                >Teams</a
+                >{t('Teams')}</a
               >
             {/if}
             {#if adminOn}
-              <a href={resolve('admin')} aria-current={within(resolve('admin'))}>Admin</a>
+              <a href={resolve('admin')} aria-current={within(resolve('admin'))}>{t('Admin')}</a>
             {/if}
             {#if auth.features?.sync}<SyncStatus />{/if}
             <Bell />
             <a class="me" href={resolve('account')} aria-current={current(resolve('account'))}>
               <Avatar {user} size={28} />
-              <span>Account</span>
+              <span>{t('Account')}</span>
             </a>
           </nav>
         </div>
@@ -130,11 +134,17 @@
       {#if auth.features?.sync}<SyncRefused />{/if}
 
       {#if !user.emailVerified}
-        <div class="banner" role="region" aria-label="Email not confirmed">
+        <div class="banner" role="region" aria-label={t('Email not confirmed')}>
           <p>
-            Confirm your email address, <strong>{user.email}</strong>, so you can always get back into your
-            account.
-            <a href="{resolve('account')}#email">Confirm it</a>
+            <Trans
+              text={msg(
+                'Confirm your email address, <b>{email}</b>, so you can always get back into your account.',
+              )}
+              vars={{ email: user.email }}
+            >
+              {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+            </Trans>
+            <a href="{resolve('account')}#email">{t('Confirm it')}</a>
           </p>
         </div>
       {/if}
@@ -144,21 +154,21 @@
       </main>
 
       <footer class="foot muted small">
-        <Button type="button" variant="link" onclick={() => feedback?.show()}>Send feedback</Button>
-        <a href={resolve('contact')}>Contact</a>
-        <a href={resolve('privacy')}>Privacy</a>
+        <Button type="button" variant="link" onclick={() => feedback?.show()}>{t('Send feedback')}</Button>
+        <a href={resolve('contact')}>{t('Contact')}</a>
+        <a href={resolve('privacy')}>{t('Privacy')}</a>
       </footer>
       <FeedbackDialog bind:this={feedback} />
     </div>
   {/if}
 {:else if phase === 'failed'}
   <main id="main" class="center stack">
-    <h1>Can’t reach the app</h1>
+    <h1>{t('Can’t reach the app')}</h1>
     <p role="alert">{problem}</p>
-    <div><Button onclick={start}>Try again</Button></div>
+    <div><Button onclick={start}>{t('Try again')}</Button></div>
   </main>
 {:else}
-  <div class="center" role="status"><Spinner /><span class="visually-hidden">Loading</span></div>
+  <div class="center" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
 {/if}
 
 <style>

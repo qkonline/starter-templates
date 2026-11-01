@@ -1,5 +1,6 @@
 // Dates for people: "Today, 14:05", "Yesterday, 09:12", "3 Oct", "3 Oct 2025".
 
+import { i18n, t } from '#lib/i18n/index.svelte.ts';
 import { sameSitePath } from '#lib/same-site.ts';
 
 const DAY = 86_400_000;
@@ -8,13 +9,23 @@ function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-export function formatWhen(iso: string, now = new Date(), locale?: string): string {
+/**
+ * The locale for dates: the browser's own when it's in the app's current language (so an en-GB
+ * browser keeps "3 Oct" and a 24-hour clock), else the app's language.
+ */
+function dateLocale(): string | undefined {
+  const browser = typeof navigator === 'undefined' ? undefined : navigator.language;
+  const base = (tag: string) => tag.toLowerCase().split('-')[0];
+  return browser && base(browser) === base(i18n.locale) ? browser : i18n.locale;
+}
+
+export function formatWhen(iso: string, now = new Date(), locale = dateLocale()): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(d);
   const days = Math.round((startOfDay(now) - startOfDay(d)) / DAY);
-  if (days === 0) return `Today, ${time}`;
-  if (days === 1) return `Yesterday, ${time}`;
+  if (days === 0) return t('Today, {time}', { time });
+  if (days === 1) return t('Yesterday, {time}', { time });
   const sameYear = d.getFullYear() === now.getFullYear();
   return new Intl.DateTimeFormat(locale, {
     day: 'numeric',

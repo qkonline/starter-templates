@@ -11,6 +11,7 @@
   import { notifications } from '#lib/notifications.svelte.ts';
   import { onPush } from '#lib/pwa.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import FormError from './FormError.svelte';
   import Button from './ui/Button.svelte';
 
@@ -75,7 +76,7 @@
     bind:this={button}
     type="button"
     class="icon"
-    aria-label={count ? `Notifications, ${count} unread` : 'Notifications'}
+    aria-label={count ? t('Notifications, {count} unread', { count }) : t('Notifications')}
     aria-expanded={open}
     aria-controls="bell-list"
     onclick={toggle}
@@ -93,33 +94,33 @@
   </button>
 
   {#if open}
-    <button type="button" class="catch" aria-label="Close notifications" tabindex="-1" onclick={close}
+    <button type="button" class="catch" aria-label={t('Close notifications')} tabindex="-1" onclick={close}
     ></button>
     <!-- ph-no-capture: what a notification says stays out of PostHog's autocapture. -->
     <section
       bind:this={panel}
       id="bell-list"
       class="panel pop ph-no-capture"
-      aria-label="Notifications"
+      aria-label={t('Notifications')}
       tabindex="-1"
     >
       <header>
-        <h2>Notifications</h2>
+        <h2>{t('Notifications')}</h2>
         {#if count}
           <Button
             type="button"
             variant="link"
             size="small"
             disabled={all.busy}
-            onclick={() => all.run(() => notifications.markAll())}>Mark all as read</Button
+            onclick={() => all.run(() => notifications.markAll())}>{t('Mark all as read')}</Button
           >
         {/if}
       </header>
       <FormError message={all.error || list.error} />
       {#if list.loaded && list.items.length === 0}
-        <p class="empty muted">Nothing yet. Notifications show here.</p>
+        <p class="empty muted">{t('Nothing yet. Notifications show here.')}</p>
       {:else if !list.loaded && list.loading}
-        <p class="empty muted">Loading…</p>
+        <p class="empty muted">{t('Loading…')}</p>
       {/if}
       <ul>
         {#each list.items as n (n.id)}
@@ -128,7 +129,7 @@
               <span class="title">{n.title}</span>
               {#if n.body}<span class="body">{n.body}</span>{/if}
               <span class="when">{formatWhen(n.createdAt)}</span>
-              {#if !n.readAt}<span class="dot"><span class="visually-hidden">Unread</span></span>{/if}
+              {#if !n.readAt}<span class="dot"><span class="visually-hidden">{t('Unread')}</span></span>{/if}
             </button>
           </li>
         {/each}
@@ -136,7 +137,7 @@
       {#if list.more}
         <div class="more">
           <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}>
-            {list.loading ? 'Loading…' : 'Show older'}
+            {list.loading ? t('Loading…') : t('Show older')}
           </Button>
         </div>
       {/if}

@@ -1,6 +1,8 @@
 // Every refusal is a contract `Error`: a fixed code the app acts on, and a message in plain
 // words that the app shows as it is (PRD R9.1).
 
+import type { Vars } from './i18n';
+
 export type ErrorCode =
   | 'invalid_input'
   | 'invalid_code'
@@ -29,6 +31,8 @@ export class Refusal extends Error {
     message: string,
     /** Seconds to wait, for rate_limited. */
     readonly retryAfter?: number,
+    /** Values for the message's {placeholders}, filled in after it's translated (src/i18n.ts). */
+    readonly vars?: Vars,
   ) {
     super(message);
   }
@@ -39,10 +43,10 @@ export const notFound = () => new Refusal(404, 'not_found', "That isn't here.");
 export const wrongCode = () => new Refusal(400, 'invalid_code', "That code isn't right, or it has expired. Ask for a new one.");
 export const wrongCredentials = () => new Refusal(400, 'invalid_credentials', "That email and password don't match.");
 export const emailTaken = () => new Refusal(409, 'email_taken', 'Another account already uses that email.');
-export const tooMany = (retryAfter?: number, message = 'Too many tries. Wait a while, then try again.') =>
-  new Refusal(429, 'rate_limited', message, retryAfter);
-export const invalid = (message: string) => new Refusal(400, 'invalid_input', message);
-export const forbidden = (message = "You can't do that here.") => new Refusal(403, 'forbidden', message);
+export const tooMany = (retryAfter?: number, message = 'Too many tries. Wait a while, then try again.', vars?: Vars) =>
+  new Refusal(429, 'rate_limited', message, retryAfter, vars);
+export const invalid = (message: string, vars?: Vars) => new Refusal(400, 'invalid_input', message, undefined, vars);
+export const forbidden = (message = "You can't do that here.", vars?: Vars) => new Refusal(403, 'forbidden', message, undefined, vars);
 export const suspended = () =>
   new Refusal(403, 'account_suspended', 'This account has been suspended. Contact us if you think that is a mistake.');
 export const unverified = () => new Refusal(403, 'email_unverified', 'Confirm your email address first. We can send you a code.');

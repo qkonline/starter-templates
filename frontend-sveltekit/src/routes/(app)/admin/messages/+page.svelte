@@ -11,10 +11,11 @@
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
   import Segmented from '#lib/components/ui/Segmented.svelte';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
   const statuses = [
-    { value: 'open', label: 'Open' },
-    { value: 'done', label: 'Done' },
+    { value: 'open', label: msg('Open') },
+    { value: 'done', label: msg('Done') },
   ] as const;
 
   let status = $state<'open' | 'done'>('open');
@@ -49,12 +50,18 @@
 
 <div class="stack">
   <div class="row spread">
-    <h1>Messages</h1>
-    <Segmented legend="Show" hideLegend options={statuses} value={status} onchange={show} />
+    <h1>{t('Messages')}</h1>
+    <Segmented
+      legend={t('Show')}
+      hideLegend
+      options={statuses.map((s) => ({ ...s, label: t(s.label) }))}
+      value={status}
+      onchange={show}
+    />
   </div>
   <FormError message={list.error || change.error} />
   {#if list.loaded && list.items.length === 0}
-    <p class="muted">{status === 'open' ? 'Nothing waiting.' : 'Nothing marked done yet.'}</p>
+    <p class="muted">{status === 'open' ? t('Nothing waiting.') : t('Nothing marked done yet.')}</p>
   {/if}
   <Panel>
     <List>
@@ -62,14 +69,14 @@
         <li class="message">
           <div class="stack tight">
             <p class="small">
-              <Badge>{m.kind === 'feedback' ? 'Feedback' : 'Contact'}</Badge>
+              <Badge>{m.kind === 'feedback' ? t('Feedback') : t('Contact')}</Badge>
               <strong>{m.name ?? m.email}</strong>
               {#if m.name}<span class="muted">&lt;{m.email}&gt;</span>{/if}
               <span class="muted">· {formatWhen(m.createdAt)}</span>
             </p>
             <p class="text">{m.message}</p>
-            {#if m.page}<p class="muted small">On {m.page}</p>{/if}
-            <p class="small"><a href={mailtoHref(m.email)}>Reply by email</a></p>
+            {#if m.page}<p class="muted small">{t('On {page}', { page: m.page })}</p>{/if}
+            <p class="small"><a href={mailtoHref(m.email)}>{t('Reply by email')}</a></p>
           </div>
           <Button
             type="button"
@@ -77,7 +84,7 @@
             disabled={changing === m.id}
             onclick={() => mark(m, status === 'open' ? 'done' : 'open')}
           >
-            {status === 'open' ? 'Mark done' : 'Open again'}
+            {status === 'open' ? t('Mark done') : t('Open again')}
           </Button>
         </li>
       {/each}
@@ -86,7 +93,7 @@
   {#if list.more}
     <div>
       <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</Button
+        >{t('Show more')}</Button
       >
     </div>
   {/if}

@@ -16,6 +16,7 @@
     stopPasskeyAutofill,
   } from '#lib/passkeys.ts';
   import { auth, signedIn } from '#lib/session.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Captcha from '#lib/components/Captcha.svelte';
@@ -28,6 +29,7 @@
   import Field from '#lib/components/ui/Field.svelte';
   import Input from '#lib/components/ui/Input.svelte';
   import Notice from '#lib/components/ui/Notice.svelte';
+  import Trans from '#lib/components/Trans.svelte';
 
   const methods = $derived(auth.methods!);
   // Derived, so a link to this page with other parameters (another `next`) is followed.
@@ -61,7 +63,7 @@
 
   function withPassword(e: SubmitEvent) {
     e.preventDefault();
-    const problem = emailProblem(email) ?? (password ? null : 'Enter your password.');
+    const problem = emailProblem(email) ?? (password ? null : t('Enter your password.'));
     if (problem) {
       task.error = problem;
       return;
@@ -111,7 +113,7 @@
   function withGoogle() {
     const nonce = newOAuthNonce();
     if (!nonce) {
-      task.error = 'This browser blocks storage for this site, so signing in with Google can’t work here.';
+      task.error = t('This browser blocks storage for this site, so signing in with Google can’t work here.');
       return;
     }
     try {
@@ -126,14 +128,14 @@
   const google = $derived(methods.oauth.includes('google'));
 </script>
 
-<AuthShell title="Sign in">
+<AuthShell title={t('Sign in')}>
   {#if expired}
-    <Notice role="status">You were signed out. Sign in again to carry on.</Notice>
+    <Notice role="status">{t('You were signed out. Sign in again to carry on.')}</Notice>
   {/if}
 
   {#if mode === 'password'}
     <form class="stack" onsubmit={withPassword} novalidate>
-      <Field label="Email" id="email">
+      <Field label={t('Email')} id="email">
         <Input
           type="email"
           bind:value={email}
@@ -150,16 +152,16 @@
           action="signin"
         />{/if}
       <FormError message={task.error} />
-      <SubmitButton {task} busyLabel="Signing in…">Sign in</SubmitButton>
+      <SubmitButton {task} busyLabel={t('Signing in…')}>{t('Sign in')}</SubmitButton>
       <p class="small">
         <a href="{resolve('forgot')}{email ? `?email=${encodeURIComponent(email.trim())}` : ''}"
-          >Forgot your password?</a
+          >{t('Forgot your password?')}</a
         >
       </p>
     </form>
   {:else if mode === 'code'}
     <form class="stack" onsubmit={sendCode} novalidate>
-      <Field label="Email" id="code-email">
+      <Field label={t('Email')} id="code-email">
         <Input
           type="email"
           bind:value={email}
@@ -175,37 +177,44 @@
           action="code"
         />{/if}
       <FormError message={task.error} />
-      <SubmitButton {task} busyLabel="Sending…">Email me a code</SubmitButton>
+      <SubmitButton {task} busyLabel={t('Sending…')}>{t('Email me a code')}</SubmitButton>
       <p class="small">
         <Button type="button" variant="link" onclick={() => switchTo('password')}
-          >Use my password instead</Button
+          >{t('Use my password instead')}</Button
         >
       </p>
     </form>
   {:else}
     <form class="stack" onsubmit={verifyCode} novalidate>
-      <p>We sent a code to <strong>{email.trim()}</strong>. It works for 10 minutes.</p>
+      <p>
+        <Trans
+          text={msg('We sent a code to <b>{email}</b>. It works for 10 minutes.')}
+          vars={{ email: email.trim() }}
+        >
+          {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+        </Trans>
+      </p>
       <CodeInput id="code" bind:value={code} />
       <FormError message={task.error} />
-      <SubmitButton {task} busyLabel="Checking…">Sign in</SubmitButton>
+      <SubmitButton {task} busyLabel={t('Checking…')}>{t('Sign in')}</SubmitButton>
       <p class="small">
-        <Button type="button" variant="link" onclick={() => switchTo('code')}>Send a new code</Button>
+        <Button type="button" variant="link" onclick={() => switchTo('code')}>{t('Send a new code')}</Button>
       </p>
     </form>
   {/if}
 
   {#if canPasskey || google || (methods.emailCode && mode === 'password')}
-    <Divider>or</Divider>
+    <Divider>{t('or')}</Divider>
     <div class="stack others">
       {#if canPasskey}
         <SubmitButton
           task={passkeyTask}
           type="button"
           variant="plain"
-          busyLabel="Waiting for your device…"
+          busyLabel={t('Waiting for your device…')}
           onclick={withPasskey}
         >
-          Sign in with a passkey
+          {t('Sign in with a passkey')}
         </SubmitButton>
       {/if}
       {#if google}
@@ -228,19 +237,19 @@
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.95 10.95 0 0 0 12 1 11 11 0 0 0 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
             />
           </svg>
-          Continue with Google
+          {t('Continue with Google')}
         </Button>
       {/if}
       {#if methods.emailCode && mode === 'password'}
-        <Button type="button" wide onclick={() => switchTo('code')}>Email me a code instead</Button>
+        <Button type="button" wide onclick={() => switchTo('code')}>{t('Email me a code instead')}</Button>
       {/if}
       <FormError message={passkeyTask.error} />
     </div>
   {/if}
 
   <p class="muted">
-    New here? <a href="{resolve('signup')}{next ? `?next=${encodeURIComponent(next)}` : ''}"
-      >Create an account</a
+    {t('New here?')}
+    <a href="{resolve('signup')}{next ? `?next=${encodeURIComponent(next)}` : ''}">{t('Create an account')}</a
     >
   </p>
 </AuthShell>

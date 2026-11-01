@@ -253,6 +253,44 @@ the app's, and it never touches them, so its fixes merge without hand work:
 - **New third-party scripts or hosts**: add them to `src/lib/app/csp.ts`, or the CSP blocks them.
 - **The look**: see [Components and themes](#components-and-themes).
 
+## Languages
+
+Every text people see goes through `t()` from `#lib/i18n/index.svelte.ts`, with the English as
+the key (gettext style), so pages read as plain English and nothing has to be named:
+
+```svelte
+<script lang="ts">
+  import { msg, t, tn } from '#lib/i18n/index.svelte.ts';
+  import Trans from '#lib/components/Trans.svelte';
+</script>
+
+<h1>{t('Your notes')}</h1>
+<p>{tn(count, '1 note', '{count} notes')}</p>
+<Field label={t('Title')} id="title"><Input bind:value={title} /></Field>
+<Trans text={msg('Shared with <b>{team}</b>.')} vars={{ team: team.name }}>
+  {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+</Trans>
+```
+
+- `{placeholders}`, never `${}` inside `t()`; counts with `tn()`, which uses each language's
+  plural rules; a sentence with markup in it is one `<Trans>` (its `text` in `msg()` when it
+  has a placeholder: in a quoted attribute Svelte reads `{name}` as code).
+- A label in a list at the top of a module is `msg('…')` there and `t(item.label)` where it's
+  shown, so it follows a change of language. Dates and numbers: `formatDate`, `formatNumber`,
+  `formatWhen` (`#lib/format.ts`).
+- **Adding a language**: a file in `src/lib/app/i18n/` (the app's own, never touched by a
+  release) mapping each English text to its translation, listed in its `index.ts` with its own
+  name and direction (`dir: 'rtl'` for Urdu, Arabic…). Account → Display then shows a language
+  picker; the choice is kept on the device, and `lang` and `dir` are set before the first
+  paint. Anything not translated shows in English.
+- `npm run i18n` lists every text (`--missing` per language). It, and the unit tests, fail on a
+  translation of a text that's no longer in the code, or one whose `{placeholders}` or `<tags>`
+  differ from the English.
+- Every request says the language (`Accept-Language`), so the backend's messages and emails
+  come in it too: translate those in `backend-cloudflare/src/app/i18n.ts`.
+- Right to left: the layout uses physical margins in places; check a right-to-left language's
+  pages before shipping it, and prefer `margin-inline-start` and the like in new styles.
+
 ## Offline data
 
 With `SYNC = "true"` on the backend, the app's own records live in IndexedDB first and sync

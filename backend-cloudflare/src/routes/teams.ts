@@ -11,7 +11,8 @@ import type { InviteRow, MemberRow, ReceivedInviteRow, Role, TeamRow } from '../
 import type { Ctx } from '../env';
 import { forbidden, invalid, lastAdmin, notFound, Refusal, tooMany } from '../errors';
 import { DAY, limit } from '../limits';
-import { sendMail } from '../mail';
+import { sendMail, trHtml } from '../mail';
+import { tr } from '../i18n';
 import { needsConfirmedEmail, requireFeature, requireUser, type AppEnv } from '../middleware';
 import { notify } from '../notify';
 import { deleteTeam } from '../deletion';
@@ -85,17 +86,20 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 /** The invite email, with the link to the frontend's /invite page. */
 async function mailInvite(ctx: Ctx, i: { email: string; role: Role; by_name: string | null; by_email: string }, teamName: string, token: string) {
+  const { lang } = ctx;
   const who = i.by_name ?? i.by_email;
   const link = `${ctx.cfg.appUrl}/invite?token=${token}`;
-  const as = i.role === 'admin' ? 'an admin' : i.role === 'viewer' ? 'a viewer (who sees but changes nothing)' : 'a member';
-  const after = `Sign in with this email address (${i.email}) to join. The invite works for 7 days.`;
+  const role = tr(lang, i.role === 'admin' ? 'an admin' : i.role === 'viewer' ? 'a viewer (who sees but changes nothing)' : 'a member');
+  const vars = { who, team: teamName, app: ctx.cfg.title, role };
+  const after = tr(lang, 'Sign in with this email address ({email}) to join. The invite works for 7 days.', { email: i.email });
+  const join = tr(lang, 'Join the team');
   await sendMail(ctx, {
     to: i.email,
-    subject: `${who} invited you to ${teamName} on ${ctx.cfg.title}`,
-    text: `${who} invited you to join ${teamName} on ${ctx.cfg.title} as ${as}.\n\nJoin the team: ${link}\n\n${after}`,
+    subject: tr(lang, '{who} invited you to {team} on {app}', vars),
+    text: `${tr(lang, '{who} invited you to join {team} on {app} as {role}.', vars)}\n\n${join}: ${link}\n\n${after}`,
     html:
-      `<p style="font:16px/1.5 system-ui,sans-serif">${esc(who)} invited you to join <b>${esc(teamName)}</b> on ${esc(ctx.cfg.title)} as ${as}.</p>` +
-      `<p><a href="${esc(link)}" style="display:inline-block;font:600 15px system-ui,sans-serif;background:#16181d;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Join the team</a></p>` +
+      `<p style="font:16px/1.5 system-ui,sans-serif">${trHtml(lang, '{who} invited you to join {team} on {app} as {role}.', vars, ['team'])}</p>` +
+      `<p><a href="${esc(link)}" style="display:inline-block;font:600 15px system-ui,sans-serif;background:#16181d;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">${esc(join)}</a></p>` +
       `<p style="font:14px/1.5 system-ui,sans-serif;color:#5b6170">${esc(after)}</p>`,
   });
 }
@@ -115,7 +119,7 @@ teams.post('/teams', async (c) => {
   const b = await readBody(c.req.raw, ['name']);
   const name = cleanName(b.name);
   if (!name) throw invalid('Give the team a name of 1 to 60 characters.');
-  if ((await ctx.db.teamsOf(user.id)).length >= MAX_TEAMS) throw invalid(`You're in ${MAX_TEAMS} teams, as many as one person can be. Leave one first.`);
+  if ((await ctx.db.teamsOf(user.id)).length >= MAX_TEAMS) throw invalid("You're in {max} teams, as many as one person can be. Leave one first.", { max: MAX_TEAMS });
   const id = randomToken(12);
   await ctx.db.createTeam({ id, name, userId: user.id, now: Date.now() });
   return c.json({ team: teamView((await ctx.db.teamOf(id, user.id))!) });
@@ -212,7 +216,11 @@ teams.post('/teams/:teamId/invites', async (c) => {
   }
   const invitee = await ctx.db.userByEmail(email);
   if (invitee)
-    await notify(ctx, [invitee.id], { title: `${user.name ?? user.email} invited you to ${team.name}`, body: 'Open your invites to join the team.', url: '/invites' });
+    await notify(ctx, [invitee.id], {
+      title: tr(ctx.lang, '{who} invited you to {team}', { who: user.name ?? user.email, team: team.name }),
+      body: tr(ctx.lang, 'Open your invites to join the team.'),
+      url: '/invites',
+    });
   return c.json({ invite: sentView(row) });
 });
 
@@ -270,7 +278,7 @@ teams.post('/invites/accept', async (c) => {
   if (!invite || invite.email !== user.email || invite.expires < now) throw notFound();
   // The same cap as making a team: joining one is how else someone's list of teams grows.
   if ((await ctx.db.teamsOf(user.id)).length >= MAX_TEAMS && !(await ctx.db.teamOf(invite.team_id, user.id)))
-    throw invalid(`You're in ${MAX_TEAMS} teams, as many as one person can be. Leave one first.`);
+    throw invalid("You're in {max} teams, as many as one person can be. Leave one first.", { max: MAX_TEAMS });
   const used = await ctx.db.acceptInvite(invite.id, user.id, user.email, now);
   if (!used) throw notFound();
   // The emailed link proves the address.

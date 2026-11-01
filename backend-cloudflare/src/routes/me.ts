@@ -117,7 +117,7 @@ me.post('/me/email/verify', async (c) => {
   } else if (b.currentPasswordKey !== undefined || b.passwordKey !== undefined) {
     throw invalid("This account has no password, so there's none to give.");
   } else if (b.currentCode === undefined) {
-    throw invalid(`Enter the code we sent to ${user.email} as well.`);
+    throw invalid('Enter the code we sent to {email} as well.', { email: user.email });
   }
   const leaving = { purpose: 'leave' as const, subject: user.email, bind: user.id };
   const currentCode = user.password ? null : cleanCode(b.currentCode);
@@ -153,7 +153,7 @@ me.put('/me/photo', async (c) => {
   // Read no further than 2 MB, whatever Content-Length says (or doesn't).
   const bytes = await readCapped(c.req.raw, MAX_PHOTO);
   if (!bytes) throw new Refusal(413, 'too_large', 'That image is over 2 MB. Pick a smaller one.');
-  if (!looksRight(bytes)) throw invalid(`That file isn't the ${type.slice(6).toUpperCase()} image it says it is.`);
+  if (!looksRight(bytes)) throw invalid("That file isn't the {format} image it says it is.", { format: type.slice(6).toUpperCase() });
   await limit(ctx, `photos:user:${user.id}`, PHOTOS_PER_HOUR, HOUR, "That's a lot of new photos. Try again in an hour.");
   // A new id with each photo, so its address changes and it can be cached for good.
   const photo = randomToken(12);

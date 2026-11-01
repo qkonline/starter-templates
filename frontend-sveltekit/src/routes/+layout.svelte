@@ -10,7 +10,7 @@
   import { afterNavigate } from '$app/navigation';
   import { analytics, routeName } from '#lib/analytics/index.ts';
   import { isSupportTab } from '#lib/device.ts';
-  import { startI18n } from '#lib/i18n/index.svelte.ts';
+  import { startI18n, t } from '#lib/i18n/index.svelte.ts';
   import { followThemeColor } from '#lib/preferences.ts';
   import { startPwa } from '#lib/pwa.svelte.ts';
   import { startErrorReporting } from '#lib/report.ts';
@@ -50,7 +50,7 @@
   });
 </script>
 
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main">{t('Skip to content')}</a>
 <SupportBanner />
 <OfflineBanner />
 {#if auth.outdated}

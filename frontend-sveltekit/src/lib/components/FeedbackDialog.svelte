@@ -7,6 +7,7 @@
   import { api } from '#lib/api/index.ts';
   import { auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Captcha from './Captcha.svelte';
   import FormError from './FormError.svelte';
   import SubmitButton from './SubmitButton.svelte';
@@ -35,7 +36,7 @@
   function send(e: SubmitEvent) {
     e.preventDefault();
     if (!message.trim()) {
-      task.error = 'Write a few words first.';
+      task.error = t('Write a few words first.');
       return;
     }
     task.run(async () => {
@@ -59,14 +60,17 @@
 <dialog bind:this={dialog} class="pop" aria-labelledby="feedback-h" onclose={() => (open = false)}>
   {#if sent}
     <div class="stack">
-      <h2 id="feedback-h">Thank you</h2>
-      <p>Your feedback is on its way.</p>
-      <div><Button type="button" onclick={close}>Close</Button></div>
+      <h2 id="feedback-h">{t('Thank you')}</h2>
+      <p>{t('Your feedback is on its way.')}</p>
+      <div><Button type="button" onclick={close}>{t('Close')}</Button></div>
     </div>
   {:else}
     <form class="stack" onsubmit={send} novalidate>
-      <h2 id="feedback-h">Send feedback</h2>
-      <Field label="What’s on your mind?" hint="Sent with the page you’re on, so we know what you mean.">
+      <h2 id="feedback-h">{t('Send feedback')}</h2>
+      <Field
+        label={t('What’s on your mind?')}
+        hint={t('Sent with the page you’re on, so we know what you mean.')}
+      >
         <Textarea class="message" rows={5} maxlength={5000} bind:value={message} />
       </Field>
       {#if open && auth.methods?.captcha}<Captcha
@@ -76,8 +80,8 @@
         />{/if}
       <FormError message={task.error} />
       <div class="row">
-        <SubmitButton {task} wide={false} busyLabel="Sending…">Send</SubmitButton>
-        <Button type="button" onclick={close}>Cancel</Button>
+        <SubmitButton {task} wide={false} busyLabel={t('Sending…')}>{t('Send')}</SubmitButton>
+        <Button type="button" onclick={close}>{t('Cancel')}</Button>
       </div>
     </form>
   {/if}

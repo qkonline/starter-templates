@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { forceUpdate, pwa } from '#lib/pwa.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Button from '../ui/Button.svelte';
 
   let busy = $state(false);
@@ -20,14 +21,16 @@
 </script>
 
 <main id="main" class="center stack">
-  <h1>Update needed</h1>
-  <p>This version of the app is out of date. Update it to carry on; nothing you saved is lost.</p>
+  <h1>{t('Update needed')}</h1>
+  <p>{t('This version of the app is out of date. Update it to carry on; nothing you saved is lost.')}</p>
   {#if !pwa.online}
-    <p class="muted">Connect to the internet to get the new version.</p>
+    <p class="muted">{t('Connect to the internet to get the new version.')}</p>
   {:else if notYet}
-    <p class="muted" role="status">The new version isn’t ready yet. Try again in a few minutes.</p>
+    <p class="muted" role="status">{t('The new version isn’t ready yet. Try again in a few minutes.')}</p>
   {/if}
-  <div><Button variant="primary" onclick={update} disabled={busy || !pwa.online}>Update now</Button></div>
+  <div>
+    <Button variant="primary" onclick={update} disabled={busy || !pwa.online}>{t('Update now')}</Button>
+  </div>
 </main>
 
 <style>

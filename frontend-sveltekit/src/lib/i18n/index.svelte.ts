@@ -4,9 +4,13 @@
 //
 //   t('Enter the code we sent to {email}.', { email })        // placeholders in {braces}
 //   tn(count, '1 change waiting', '{count} changes waiting')   // plurals, by the language's rules
-//   <Trans text="Read the <link>privacy notice</link>.">       // markup inside a sentence:
-//     {#snippet link(s)}<a href="/privacy">{s}</a>{/snippet}   // components/Trans.svelte
+//   <Trans text={msg('Hello <b>{name}</b>, read the <link>notice</link>.')} vars={{ name }}>
+//     {#snippet b(s: string)}<strong>{s}</strong>{/snippet}    // markup inside a sentence:
+//     {#snippet link(s: string)}<a href="/privacy">{s}</a>{/snippet}  // components/Trans.svelte
 //   </Trans>
+//
+// (With a {placeholder}, Trans takes `text={msg('…')}`: in a quoted attribute Svelte would read
+// `{name}` as code.)
 //
 // A label kept in a list at the top of a module (`{ value, label }`) stays English there and is
 // translated where it's shown (`t(option.label)`), so it follows a change of language.

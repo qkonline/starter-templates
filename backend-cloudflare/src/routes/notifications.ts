@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { isId, paged, readBody, readCursor } from '../checks';
 import type { NotificationRow } from '../db';
 import { invalid } from '../errors';
+import { tr } from '../i18n';
 import { HOUR, limit } from '../limits';
 import { requireFeature, requireUser, type AppEnv } from '../middleware';
 import { notify } from '../notify';
@@ -80,7 +81,7 @@ push.post('/me/push/test', async (c) => {
   if (!(await ctx.db.pushSubs(user.id)).length) throw invalid('Turn on push on this device first.');
   await limit(ctx, `pushtest:${user.id}`, TESTS_PER_HOUR, HOUR, 'That is enough tests for now. Try again in an hour.');
   // Delivery that fails still counts as sent: the test is in the list either way.
-  await notify(ctx, [user.id], { title: 'Test notification', body: 'Push works on this device.', url: null }, { wait: true });
+  await notify(ctx, [user.id], { title: tr(ctx.lang, 'Test notification'), body: tr(ctx.lang, 'Push works on this device.'), url: null }, { wait: true });
   return c.body(null, 204);
 });
 

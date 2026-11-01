@@ -168,8 +168,8 @@ export class SyncSpace extends DurableObject<Env> {
     if (!f || f.deleted) return refuse(404, 'not_found', "That upload isn't here. Start it again.");
     if (f.complete) return refuse(409, 'conflict', 'That file is already complete.');
     const want = partLength(f.size, n);
-    if (want === null) return refuse(400, 'invalid_input', `That file has ${partsOf(f.size)} parts.`);
-    if (length !== want) return refuse(400, 'invalid_input', `Part ${n} should be ${want} bytes.`);
+    if (want === null) return refuse(400, 'invalid_input', 'That file has {count} parts.', undefined, { count: partsOf(f.size) });
+    if (length !== want) return refuse(400, 'invalid_input', 'Part {number} should be {bytes} bytes.', undefined, { number: n, bytes: want });
     return { ok: true, value: { key: filePrefix(space) + f.id, uploadId: f.upload_id } };
   }
 
@@ -182,7 +182,7 @@ export class SyncSpace extends DurableObject<Env> {
       if (f.complete) return { ok: true as const, value: { file: fileView(f) } };
       const count = partsOf(f.size);
       if (parts.length !== count || parts.some((p, i) => p.number !== i + 1))
-        return refuse(400, 'invalid_input', `Send all ${count} parts, in order, to finish this file.`);
+        return refuse(400, 'invalid_input', 'Send all {count} parts, in order, to finish this file.', undefined, { count });
       try {
         await this.env.FILES.resumeMultipartUpload(filePrefix(space) + f.id, f.upload_id).complete(
           parts.map((p) => ({ partNumber: p.number, etag: p.etag })),

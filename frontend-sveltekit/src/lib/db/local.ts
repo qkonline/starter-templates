@@ -17,6 +17,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction, type StoreNames } from 'idb';
 import { newId, isSyncId } from './ids';
+import { t } from '#lib/i18n/index.svelte.ts';
 
 export type Fields = Record<string, unknown>;
 /** 'me', or the id of a team whose shared data this is. */
@@ -218,13 +219,13 @@ export async function openLocal(name: string, hooks: OpenHooks = {}) {
     const records = tx.objectStore('records');
     const now = new Date().toISOString();
     const found = await records.get([space, table, id]);
-    if (op === 'put' && found?.deleted) throw new Error('That was deleted, so it can’t be changed.');
+    if (op === 'put' && found?.deleted) throw new Error(t('That was deleted, so it can’t be changed.'));
     const change: OutboxEntry['change'] = { id: newId(), table, record: id, op, at: now };
     if (op === 'put') change.fields = fields ?? {};
     if (found?.version) change.base = found.version;
     const next = view(found?.fields ?? {}, found?.deleted ?? false, [change]);
     if (bytes(next.fields) > MAX_RECORD)
-      throw new Error('That’s too much for one record. Keep large things as files.');
+      throw new Error(t('That’s too much for one record. Keep large things as files.'));
     const record: LocalRecord = {
       space,
       table,
@@ -435,8 +436,8 @@ export async function openLocal(name: string, hooks: OpenHooks = {}) {
 
     /** Keeps a file here and queues it for upload; its id, for a record's field. */
     async saveFile(space: Space, blob: Blob, id = newId()): Promise<string> {
-      if (!blob.size) throw new Error('That file is empty.');
-      if (blob.size > MAX_FILE) throw new Error('Files can be at most 1 GB.');
+      if (!blob.size) throw new Error(t('That file is empty.'));
+      if (blob.size > MAX_FILE) throw new Error(t('Files can be at most 1 GB.'));
       await db.put('files', {
         space,
         id,

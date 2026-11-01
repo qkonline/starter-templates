@@ -16,6 +16,7 @@ import { sha256 } from './crypto';
 import { finishCleanups } from './deletion';
 import { runDueJobs, whenJobDies } from './jobs';
 import { Refusal } from './errors';
+import { tr } from './i18n';
 import { devOutbox } from './mail';
 import { clientCheck, context, supportGuard, type AppEnv } from './middleware';
 import { recordReport, serverReport } from './reports';
@@ -82,12 +83,12 @@ app.route('/', sync);
 // The app's own paths: src/app/routes.ts (README, "Building on it").
 app.route('/', appRoutes);
 
-app.notFound((c) => c.json({ code: 'not_found', message: "That isn't here." }, 404));
+app.notFound((c) => c.json({ code: 'not_found', message: tr(c.var.ctx?.lang ?? 'en', "That isn't here.") }, 404));
 
 app.onError(async (e, c) => {
   if (e instanceof Refusal) {
     if (e.retryAfter) c.header('retry-after', String(e.retryAfter));
-    return c.json({ code: e.code, message: e.message }, e.status);
+    return c.json({ code: e.code, message: tr(c.var.ctx?.lang ?? 'en', e.message, e.vars) }, e.status);
   }
   console.error(e);
   // Kept with the browsers' reports for the admin area (PRD R7.2); Workers logs keep the rest.
@@ -98,7 +99,7 @@ app.onError(async (e, c) => {
     const tell = postAlert(c.env, await sha256(report.key.join('\n')), report.message, report.url ?? '', report.detail ?? '');
     ctx.waitUntil ? ctx.waitUntil(tell) : await tell;
   }
-  return c.json({ code: 'server_error', message: 'Something went wrong on our side. Try again in a minute.' }, 500);
+  return c.json({ code: 'server_error', message: tr(ctx?.lang ?? 'en', 'Something went wrong on our side. Try again in a minute.') }, 500);
 });
 
 // Durable Object classes must be exported from the Worker's main module.

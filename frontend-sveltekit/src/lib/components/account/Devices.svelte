@@ -5,6 +5,7 @@
   import { formatWhen } from '#lib/format.ts';
   import { signOut } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
   import Badge from '../ui/Badge.svelte';
@@ -38,7 +39,7 @@
       .run(async () => {
         await api.endSession(s.id);
         sessions = (sessions ?? []).filter((x) => x.id !== s.id);
-        status = `Signed out on ${s.device}.`;
+        status = t('Signed out on {device}.', { device: s.device });
       })
       .finally(() => (ending = null));
   }
@@ -48,7 +49,7 @@
     others.run(async () => {
       await api.signOutOthers();
       sessions = (sessions ?? []).filter((x) => x.current);
-      status = 'Every other device is signed out.';
+      status = t('Every other device is signed out.');
     });
   }
 
@@ -57,7 +58,7 @@
 
 <div class="stack">
   {#if sessions === null}
-    {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
+    {#if load.error}<FormError message={load.error} />{:else}<p class="muted">{t('Loading…')}</p>{/if}
   {:else}
     <List>
       {#each sessions as s (s.id)}
@@ -65,10 +66,13 @@
           <div>
             <p class="title">
               {s.device}
-              {#if s.current}<Badge>This device</Badge>{/if}
+              {#if s.current}<Badge>{t('This device')}</Badge>{/if}
             </p>
             <p class="muted small">
-              Signed in {formatWhen(s.createdAt)} · Last used {formatWhen(s.lastUsedAt)}
+              {t('Signed in {signedIn} · Last used {lastUsed}', {
+                signedIn: formatWhen(s.createdAt),
+                lastUsed: formatWhen(s.lastUsedAt),
+              })}
             </p>
           </div>
           <Button
@@ -76,7 +80,9 @@
             size="small"
             disabled={ending === s.id}
             onclick={() => endOne(s)}
-            aria-label={s.current ? 'Sign out on this device' : `Sign out on ${s.device}`}>Sign out</Button
+            aria-label={s.current
+              ? t('Sign out on this device')
+              : t('Sign out on {device}', { device: s.device })}>{t('Sign out')}</Button
           >
         </li>
       {/each}
@@ -90,10 +96,10 @@
         type="button"
         wide={false}
         variant="plain"
-        busyLabel="Signing out…"
+        busyLabel={t('Signing out…')}
         onclick={endOthers}
       >
-        Sign out all other devices
+        {t('Sign out all other devices')}
       </SubmitButton>
     {/if}
     <span class="success" role="status">{status}</span>

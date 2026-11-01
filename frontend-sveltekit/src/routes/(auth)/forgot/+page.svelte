@@ -8,6 +8,7 @@
   import { api } from '#lib/api/index.ts';
   import { emailProblem, makeKey, passwordProblem } from '#lib/password.ts';
   import { auth, signedIn } from '#lib/session.svelte.ts';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Captcha from '#lib/components/Captcha.svelte';
@@ -18,6 +19,7 @@
   import Button from '#lib/components/ui/Button.svelte';
   import Field from '#lib/components/ui/Field.svelte';
   import Input from '#lib/components/ui/Input.svelte';
+  import Trans from '#lib/components/Trans.svelte';
 
   const methods = $derived(auth.methods!);
 
@@ -46,7 +48,7 @@
     e.preventDefault();
     if (!sentTo) return;
     const problem =
-      (code.trim() ? null : 'Enter the code from the email.') ??
+      (code.trim() ? null : t('Enter the code from the email.')) ??
       passwordProblem(password, methods.password.minLength);
     if (problem) {
       resetTask.error = problem;
@@ -61,9 +63,9 @@
 </script>
 
 {#if !sentTo}
-  <AuthShell title="Reset your password" lead="We’ll email you a code to set a new one.">
+  <AuthShell title={t('Reset your password')} lead={t('We’ll email you a code to set a new one.')}>
     <form class="stack" onsubmit={send} novalidate>
-      <Field label="Email" id="email">
+      <Field label={t('Email')} id="email">
         <Input
           type="email"
           bind:value={email}
@@ -79,23 +81,27 @@
           action="forgot"
         />{/if}
       <FormError message={sendTask.error} />
-      <SubmitButton task={sendTask} busyLabel="Sending…">Email me a code</SubmitButton>
+      <SubmitButton task={sendTask} busyLabel={t('Sending…')}>{t('Email me a code')}</SubmitButton>
     </form>
-    <p class="muted"><a href={resolve('signin')}>Back to sign in</a></p>
+    <p class="muted"><a href={resolve('signin')}>{t('Back to sign in')}</a></p>
   </AuthShell>
 {:else}
   <AuthShell
-    title="Check your email"
-    lead="If {sentTo} has an account, a code is on its way. It works for 10 minutes."
+    title={t('Check your email')}
+    lead={t('If {email} has an account, a code is on its way. It works for 10 minutes.', { email: sentTo })}
   >
     <form class="stack" onsubmit={reset} novalidate>
       <CodeInput id="code" bind:value={code} />
       <PasswordInput
         id="password"
         bind:value={password}
-        label="New password"
+        label={t('New password')}
         autocomplete="new-password"
-        hint="At least {methods.password.minLength} characters. Other devices will be signed out."
+        hint={tn(
+          methods.password.minLength,
+          'At least 1 character. Other devices will be signed out.',
+          'At least {count} characters. Other devices will be signed out.',
+        )}
       />
       <!-- For password managers: the account this password belongs to. -->
       <input
@@ -108,13 +114,16 @@
         aria-hidden="true"
       />
       <FormError message={resetTask.error} />
-      <SubmitButton task={resetTask} busyLabel="Setting your password…">Set password and sign in</SubmitButton
+      <SubmitButton task={resetTask} busyLabel={t('Setting your password…')}
+        >{t('Set password and sign in')}</SubmitButton
       >
     </form>
     <p class="muted">
-      No email? Check spam, or <Button type="button" variant="link" onclick={() => (sentTo = null)}
-        >send another code</Button
-      >.
+      <Trans text="No email? Check spam, or <again>send another code</again>.">
+        {#snippet again(s: string)}<Button type="button" variant="link" onclick={() => (sentTo = null)}
+            >{s}</Button
+          >{/snippet}
+      </Trans>
     </p>
   </AuthShell>
 {/if}

@@ -13,6 +13,7 @@
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
   import Button from '#lib/components/ui/Button.svelte';
+  import { t } from '#lib/i18n/index.svelte.ts';
 
   let { children } = $props();
 
@@ -41,12 +42,12 @@
 {#if phase === 'ready'}
   {@render children()}
 {:else if phase === 'failed'}
-  <AuthShell title="Can’t reach the app">
+  <AuthShell title={t('Can’t reach the app')}>
     <p role="alert">{problem}</p>
-    <div><Button onclick={start}>Try again</Button></div>
+    <div><Button onclick={start}>{t('Try again')}</Button></div>
   </AuthShell>
 {:else}
-  <div class="loading" role="status"><Spinner /><span class="visually-hidden">Loading</span></div>
+  <div class="loading" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
 {/if}
 
 <style>

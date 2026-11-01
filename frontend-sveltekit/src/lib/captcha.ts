@@ -1,6 +1,8 @@
 // Cloudflare Turnstile, loaded only when /auth/methods names it. Explicit rendering, so a widget
 // appears exactly where a form puts <Captcha>, and the script loads once per page life.
 
+import { t } from '#lib/i18n/index.svelte.ts';
+
 export interface TurnstileOptions {
   sitekey: string;
   callback?: (token: string) => void;
@@ -37,11 +39,11 @@ export function loadTurnstile(): Promise<Turnstile> {
     const script = document.createElement('script');
     script.src = TURNSTILE_SRC;
     script.onload = () =>
-      window.turnstile ? resolve(window.turnstile) : reject(new Error('The security check didn’t load.'));
+      window.turnstile ? resolve(window.turnstile) : reject(new Error(t('The security check didn’t load.')));
     script.onerror = () => {
       loading = null;
       script.remove();
-      reject(new Error('The security check didn’t load. Check your connection, then reload the page.'));
+      reject(new Error(t('The security check didn’t load. Check your connection, then reload the page.')));
     };
     document.head.append(script);
   });
@@ -108,7 +110,7 @@ export class TokenQueue {
       };
       const timer = setTimeout(() => {
         this.waiting = this.waiting.filter((w) => w !== entry);
-        reject(new Error('The security check is taking too long. Try again.'));
+        reject(new Error(t('The security check is taking too long. Try again.')));
       }, timeoutMs);
       this.waiting.push(entry);
     });

@@ -54,15 +54,18 @@ export interface Refused {
   code: Code;
   message: string;
   retryAfter?: number;
+  /** Values for the message's {placeholders}, filled in once it's translated. */
+  vars?: Record<string, string | number>;
 }
 export type Outcome<T> = { ok: true; value: T } | Refused;
 
-export const refuse = (status: Refused['status'], code: Code, message: string, retryAfter?: number): Refused => ({
+export const refuse = (status: Refused['status'], code: Code, message: string, retryAfter?: number, vars?: Refused['vars']): Refused => ({
   ok: false,
   status,
   code,
   message,
   ...(retryAfter ? { retryAfter } : {}),
+  ...(vars ? { vars } : {}),
 });
 const gone = () => refuse(404, 'not_found', 'This data has been deleted.');
 const unreadable = () => refuse(400, 'invalid_input', "Those changes couldn't be read. Update the app and try again.");
@@ -382,7 +385,7 @@ export class SpaceStore {
       if (clash.length)
         return {
           code: 'conflict',
-          message: `Someone else changed ${clash.join(', ')} after you last had this record, so your change wasn’t applied. Compare the two and enter it again if it’s still right.`,
+          message: 'Someone else changed this after you last had it, so your change wasn’t applied. Compare the two and enter it again if it’s still right.',
         };
     }
 

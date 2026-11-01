@@ -1,11 +1,12 @@
 <script lang="ts">
   import Field from './ui/Field.svelte';
   import Input from './ui/Input.svelte';
+  import { t } from '#lib/i18n/index.svelte.ts';
 
   let {
     value = $bindable(''),
     id,
-    label = 'Password',
+    label,
     autocomplete = 'current-password',
     hint,
     invalid = false,
@@ -23,7 +24,7 @@
   let shown = $state(false);
 </script>
 
-<Field {label} {id} {hint} {invalid} {describedby}>
+<Field label={label ?? t('Password')} {id} {hint} {invalid} {describedby}>
   <Input
     type={shown ? 'text' : 'password'}
     bind:value
@@ -40,7 +41,9 @@
         aria-controls={id}
         onclick={() => (shown = !shown)}
       >
-        {shown ? 'Hide' : 'Show'}<span class="visually-hidden"> password</span>
+        <span aria-hidden="true">{shown ? t('Hide') : t('Show')}</span><span class="visually-hidden"
+          >{shown ? t('Hide password') : t('Show password')}</span
+        >
       </button>
     {/snippet}
   </Input>

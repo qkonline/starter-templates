@@ -4,6 +4,7 @@
   import { auth } from '#lib/session.svelte.ts';
   import { decodeImage, sourceProblem } from '#lib/images.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Avatar from '../Avatar.svelte';
   import FormError from '../FormError.svelte';
   import PhotoCropper from '../PhotoCropper.svelte';
@@ -26,11 +27,11 @@
     saved = false;
     const clean = name.replace(/\s+/g, ' ').trim();
     if (!clean) {
-      nameTask.error = 'Enter a name.';
+      nameTask.error = t('Enter a name.');
       return;
     }
     if (clean.length > 60) {
-      nameTask.error = 'Use 60 characters or fewer.';
+      nameTask.error = t('Use 60 characters or fewer.');
       return;
     }
     if (
@@ -85,10 +86,12 @@
         onchange={choose}
       />
       <Button type="button" size="small" onclick={() => fileInput.click()} disabled={photoTask.busy}>
-        {user.photoUrl ? 'Change photo' : 'Add a photo'}
+        {user.photoUrl ? t('Change photo') : t('Add a photo')}
       </Button>
       {#if user.photoUrl}
-        <Button type="button" size="small" onclick={removePhoto} disabled={photoTask.busy}>Remove</Button>
+        <Button type="button" size="small" onclick={removePhoto} disabled={photoTask.busy}
+          >{t('Remove')}</Button
+        >
       {/if}
     </div>
     <FormError message={photoTask.error} />
@@ -107,13 +110,13 @@
 {/if}
 
 <form class="stack" onsubmit={saveName} novalidate>
-  <Field label="Name" id="name" invalid={!!nameTask.error} describedby="name-error">
+  <Field label={t('Name')} id="name" invalid={!!nameTask.error} describedby="name-error">
     <Input bind:value={name} autocomplete="name" maxlength={60} oninput={() => (saved = false)} />
   </Field>
   <FormError id="name-error" message={nameTask.error} />
   <div class="row">
-    <SubmitButton task={nameTask} wide={false} busyLabel="Saving…">Save name</SubmitButton>
-    <span class="success" role="status">{saved ? 'Saved.' : ''}</span>
+    <SubmitButton task={nameTask} wide={false} busyLabel={t('Saving…')}>{t('Save name')}</SubmitButton>
+    <span class="success" role="status">{saved ? t('Saved.') : ''}</span>
   </div>
 </form>
 

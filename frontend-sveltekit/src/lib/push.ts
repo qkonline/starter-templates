@@ -2,6 +2,7 @@
 // per device from the account page. The service worker (src/service-worker) shows the pushes.
 
 import { api } from '#lib/api/index.ts';
+import { t } from '#lib/i18n/index.svelte.ts';
 
 /**
  * What this device can do: 'unsupported' (no push in this browser), 'install' (an iPhone or
@@ -48,7 +49,7 @@ export async function pushOn(vapidPublicKey: string): Promise<PushState> {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission === 'denied' ? 'blocked' : 'off';
   const reg = (await registration()) ?? (await navigator.serviceWorker.ready);
-  if (!reg) throw new Error('The app’s offline copy isn’t ready yet. Reload the page and try again.');
+  if (!reg) throw new Error(t('The app’s offline copy isn’t ready yet. Reload the page and try again.'));
   const key = keyBytes(vapidPublicKey);
   let sub = await reg.pushManager.getSubscription();
   // A subscription made with another key (the backend's keys changed) can't be used.

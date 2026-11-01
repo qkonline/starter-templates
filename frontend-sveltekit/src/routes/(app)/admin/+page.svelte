@@ -5,6 +5,7 @@
   import { api, type AdminStats } from '#lib/api/index.ts';
   import { Task } from '#lib/task.svelte.ts';
   import FormError from '#lib/components/FormError.svelte';
+  import { formatNumber, t } from '#lib/i18n/index.svelte.ts';
 
   let stats = $state<AdminStats | null>(null);
   const load = new Task();
@@ -18,25 +19,27 @@
   const tiles = $derived(
     stats
       ? [
-          { label: 'People', value: stats.users, href: resolve('admin/people') },
-          { label: 'New this week', value: stats.newUsers7d, href: resolve('admin/people') },
-          { label: 'Suspended', value: stats.suspended, href: resolve('admin/people') },
-          ...(stats.teams === null ? [] : [{ label: 'Teams', value: stats.teams, href: null }]),
-          { label: 'Open messages', value: stats.openMessages, href: resolve('admin/messages') },
-          { label: 'Errors, last 24 hours', value: stats.errors24h, href: resolve('admin/errors') },
+          { label: t('People'), value: stats.users, href: resolve('admin/people') },
+          { label: t('New this week'), value: stats.newUsers7d, href: resolve('admin/people') },
+          { label: t('Suspended'), value: stats.suspended, href: resolve('admin/people') },
+          ...(stats.teams === null ? [] : [{ label: t('Teams'), value: stats.teams, href: null }]),
+          { label: t('Open messages'), value: stats.openMessages, href: resolve('admin/messages') },
+          { label: t('Errors, last 24 hours'), value: stats.errors24h, href: resolve('admin/errors') },
         ]
       : [],
   );
 </script>
 
-<h1>Admin</h1>
+<h1>{t('Admin')}</h1>
 {#if stats}
   <dl class="tiles">
-    {#each tiles as t (t.label)}
+    {#each tiles as tile (tile.label)}
       <div class="tile">
-        <dt class="muted small">{t.label}</dt>
+        <dt class="muted small">{tile.label}</dt>
         <dd>
-          {#if t.href}<a href={t.href}>{t.value.toLocaleString()}</a>{:else}{t.value.toLocaleString()}{/if}
+          {#if tile.href}<a href={tile.href}>{formatNumber(tile.value)}</a>{:else}{formatNumber(
+              tile.value,
+            )}{/if}
         </dd>
       </div>
     {/each}
@@ -44,7 +47,7 @@
 {:else if load.error}
   <FormError message={load.error} />
 {:else}
-  <p class="muted">Loading…</p>
+  <p class="muted">{t('Loading…')}</p>
 {/if}
 
 <style>

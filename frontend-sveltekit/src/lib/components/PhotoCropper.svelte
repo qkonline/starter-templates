@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { centreCrop, clampCrop, cropRect, MAX_ZOOM, panCrop, renderCrop, type Crop } from '#lib/images.ts';
   import { messageOf } from '#lib/api/errors.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Spinner from './Spinner.svelte';
   import Button from './ui/Button.svelte';
 
@@ -100,9 +101,9 @@
   onclose={() => !busy && onCancel()}
   oncancel={(e) => busy && e.preventDefault()}
 >
-  <h2 id="crop-title">Crop your photo</h2>
+  <h2 id="crop-title">{t('Crop your photo')}</h2>
   <p class="muted small" id="crop-help">
-    Drag to move it, or use the arrow keys. Zoom with the slider, or + and −.
+    {t('Drag to move it, or use the arrow keys. Zoom with the slider, or + and −.')}
   </p>
 
   <!-- A two-way position control has no ARIA widget role of its own: `application` passes the
@@ -113,8 +114,8 @@
     bind:clientWidth={frame}
     role="application"
     tabindex="0"
-    aria-roledescription="photo position"
-    aria-label="Photo position"
+    aria-roledescription={t('photo position')}
+    aria-label={t('Photo position')}
     aria-describedby="crop-help"
     onpointerdown={down}
     onpointermove={move}
@@ -136,7 +137,7 @@
   </div>
 
   <div class="field">
-    <label class="label" for="crop-zoom">Zoom</label>
+    <label class="label" for="crop-zoom">{t('Zoom')}</label>
     <input
       id="crop-zoom"
       type="range"
@@ -153,9 +154,9 @@
   </div>
 
   <div class="actions">
-    <Button type="button" onclick={() => dialog.close()} disabled={busy}>Cancel</Button>
+    <Button type="button" onclick={() => dialog.close()} disabled={busy}>{t('Cancel')}</Button>
     <Button type="button" variant="primary" onclick={use} aria-busy={busy} disabled={busy}>
-      {#if busy}<Spinner />Saving…{:else}Use photo{/if}
+      {#if busy}<Spinner />{t('Saving…')}{:else}{t('Use photo')}{/if}
     </Button>
   </div>
 </dialog>

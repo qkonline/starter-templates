@@ -5,6 +5,7 @@
   import { api } from '#lib/api/index.ts';
   import { emailProblem, makeKey, passwordProblem } from '#lib/password.ts';
   import { auth, signedIn } from '#lib/session.svelte.ts';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Captcha from '#lib/components/Captcha.svelte';
@@ -13,6 +14,7 @@
   import SubmitButton from '#lib/components/SubmitButton.svelte';
   import Field from '#lib/components/ui/Field.svelte';
   import Input from '#lib/components/ui/Input.svelte';
+  import Trans from '#lib/components/Trans.svelte';
 
   const methods = $derived(auth.methods!);
   // Derived, so a link to this page with another `next` is followed.
@@ -37,9 +39,9 @@
   }
 </script>
 
-<AuthShell title="Create your account">
+<AuthShell title={t('Create your account')}>
   <form class="stack" onsubmit={submit} novalidate>
-    <Field label="Email" id="email">
+    <Field label={t('Email')} id="email">
       <Input
         type="email"
         bind:value={email}
@@ -53,8 +55,11 @@
       id="password"
       bind:value={password}
       autocomplete="new-password"
-      hint="At least {methods.password
-        .minLength} characters. It never leaves this device: we only get a key made from it."
+      hint={tn(
+        methods.password.minLength,
+        'At least 1 character. It never leaves this device: we only get a key made from it.',
+        'At least {count} characters. It never leaves this device: we only get a key made from it.',
+      )}
     />
     {#if methods.captcha}<Captcha
         bind:this={captcha}
@@ -64,20 +69,29 @@
     <FormError message={task.error} />
     {#if task.code === 'email_taken'}
       <p class="small">
-        <a href="{resolve('signin')}?email={encodeURIComponent(email.trim())}">Sign in instead</a> or
-        <a href="{resolve('forgot')}?email={encodeURIComponent(email.trim())}">reset your password</a>.
+        <Trans text="<signin>Sign in instead</signin> or <reset>reset your password</reset>.">
+          {#snippet signin(s: string)}<a href="{resolve('signin')}?email={encodeURIComponent(email.trim())}"
+              >{s}</a
+            >{/snippet}
+          {#snippet reset(s: string)}<a href="{resolve('forgot')}?email={encodeURIComponent(email.trim())}"
+              >{s}</a
+            >{/snippet}
+        </Trans>
       </p>
     {/if}
-    <SubmitButton {task} busyLabel="Creating your account…">Create account</SubmitButton>
+    <SubmitButton {task} busyLabel={t('Creating your account…')}>{t('Create account')}</SubmitButton>
   </form>
 
   <p class="muted">
-    Already have an account? <a href="{resolve('signin')}{next ? `?next=${encodeURIComponent(next)}` : ''}"
-      >Sign in</a
-    >
+    {t('Already have an account?')}
+    <a href="{resolve('signin')}{next ? `?next=${encodeURIComponent(next)}` : ''}">{t('Sign in')}</a>
   </p>
   <p class="muted small">
-    By creating an account you agree to the <a href={resolve('terms')}>terms</a> and
-    <a href={resolve('privacy')}>privacy policy</a>.
+    <Trans
+      text="By creating an account you agree to the <terms>terms</terms> and <privacy>privacy policy</privacy>."
+    >
+      {#snippet terms(s: string)}<a href={resolve('terms')}>{s}</a>{/snippet}
+      {#snippet privacy(s: string)}<a href={resolve('privacy')}>{s}</a>{/snippet}
+    </Trans>
   </p>
 </AuthShell>

@@ -11,8 +11,9 @@
   import Button from '#lib/components/ui/Button.svelte';
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
-  const kinds = { client: 'Browser', server: 'Server', csp: 'CSP' } as const;
+  const kinds = { client: msg('Browser'), server: msg('Server'), csp: msg('CSP') };
   const clear = new Task();
   const list = new Pager<ErrorReport>(
     async (cursor) => {
@@ -34,12 +35,12 @@
 
 <div class="stack">
   <div class="row spread">
-    <h1>Errors</h1>
+    <h1>{t('Errors')}</h1>
     {#if list.items.length}
       <ConfirmButton
-        label="Clear all…"
-        confirmLabel="Clear every report"
-        question="Clear every error and CSP report? New ones are kept as they come."
+        label={t('Clear all…')}
+        confirmLabel={t('Clear every report')}
+        question={t('Clear every error and CSP report? New ones are kept as they come.')}
         disabled={clear.busy}
         onconfirm={clearAll}
       />
@@ -47,7 +48,7 @@
   </div>
   <FormError message={list.error || clear.error} />
   {#if list.loaded && list.items.length === 0}
-    <p class="muted">No reports. When the app or a browser reports an error, it shows here.</p>
+    <p class="muted">{t('No reports. When the app or a browser reports an error, it shows here.')}</p>
   {/if}
   <Panel>
     <List>
@@ -55,15 +56,19 @@
         <li>
           <details>
             <summary>
-              <Badge>{kinds[e.kind]}</Badge>
+              <Badge>{t(kinds[e.kind])}</Badge>
               <span class="msg">{e.message}</span>
               <span class="muted small">
-                ×{e.count} · last {formatWhen(e.lastSeen)} · first {formatWhen(e.firstSeen)}
+                {t('×{count} · last {last} · first {first}', {
+                  count: e.count,
+                  last: formatWhen(e.lastSeen),
+                  first: formatWhen(e.firstSeen),
+                })}
               </span>
             </summary>
             <div class="stack detail small">
-              {#if e.url}<p><span class="muted">Page</span> {e.url}</p>{/if}
-              {#if e.release}<p><span class="muted">Version</span> {e.release}</p>{/if}
+              {#if e.url}<p><span class="muted">{t('Page')}</span> {e.url}</p>{/if}
+              {#if e.release}<p><span class="muted">{t('Version')}</span> {e.release}</p>{/if}
               {#if e.detail}<pre>{e.detail}</pre>{/if}
             </div>
           </details>
@@ -74,7 +79,7 @@
   {#if list.more}
     <div>
       <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</Button
+        >{t('Show more')}</Button
       >
     </div>
   {/if}

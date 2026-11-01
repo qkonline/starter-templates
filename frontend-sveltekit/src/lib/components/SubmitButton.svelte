@@ -2,6 +2,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Spinner from './Spinner.svelte';
   import Button from './ui/Button.svelte';
 
@@ -36,9 +37,9 @@
   }}
 >
   {#if task.busy}
-    <Spinner />{busyLabel ?? 'Working…'}
+    <Spinner />{busyLabel ?? t('Working…')}
   {:else if task.wait > 0}
-    Try again in {task.wait} s
+    {t('Try again in {wait} s', { wait: task.wait })}
   {:else}
     {@render children()}
   {/if}

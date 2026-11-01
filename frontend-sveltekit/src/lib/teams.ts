@@ -2,22 +2,23 @@
 // links an invite needs. The backend still decides; these only keep buttons honest.
 
 import type { Member, Role } from '#lib/api/index.ts';
+import { msg, t, tn } from '#lib/i18n/index.svelte.ts';
 
 export const roles: readonly { value: Role; label: string }[] = [
-  { value: 'member', label: 'Member' },
-  { value: 'viewer', label: 'Viewer (sees, changes nothing)' },
-  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: msg('Member') },
+  { value: 'viewer', label: msg('Viewer (sees, changes nothing)') },
+  { value: 'admin', label: msg('Admin') },
 ];
 
 export const roleLabel = (role: Role): string =>
-  role === 'admin' ? 'Admin' : role === 'viewer' ? 'Viewer' : 'Member';
+  role === 'admin' ? t('Admin') : role === 'viewer' ? t('Viewer') : t('Member');
 
 /** "an admin", "a member", "a viewer". */
 export const asRole = (role: Role): string =>
-  role === 'admin' ? 'an admin' : role === 'viewer' ? 'a viewer' : 'a member';
+  role === 'admin' ? t('an admin') : role === 'viewer' ? t('a viewer') : t('a member');
 
 /** Said with every `last_admin` refusal: what to do instead. */
-export const lastAdminHint = 'Make someone else an admin first, or delete the team.';
+export const lastAdminHint = msg('Make someone else an admin first, or delete the team.');
 
 /** The team's admins. */
 export const admins = (members: readonly Member[]): Member[] => members.filter((m) => m.role === 'admin');
@@ -48,17 +49,21 @@ export const teamPath = (teamId: string, base = ''): string =>
 
 /** Words for an invite that can't be used, which the backend answers `not_found` for. */
 export function inviteGone(email: string | undefined): string {
-  return (
-    'This invite can’t be used. It may have expired, been withdrawn, or already been used' +
-    (email ? `, or it was sent to an address other than ${email}.` : '.')
-  );
+  return email
+    ? t(
+        'This invite can’t be used. It may have expired, been withdrawn, or already been used, or it was sent to an address other than {email}.',
+        { email },
+      )
+    : t('This invite can’t be used. It may have expired, been withdrawn, or already been used.');
 }
 
 /** Days until an invite runs out, for "Expires in 3 days". */
 export function expiresIn(iso: string, now = Date.now()): string {
   const ms = new Date(iso).getTime() - now;
   if (Number.isNaN(ms)) return '';
-  if (ms <= 0) return 'Expired';
+  if (ms <= 0) return t('Expired');
   const days = Math.ceil(ms / 86_400_000);
-  return days <= 1 ? 'Expires within a day' : `Expires in ${days} days`;
+  return days <= 1
+    ? t('Expires within a day')
+    : tn(days, 'Expires in {count} day', 'Expires in {count} days');
 }

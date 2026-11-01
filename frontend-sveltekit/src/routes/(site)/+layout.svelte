@@ -2,6 +2,7 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { appName } from '#lib/config.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Button from '#lib/components/ui/Button.svelte';
 
   let { children } = $props();
@@ -11,9 +12,9 @@
   <header class="top">
     <div class="bar">
       <a class="brand" href={resolve('')}><span class="logo" aria-hidden="true"></span>{appName}</a>
-      <nav aria-label="Account">
-        <a href={resolve('signin')}>Sign in</a>
-        <Button variant="primary" size="small" href={resolve('signup')}>Create account</Button>
+      <nav aria-label={t('Account')}>
+        <a href={resolve('signin')}>{t('Sign in')}</a>
+        <Button variant="primary" size="small" href={resolve('signup')}>{t('Create account')}</Button>
       </nav>
     </div>
   </header>
@@ -24,10 +25,10 @@
 
   <footer class="bar muted small">
     <span>© {new Date().getFullYear()} {appName}</span>
-    <nav aria-label="Legal">
-      <a href={resolve('contact')}>Contact</a>
-      <a href={resolve('privacy')}>Privacy</a>
-      <a href={resolve('terms')}>Terms</a>
+    <nav aria-label={t('Legal')}>
+      <a href={resolve('contact')}>{t('Contact')}</a>
+      <a href={resolve('privacy')}>{t('Privacy')}</a>
+      <a href={resolve('terms')}>{t('Terms')}</a>
     </nav>
   </footer>
 </div>

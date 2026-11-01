@@ -3,22 +3,24 @@
 
 import { cleanEmail, passwordKey, type PasswordSettings } from '@starter/contract/password';
 
+import { t } from '#lib/i18n/index.svelte.ts';
+
 export { cleanEmail };
 
 /** What's wrong with a new password, or null. Only length is checked: the contract asks no more. */
 export function passwordProblem(password: string, minLength: number): string | null {
   // Counted in characters as people see them, not UTF-16 units.
   const length = [...password.normalize('NFKC')].length;
-  if (length === 0) return 'Enter a password.';
-  if (length < minLength) return `Use at least ${minLength} characters.`;
+  if (length === 0) return t('Enter a password.');
+  if (length < minLength) return t('Use at least {minLength} characters.', { minLength });
   return null;
 }
 
 /** Plain email check, enough to catch typos before a request; the backend has the last word. */
 export function emailProblem(email: string): string | null {
   const e = email.trim();
-  if (!e) return 'Enter your email address.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return 'That doesn’t look like an email address.';
+  if (!e) return t('Enter your email address.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return t('That doesn’t look like an email address.');
   return null;
 }
 
@@ -35,7 +37,9 @@ export const ITERATIONS = 600_000;
 const MOST = 10_000_000;
 
 const unsafe = () =>
-  new Error('The server asked for unsafe password settings, so your password wasn’t sent. Try again later.');
+  new Error(
+    t('The server asked for unsafe password settings, so your password wasn’t sent. Try again later.'),
+  );
 
 /**
  * The key to send instead of the password. Takes a noticeable moment on phones. Refuses fewer

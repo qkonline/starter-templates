@@ -114,6 +114,10 @@ confirming the address. Each app reads its settings from `/auth/methods`.
   backend can set the oldest build it serves, and an older copy is told `client_outdated`,
   shows "Update needed" in place of its pages, and updates. Signed in, the app opens without a
   connection from what the device kept from the last start.
+- **R3.7 Languages.** Every text people see, on the device and from the backend (messages,
+  emails), can be translated: English in the code is the key, languages are added as files of
+  the app's own, and people pick one per device (right-to-left ones written that way). A check
+  fails on translations that no longer match the code.
 
 ## 4. Notifications
 
@@ -128,7 +132,8 @@ confirming the address. Each app reads its settings from `/auth/methods`.
 ## 5. Teams (optional per app)
 
 - **R5.1** People make teams; the maker is the first admin. Admins rename and delete the team,
-  invite, remove members and change roles; members use it. *(boardo's boards)*
+  invite, remove members and change roles; members use it; viewers see it and its shared data
+  but change nothing. *(boardo's boards)*
 - **R5.2 Invites by email,** good for 7 days, withdrawable, resendable (60 s apart). The emailed
   link proves the address; without it, invites show in the app only to confirmed emails. Each
   invite is an email from the quota, so only a confirmed email may invite, at most 50 a day per

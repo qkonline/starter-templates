@@ -6,6 +6,7 @@ import { isAdmin, sessionFor } from './account';
 import { d1, type SessionRow, type UserRow } from './db';
 import { config, type Config, type Ctx, type Env } from './env';
 import { forbidden, notFound, Refusal, signedOut, tooMany, unverified } from './errors';
+import { languageOf } from './i18n';
 import { networkOf } from './network';
 
 export type AppEnv = {
@@ -25,6 +26,7 @@ export const context = createMiddleware<AppEnv>(async (c, next) => {
     ip,
     network: networkOf(ip),
     api,
+    lang: languageOf(c.req.header('accept-language')),
     waitUntil: (p) => {
       try {
         c.executionCtx.waitUntil(p);

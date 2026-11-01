@@ -4,6 +4,8 @@
 -->
 <script lang="ts">
   import { auth, endSupportSession } from '#lib/session.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
+  import Trans from '../Trans.svelte';
   import Button from '../ui/Button.svelte';
 
   let ending = $state(false);
@@ -15,10 +17,14 @@
 </script>
 
 {#if auth.support}
-  <div class="support" role="region" aria-label="Support session">
-    <p>Support session as <strong>{auth.support.email}</strong></p>
+  <div class="support" role="region" aria-label={t('Support session')}>
+    <p>
+      <Trans text={msg('Support session as <b>{email}</b>')} vars={{ email: auth.support.email }}>
+        {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+      </Trans>
+    </p>
     <Button type="button" size="small" disabled={ending} onclick={end}>
-      {ending ? 'Ending…' : 'End support session'}
+      {ending ? t('Ending…') : t('End support session')}
     </Button>
   </div>
 {/if}

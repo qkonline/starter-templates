@@ -8,6 +8,7 @@
   import { pushOff, pushOn, pushState, type PushState } from '#lib/push.ts';
   import { auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
 
@@ -24,7 +25,7 @@
     status = '';
     toggle.run(async () => {
       current = await pushOn(auth.features!.push!.vapidPublicKey);
-      if (current === 'on') status = 'Notifications are on for this device.';
+      if (current === 'on') status = t('Notifications are on for this device.');
     });
   }
 
@@ -32,7 +33,7 @@
     status = '';
     toggle.run(async () => {
       current = await pushOff();
-      status = 'Notifications are off for this device.';
+      status = t('Notifications are off for this device.');
     });
   }
 
@@ -40,57 +41,59 @@
     status = '';
     test.run(async () => {
       await api.pushTest();
-      status = 'Test sent. It should arrive in a moment.';
+      status = t('Test sent. It should arrive in a moment.');
     });
   }
 </script>
 
 <div class="stack">
   {#if current === null}
-    <p class="muted">Checking this device…</p>
+    <p class="muted">{t('Checking this device…')}</p>
   {:else if current === 'unsupported'}
-    <p class="muted">This browser can’t show notifications. You’ll still see them in the bell.</p>
+    <p class="muted">{t('This browser can’t show notifications. You’ll still see them in the bell.')}</p>
   {:else if current === 'install'}
     <p class="muted">
-      On iPhone and iPad, add this app to your Home Screen (Share, then Add to Home Screen) and open it from
-      there to turn notifications on.
+      {t(
+        'On iPhone and iPad, add this app to your Home Screen (Share, then Add to Home Screen) and open it from there to turn notifications on.',
+      )}
     </p>
   {:else if current === 'blocked'}
     <p class="muted">
-      Notifications are blocked for this site. Allow them in your browser’s site settings, then come back
-      here.
+      {t(
+        'Notifications are blocked for this site. Allow them in your browser’s site settings, then come back here.',
+      )}
     </p>
   {:else if current === 'off'}
     <p class="muted">
-      Get a notification on this device when something happens, even when the app is closed.
+      {t('Get a notification on this device when something happens, even when the app is closed.')}
     </p>
     <div>
-      <SubmitButton task={toggle} type="button" wide={false} busyLabel="Turning on…" onclick={turnOn}>
-        Turn on notifications
+      <SubmitButton task={toggle} type="button" wide={false} busyLabel={t('Turning on…')} onclick={turnOn}>
+        {t('Turn on notifications')}
       </SubmitButton>
     </div>
   {:else}
-    <p>Notifications are on for this device.</p>
+    <p>{t('Notifications are on for this device.')}</p>
     <div class="row">
       <SubmitButton
         task={test}
         type="button"
         wide={false}
         variant="plain"
-        busyLabel="Sending…"
+        busyLabel={t('Sending…')}
         onclick={sendTest}
       >
-        Send me a test
+        {t('Send me a test')}
       </SubmitButton>
       <SubmitButton
         task={toggle}
         type="button"
         wide={false}
         variant="plain"
-        busyLabel="Turning off…"
+        busyLabel={t('Turning off…')}
         onclick={turnOff}
       >
-        Turn off
+        {t('Turn off')}
       </SubmitButton>
     </div>
   {/if}

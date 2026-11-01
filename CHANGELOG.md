@@ -7,6 +7,25 @@ version up, and copy over the core's files (never the app's own: `src/app/`, `sr
 
 Each entry says what an app has to do, if anything, under **To take it**.
 
+## 0.2.0 (1 November 2026)
+
+**To take it** from 0.1.0: copy the core's files over, run the new migrations (0006, 0007), add
+the `METER` binding and `[[migrations]] tag = "v2"` to `wrangler.toml` (and the new vars and the
+second cron), and deploy. Texts in your own pages keep working; wrap them in `t()` when you want
+them translated.
+
+- Moving a passwordless account to a new address needs a code from its current one; a password
+  account's old address is told.
+- The browser's password rounds can be raised later without locking anyone out.
+- Admin totals without whole-table scans; app-wide daily caps on synced data.
+- Deleting synced files; files fetched from other devices kept within 200 MB.
+- A team viewer role.
+- Background jobs (`src/app/jobs.ts`), alerts to a chat webhook (`ALERT_WEBHOOK`), staging
+  (`wrangler.staging.toml`), `npm run backup`, and `docs/operations.md`.
+- Browser tests in WebKit too; sign-out no longer hangs in Safari where push was never allowed.
+- Every text translatable, frontend and backend (`t()`, `src/lib/app/i18n/`,
+  `backend-cloudflare/src/app/i18n.ts`), with a language picker and right-to-left support.
+
 ## 0.1.0 (1 November 2026)
 
 The first release meant to build on.

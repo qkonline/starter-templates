@@ -5,6 +5,8 @@
   import { downloadJson, exportFileName } from '#lib/format.ts';
   import { accountDeleted, auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
+  import Trans from '../Trans.svelte';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
   import Button from '../ui/Button.svelte';
@@ -25,7 +27,7 @@
   function remove(e: SubmitEvent) {
     e.preventDefault();
     if (typed.trim().toLowerCase() !== auth.user?.email) {
-      deleteTask.error = 'Type your email address exactly as shown to confirm.';
+      deleteTask.error = t('Type your email address exactly as shown to confirm.');
       return;
     }
     deleteTask.run(async () => {
@@ -37,43 +39,51 @@
 
 <div class="stack">
   <div class="stack">
-    <h3>Your data</h3>
-    <p class="muted">Everything {appName} stores about you, as a JSON file.</p>
+    <h3>{t('Your data')}</h3>
+    <p class="muted">{t('Everything {appName} stores about you, as a JSON file.', { appName })}</p>
     <div>
       <SubmitButton
         task={exportTask}
         type="button"
         variant="plain"
         wide={false}
-        busyLabel="Preparing…"
+        busyLabel={t('Preparing…')}
         onclick={download}
       >
-        Download my data
+        {t('Download my data')}
       </SubmitButton>
     </div>
     <FormError message={exportTask.error} />
   </div>
 
   <div class="stack">
-    <h3>Delete account</h3>
+    <h3>{t('Delete account')}</h3>
     <p class="muted">
-      Removes your account, your photo, your passkeys and every signed-in device, at once. This can’t be
-      undone.
+      {t(
+        'Removes your account, your photo, your passkeys and every signed-in device, at once. This can’t be undone.',
+      )}
     </p>
     {#if !confirming}
       <div>
-        <Button type="button" variant="danger" onclick={() => (confirming = true)}>Delete my account…</Button>
+        <Button type="button" variant="danger" onclick={() => (confirming = true)}
+          >{t('Delete my account…')}</Button
+        >
       </div>
     {:else}
       <form class="stack confirm" onsubmit={remove} novalidate>
         <Field id="delete-confirm">
-          {#snippet label()}To confirm, type <strong>{auth.user?.email}</strong>{/snippet}
+          {#snippet label()}<Trans
+              text={msg('To confirm, type <b>{email}</b>')}
+              vars={{ email: auth.user?.email ?? '' }}
+            >
+              {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+            </Trans>{/snippet}
           <Input bind:value={typed} autocomplete="off" autocapitalize="off" spellcheck="false" />
         </Field>
         <FormError message={deleteTask.error} />
         <div class="row">
-          <SubmitButton task={deleteTask} variant="danger" wide={false} busyLabel="Deleting…">
-            Delete my account for good
+          <SubmitButton task={deleteTask} variant="danger" wide={false} busyLabel={t('Deleting…')}>
+            {t('Delete my account for good')}
           </SubmitButton>
           <Button
             type="button"
@@ -81,7 +91,7 @@
               confirming = false;
               typed = '';
               deleteTask.clear();
-            }}>Cancel</Button
+            }}>{t('Cancel')}</Button
           >
         </div>
       </form>

@@ -11,6 +11,7 @@
 // closes), and the writers below check the mark rather than whether a session is still there.
 
 import { appDeviceKeys } from '#lib/app/shell.ts';
+import { t } from '#lib/i18n/index.svelte.ts';
 
 const TOKEN = 'starter:token';
 const ACCOUNT = 'starter:account';
@@ -79,7 +80,7 @@ export function startSupport(session: SupportSession): void {
     tabStore()?.setItem(SUPPORT_TAB, '1');
     tabStore()?.setItem(SUPPORT, JSON.stringify(session));
   } catch {
-    throw new Error('This browser blocks storage for this tab, so a support session can’t start here.');
+    throw new Error(t('This browser blocks storage for this tab, so a support session can’t start here.'));
   }
 }
 
@@ -223,7 +224,7 @@ export async function forgetDevice(opts: { deleted?: boolean } = {}): Promise<vo
  */
 export async function keepSession(token: string, accountId: string): Promise<boolean> {
   if (isSupportTab())
-    throw new Error('This tab was used for a support session. To sign in, open the app in a new tab.');
+    throw new Error(t('This tab was used for a support session. To sign in, open the app in a new tab.'));
   let previous: string | null = null;
   try {
     previous = store()?.getItem(ACCOUNT) ?? null;

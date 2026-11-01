@@ -8,12 +8,14 @@
   import Button from '#lib/components/ui/Button.svelte';
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
+  import Trans from '#lib/components/Trans.svelte';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
   const actions: Record<AuditEntry['action'], string> = {
-    support: 'opened a support session as',
-    suspend: 'suspended',
-    unsuspend: 'unsuspended',
-    delete: 'deleted the account of',
+    support: msg('<b>{admin}</b> opened a support session as <b>{target}</b>'),
+    suspend: msg('<b>{admin}</b> suspended <b>{target}</b>'),
+    unsuspend: msg('<b>{admin}</b> unsuspended <b>{target}</b>'),
+    delete: msg('<b>{admin}</b> deleted the account of <b>{target}</b>'),
   };
   const list = new Pager<AuditEntry>(
     async (cursor) => {
@@ -29,10 +31,10 @@
 </script>
 
 <div class="stack">
-  <h1>Audit log</h1>
+  <h1>{t('Audit log')}</h1>
   <FormError message={list.error} />
   {#if list.loaded && list.items.length === 0}
-    <p class="muted">Nothing yet.</p>
+    <p class="muted">{t('Nothing yet.')}</p>
   {/if}
   <Panel>
     <List>
@@ -40,8 +42,9 @@
         <li>
           <div>
             <p>
-              <strong>{who(e.admin)}</strong>
-              {actions[e.action]} <strong>{who(e.target)}</strong>
+              <Trans text={actions[e.action]} vars={{ admin: who(e.admin), target: who(e.target) }}>
+                {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+              </Trans>
               {#if e.target.name}<span class="muted small">{e.target.email}</span>{/if}
             </p>
             {#if e.detail}<p class="muted small">“{e.detail}”</p>{/if}
@@ -54,7 +57,7 @@
   {#if list.more}
     <div>
       <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</Button
+        >{t('Show more')}</Button
       >
     </div>
   {/if}

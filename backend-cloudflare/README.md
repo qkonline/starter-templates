@@ -253,6 +253,17 @@ Tables whose records can be made offline (on several devices at once) follow
 replace it with an auto-increment, give readable numbers in their own column, and flag clashes
 such as a slot booked twice instead of refusing the second.
 
+## Languages
+
+The messages and emails people get come in the language the app asks for (`Accept-Language`,
+which the frontend sets to the person's choice): `ctx.lang`. As in the frontend, the English in
+the code is the key. Refusals are translated as the reply is made, so routes throw
+`invalid('Ask for 1 to {max} records at a time.', { max })`, with `{placeholders}` rather than
+`${}`; emails and notifications use `tr(ctx.lang, '…', vars)` (`src/i18n.ts`), and `trHtml` for
+HTML (values and translations escaped). Translations go in `src/app/i18n.ts`, the app's own;
+`npm run i18n` lists every text and checks them, as the unit tests do. Mail to the app's own
+contact address stays in English.
+
 ## Background jobs
 
 `enqueue(env, 'kind', payload, { at, key })` (`src/jobs.ts`) puts work in `core_jobs`; the cron

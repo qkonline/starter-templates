@@ -6,6 +6,7 @@
 <script lang="ts">
   import { tick, type Snippet } from 'svelte';
   import Button from './ui/Button.svelte';
+  import { t } from '#lib/i18n/index.svelte.ts';
 
   let {
     label,
@@ -75,7 +76,7 @@
           onconfirm();
         }}>{confirmLabel}</Button
       >
-      <Button type="button" {size} onclick={close}>Cancel</Button>
+      <Button type="button" {size} onclick={close}>{t('Cancel')}</Button>
     </div>
   </div>
 {/if}

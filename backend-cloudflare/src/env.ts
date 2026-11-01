@@ -206,4 +206,6 @@ export interface Ctx {
   api: string;
   /** Work that may finish after the reply (the Worker's waitUntil); absent in unit tests. */
   waitUntil?: (p: Promise<unknown>) => void;
+  /** The language for messages and emails, from Accept-Language (src/i18n.ts). */
+  lang: string;
 }

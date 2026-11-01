@@ -6,6 +6,7 @@
   import { onMount } from 'svelte';
   import { loadTurnstile, TokenQueue, type Turnstile } from '#lib/captcha.ts';
   import { readPreferences } from '#lib/preferences.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
 
   let { siteKey, action }: { siteKey: string; action?: string } = $props();
 
@@ -29,10 +30,10 @@
   onMount(() => {
     let gone = false;
     loadTurnstile()
-      .then((t) => {
+      .then((ts) => {
         if (gone) return;
-        turnstile = t;
-        widgetId = t.render(el, {
+        turnstile = ts;
+        widgetId = ts.render(el, {
           sitekey: siteKey,
           action,
           theme: mode === 'system' ? 'auto' : mode,
@@ -41,7 +42,7 @@
           'expired-callback': () => queue.expire(),
           'timeout-callback': () => queue.expire(),
           'error-callback': () => {
-            queue.fail(new Error('The security check failed. Try again, or reload the page.'));
+            queue.fail(new Error(t('The security check failed. Try again, or reload the page.')));
           },
         });
       })

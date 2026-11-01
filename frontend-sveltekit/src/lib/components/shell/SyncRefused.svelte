@@ -12,6 +12,7 @@
 -->
 <script lang="ts">
   import { discardSpace, dismissRefused, retryLost, syncState } from '#lib/db/index.svelte.ts';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
   import ConfirmButton from '../ConfirmButton.svelte';
   import Button from '../ui/Button.svelte';
 
@@ -19,14 +20,20 @@
   // The same message once, however many changes it was for.
   const messages = $derived([...new Set(refused.map((r) => r.message).filter(Boolean))]);
   const waiting = (n: number) =>
-    n === 1 ? '1 change made here for it is' : `${n} changes made here for it are`;
+    tn(
+      n,
+      '1 change made here for it is kept on this device.',
+      '{count} changes made here for it are kept on this device.',
+    );
 </script>
 
 {#if syncState.stale}
   <div class="refused" role="alert">
     <div class="in">
-      <p>This app was updated in another tab. Reload to carry on; nothing made here is lost.</p>
-      <Button type="button" size="small" variant="primary" onclick={() => location.reload()}>Reload</Button>
+      <p>{t('This app was updated in another tab. Reload to carry on; nothing made here is lost.')}</p>
+      <Button type="button" size="small" variant="primary" onclick={() => location.reload()}
+        >{t('Reload')}</Button
+      >
     </div>
   </div>
 {/if}
@@ -35,12 +42,10 @@
   <div class="refused" role="alert">
     <div class="in">
       <p>
-        {refused.length === 1
-          ? 'A change made here wasn’t kept.'
-          : `${refused.length} changes made here weren’t kept.`}
+        {tn(refused.length, 'A change made here wasn’t kept.', '{count} changes made here weren’t kept.')}
         {#each messages as m (m)}<span class="why">{m}</span>{/each}
       </p>
-      <Button type="button" size="small" onclick={() => dismissRefused()}>OK</Button>
+      <Button type="button" size="small" onclick={() => dismissRefused()}>{t('OK')}</Button>
     </div>
   </div>
 {/if}
@@ -49,15 +54,15 @@
   <div class="refused" role="alert">
     <div class="in">
       <p>
-        A team’s shared data can’t be reached: you may have been removed from it, or it was deleted.
-        {#if l.pending}<span class="why">{waiting(l.pending)} kept on this device.</span>{/if}
+        {t('A team’s shared data can’t be reached: you may have been removed from it, or it was deleted.')}
+        {#if l.pending}<span class="why">{waiting(l.pending)}</span>{/if}
       </p>
       <div class="row">
-        <Button type="button" size="small" onclick={() => retryLost()}>Try again</Button>
+        <Button type="button" size="small" onclick={() => retryLost()}>{t('Try again')}</Button>
         <ConfirmButton
-          label="Discard"
-          confirmLabel="Discard them"
-          question="Delete this team’s data from this device, unsent changes too? This can’t be undone."
+          label={t('Discard')}
+          confirmLabel={t('Discard them')}
+          question={t('Delete this team’s data from this device, unsent changes too? This can’t be undone.')}
           onconfirm={() => discardSpace(l.space)}
         />
       </div>

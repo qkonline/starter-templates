@@ -12,6 +12,7 @@
   import { homePath } from '#lib/config.ts';
   import { startSupport } from '#lib/device.ts';
   import { loadSupport } from '#lib/session.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import AuthShell from '#lib/components/AuthShell.svelte';
   import Spinner from '#lib/components/Spinner.svelte';
   import Button from '#lib/components/ui/Button.svelte';
@@ -30,7 +31,7 @@
     await goto(page.url.pathname, { shallow: true, replace: true });
     if (!code) {
       phase = 'failed';
-      problem = 'This page needs a support link from the admin area.';
+      problem = t('This page needs a support link from the admin area.');
       return;
     }
     try {
@@ -42,7 +43,7 @@
       phase = 'failed';
       problem =
         e instanceof ApiError && (e.code === 'invalid_code' || e.code === 'not_found')
-          ? 'This support link has expired or was already used. Start a new one from the admin area.'
+          ? t('This support link has expired or was already used. Start a new one from the admin area.')
           : messageOf(e);
     }
   });
@@ -53,20 +54,20 @@
 </script>
 
 {#if phase === 'ended'}
-  <AuthShell title="Support session ended" lead="Nothing in this tab is signed in any more.">
-    <p class="muted">Your own session in your other tabs is as it was.</p>
+  <AuthShell title={t('Support session ended')} lead={t('Nothing in this tab is signed in any more.')}>
+    <p class="muted">{t('Your own session in your other tabs is as it was.')}</p>
     <div class="row">
-      <Button type="button" variant="primary" onclick={closeTab}>Close this tab</Button>
-      <Button href={resolve('admin/people')}>Back to the admin area</Button>
+      <Button type="button" variant="primary" onclick={closeTab}>{t('Close this tab')}</Button>
+      <Button href={resolve('admin/people')}>{t('Back to the admin area')}</Button>
     </div>
   </AuthShell>
 {:else if phase === 'failed'}
-  <AuthShell title="Couldn’t start the support session">
+  <AuthShell title={t('Couldn’t start the support session')}>
     <p role="alert">{problem}</p>
-    <div><Button type="button" onclick={closeTab}>Close this tab</Button></div>
+    <div><Button type="button" onclick={closeTab}>{t('Close this tab')}</Button></div>
   </AuthShell>
 {:else}
-  <AuthShell title="Starting the support session…">
-    <p class="row muted" role="status"><Spinner /> One moment.</p>
+  <AuthShell title={t('Starting the support session…')}>
+    <p class="row muted" role="status"><Spinner /> {t('One moment.')}</p>
   </AuthShell>
 {/if}

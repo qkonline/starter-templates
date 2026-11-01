@@ -60,7 +60,7 @@ export function fakeCtx(vars: Partial<Env> = {}, opts: { api?: string } = {}) {
   const f = fakeD1();
   const env = { DB: f.d1, APP_NAME: 'test', ALLOWED_ORIGINS: 'http://localhost:5173', ...vars } as Env;
   const api = opts.api ?? 'http://localhost:8787/api';
-  const ctx: Ctx = { env, cfg: config(env, api), db: d1(f.d1), ip: '192.0.2.1', network: '192.0.2.1', api };
+  const ctx: Ctx = { env, cfg: config(env, api), db: d1(f.d1), ip: '192.0.2.1', network: '192.0.2.1', api, lang: 'en' };
   return { ...f, env, ctx };
 }
 

@@ -4,12 +4,14 @@
 // src/app.css, list it here and in the inline script in src/app.html (a test checks all three
 // agree). With a single theme listed, Account → Display shows no choice of theme.
 
+import { msg } from '#lib/i18n/index.svelte.ts';
+
 export interface ThemeInfo {
   id: string;
   label: string;
 }
 
-export const themes = [{ id: 'fusion', label: 'Fusion' }] as const satisfies readonly ThemeInfo[];
+export const themes = [{ id: 'fusion', label: msg('Fusion') }] as const satisfies readonly ThemeInfo[];
 
 export type Theme = (typeof themes)[number]['id'];
 

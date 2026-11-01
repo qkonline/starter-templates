@@ -5,6 +5,7 @@
   import { formatWhen } from '#lib/format.ts';
   import { addPasskey, passkeysSupported } from '#lib/passkeys.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import ConfirmEmailFirst from '../ConfirmEmailFirst.svelte';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
@@ -31,7 +32,7 @@
     add.run(async () => {
       const passkey = await addPasskey();
       passkeys = [...(passkeys ?? []), passkey];
-      status = 'Passkey added.';
+      status = t('Passkey added.');
     });
   }
 
@@ -41,16 +42,16 @@
       await api.removePasskey(id);
       passkeys = (passkeys ?? []).filter((p) => p.id !== id);
       confirming = null;
-      status = 'Passkey removed.';
+      status = t('Passkey removed.');
     });
   }
 </script>
 
 <div class="stack">
   {#if passkeys === null}
-    {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
+    {#if load.error}<FormError message={load.error} />{:else}<p class="muted">{t('Loading…')}</p>{/if}
   {:else if passkeys.length === 0}
-    <p class="muted">No passkeys yet.</p>
+    <p class="muted">{t('No passkeys yet.')}</p>
   {:else}
     <List>
       {#each passkeys as p (p.id)}
@@ -58,9 +59,9 @@
           <div>
             <p class="title">{p.device}</p>
             <p class="muted small">
-              Added {formatWhen(p.createdAt)} · {p.lastUsedAt
-                ? `Last used ${formatWhen(p.lastUsedAt)}`
-                : 'Not used yet'}
+              {t('Added {added}', { added: formatWhen(p.createdAt) })} · {p.lastUsedAt
+                ? t('Last used {lastUsed}', { lastUsed: formatWhen(p.lastUsedAt) })
+                : t('Not used yet')}
             </p>
           </div>
           {#if confirming === p.id}
@@ -70,17 +71,20 @@
                 type="button"
                 variant="danger"
                 wide={false}
-                busyLabel="Removing…"
-                onclick={() => removeOne(p.id)}>Remove</SubmitButton
+                busyLabel={t('Removing…')}
+                onclick={() => removeOne(p.id)}>{t('Remove')}</SubmitButton
               >
-              <Button type="button" size="small" onclick={() => (confirming = null)}>Keep</Button>
+              <Button type="button" size="small" onclick={() => (confirming = null)}>{t('Keep')}</Button>
             </div>
           {:else}
             <Button
               type="button"
               size="small"
               onclick={() => (confirming = p.id)}
-              aria-label="Remove passkey {p.device}, added {formatWhen(p.createdAt)}">Remove</Button
+              aria-label={t('Remove passkey {device}, added {added}', {
+                device: p.device,
+                added: formatWhen(p.createdAt),
+              })}>{t('Remove')}</Button
             >
           {/if}
         </li>
@@ -89,7 +93,7 @@
   {/if}
 
   {#if add.code === 'email_unverified'}
-    <ConfirmEmailFirst action="add a passkey" />
+    <ConfirmEmailFirst action={t('add a passkey')} />
   {:else}
     <FormError message={add.error || remove.error} />
   {/if}
@@ -100,14 +104,14 @@
         type="button"
         wide={false}
         variant="plain"
-        busyLabel="Waiting for your device…"
+        busyLabel={t('Waiting for your device…')}
         onclick={addOne}
       >
-        Add a passkey on this device
+        {t('Add a passkey on this device')}
       </SubmitButton>
       <span class="success" role="status">{status}</span>
     </div>
   {:else}
-    <p class="muted small">This browser can’t make passkeys.</p>
+    <p class="muted small">{t('This browser can’t make passkeys.')}</p>
   {/if}
 </div>

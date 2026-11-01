@@ -1,11 +1,12 @@
 <!-- A quiet line while the device is offline: the app still opens, but nothing new loads (PRD R3.1). -->
 <script lang="ts">
   import { pwa } from '#lib/pwa.svelte.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
 </script>
 
 {#if !pwa.online}
   <div class="offline" role="status">
-    <p>You’re offline. What’s already open still works; anything new waits until you’re connected.</p>
+    <p>{t('You’re offline. What’s already open still works; anything new waits until you’re connected.')}</p>
   </div>
 {/if}
 

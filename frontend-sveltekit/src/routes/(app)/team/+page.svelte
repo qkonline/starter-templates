@@ -34,6 +34,7 @@
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
   import Select from '#lib/components/ui/Select.svelte';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   // Derived: going from one team to another (the bell, a link) stays on this page with a new `id`.
   const teamId = $derived(page.url.searchParams.get('id') ?? '');
@@ -102,7 +103,7 @@
     return task.run(work).then(async (ok) => {
       if (ok && done) status = done;
       if (!ok && task.code === 'last_admin') {
-        task.error = `${task.error} ${lastAdminHint}`;
+        task.error = `${task.error} ${t(lastAdminHint)}`;
         await reload();
       }
       if (!ok && task.code === 'forbidden') await reload();
@@ -118,7 +119,7 @@
         team = await api.renameTeam(teamId, newName);
         newName = team.name;
       },
-      'Renamed.',
+      t('Renamed.'),
     );
   }
 
@@ -130,7 +131,9 @@
         members = members.map((x) => (x.userId === m.userId ? updated : x));
         if (m.userId === me.id && team) team = { ...team, role };
       },
-      `${m.name ?? m.email} is now ${role === 'admin' ? 'an admin' : 'a member'}.`,
+      role === 'admin'
+        ? t('{name} is now an admin.', { name: m.name ?? m.email })
+        : t('{name} is now a member.', { name: m.name ?? m.email }),
     ).then((ok) => {
       // The menu already shows the new role; show the team as it really is.
       if (!ok) reload();
@@ -144,7 +147,7 @@
         await api.removeMember(teamId, m.userId);
         members = members.filter((x) => x.userId !== m.userId);
       },
-      `${m.name ?? m.email} is no longer in the team.`,
+      t('{name} is no longer in the team.', { name: m.name ?? m.email }),
     );
   }
 
@@ -169,12 +172,16 @@
         invites = [invite, ...invites];
         inviteEmail = '';
       },
-      'Invite sent.',
+      t('Invite sent.'),
     );
   }
 
   function resend(invite: SentInvite) {
-    act(pending, () => api.resendInvite(teamId, invite.id), `Sent again to ${invite.email}.`);
+    act(
+      pending,
+      () => api.resendInvite(teamId, invite.id),
+      t('Sent again to {email}.', { email: invite.email }),
+    );
   }
 
   function withdraw(invite: SentInvite) {
@@ -184,13 +191,13 @@
         await api.revokeInvite(teamId, invite.id);
         invites = invites.filter((i) => i.id !== invite.id);
       },
-      `The invite to ${invite.email} is withdrawn.`,
+      t('The invite to {email} is withdrawn.', { email: invite.email }),
     );
   }
 
   function deleteTeam() {
     if (deleteTyped.trim() !== team?.name) {
-      removal.error = 'Type the team’s name exactly as shown to confirm.';
+      removal.error = t('Type the team’s name exactly as shown to confirm.');
       return;
     }
     act(removal, async () => {
@@ -200,29 +207,30 @@
   }
 </script>
 
-<svelte:head><title>{team?.name ?? 'Team'} · {appName}</title></svelte:head>
+<svelte:head><title>{team?.name ?? t('Team')} · {appName}</title></svelte:head>
 
 {#if missing}
   <div class="stack">
-    <h1>Team not found</h1>
-    <p class="muted">It may have been deleted, or you’re no longer in it.</p>
-    <p><a href={resolve('teams')}>Your teams</a></p>
+    <h1>{t('Team not found')}</h1>
+    <p class="muted">{t('It may have been deleted, or you’re no longer in it.')}</p>
+    <p><a href={resolve('teams')}>{t('Your teams')}</a></p>
   </div>
 {:else if !team}
-  {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
+  {#if load.error}<FormError message={load.error} />{:else}<p class="muted">{t('Loading…')}</p>{/if}
 {:else}
   <div class="page stack">
     <header class="head">
-      <p class="small"><a href={resolve('teams')}>Teams</a></p>
+      <p class="small"><a href={resolve('teams')}>{t('Teams')}</a></p>
       <h1>{team.name}</h1>
       <p class="muted small">
-        {members.length}
-        {members.length === 1 ? 'member' : 'members'} · You’re {team ? asRole(team.role) : 'a member'}
+        {tn(members.length, '1 member', '{count} members')} · {t('You’re {role}', {
+          role: team ? asRole(team.role) : t('a member'),
+        })}
       </p>
       <p class="success" role="status">{status}</p>
     </header>
 
-    <Panel title="Members">
+    <Panel title={t('Members')}>
       <List>
         {#each members as m (m.userId)}
           {@const self = m.userId === me.id}
@@ -232,24 +240,29 @@
               <Avatar user={m} size={32} />
               <div>
                 <p class="title">
-                  {m.name ?? m.email}{#if self}<Badge>You</Badge>{/if}
+                  {m.name ?? m.email}{#if self}<Badge>{t('You')}</Badge>{/if}
                 </p>
                 <p class="muted small">{m.name ? m.email : ''}</p>
-                {#if self && onlyAdmin}<p class="muted small">You’re the only admin. {lastAdminHint}</p>{/if}
+                {#if self && onlyAdmin}<p class="muted small">
+                    {t('You’re the only admin.')}
+                    {t(lastAdminHint)}
+                  </p>{/if}
               </div>
             </div>
             <div class="row">
               {#if admin}
-                <label class="visually-hidden" for="role-{m.userId}">Role of {m.name ?? m.email}</label>
+                <label class="visually-hidden" for="role-{m.userId}"
+                  >{t('Role of {name}', { name: m.name ?? m.email })}</label
+                >
                 <Select
                   id="role-{m.userId}"
                   small
                   value={m.role}
                   disabled={people.busy || (onlyAdmin && m.role === 'admin')}
-                  title={onlyAdmin ? 'The team’s only admin can’t step down.' : undefined}
+                  title={onlyAdmin ? t('The team’s only admin can’t step down.') : undefined}
                   onchange={(e) => changeRole(m, e.currentTarget.value as Role)}
                 >
-                  {#each roles as r (r.value)}<option value={r.value}>{r.label}</option>{/each}
+                  {#each roles as r (r.value)}<option value={r.value}>{t(r.label)}</option>{/each}
                 </Select>
               {:else}
                 <span class="muted small">{roleLabel(m.role)}</span>
@@ -257,18 +270,18 @@
               {#if self}
                 {#if !onlyAdmin}
                   <ConfirmButton
-                    label="Leave"
-                    confirmLabel="Leave {team.name}"
-                    question="Leave this team? You’ll need a new invite to come back."
+                    label={t('Leave')}
+                    confirmLabel={t('Leave {team}', { team: team.name })}
+                    question={t('Leave this team? You’ll need a new invite to come back.')}
                     disabled={people.busy}
                     onconfirm={leave}
                   />
                 {/if}
               {:else if admin}
                 <ConfirmButton
-                  label="Remove"
-                  confirmLabel="Remove {m.name ?? m.email}"
-                  question="Remove {m.name ?? m.email} from the team?"
+                  label={t('Remove')}
+                  confirmLabel={t('Remove {name}', { name: m.name ?? m.email })}
+                  question={t('Remove {name} from the team?', { name: m.name ?? m.email })}
                   disabled={people.busy || onlyAdmin}
                   onconfirm={() => remove(m)}
                 />
@@ -281,9 +294,13 @@
     </Panel>
 
     {#if admin}
-      <Panel title="Invite someone">
+      <Panel title={t('Invite someone')}>
         <form class="stack narrow" onsubmit={sendInvite} novalidate>
-          <Field label="Email" id="invite-email" hint="They get an email with a link that works for 7 days.">
+          <Field
+            label={t('Email')}
+            id="invite-email"
+            hint={t('They get an email with a link that works for 7 days.')}
+          >
             <Input
               type="email"
               bind:value={inviteEmail}
@@ -292,23 +309,25 @@
               spellcheck="false"
             />
           </Field>
-          <Field label="Role" id="invite-role">
+          <Field label={t('Role')} id="invite-role">
             <Select bind:value={inviteRole}>
-              {#each roles as r (r.value)}<option value={r.value}>{r.label}</option>{/each}
+              {#each roles as r (r.value)}<option value={r.value}>{t(r.label)}</option>{/each}
             </Select>
           </Field>
           {#if inviting.code === 'email_unverified'}
-            <ConfirmEmailFirst action="invite people" />
+            <ConfirmEmailFirst action={t('invite people')} />
           {:else}
             <FormError message={inviting.error} />
           {/if}
           <div>
-            <SubmitButton task={inviting} wide={false} busyLabel="Sending…">Send invite</SubmitButton>
+            <SubmitButton task={inviting} wide={false} busyLabel={t('Sending…')}
+              >{t('Send invite')}</SubmitButton
+            >
           </div>
         </form>
 
         {#if invites.length}
-          <h3>Waiting to join</h3>
+          <h3>{t('Waiting to join')}</h3>
           <List>
             {#each invites as invite (invite.id)}
               <li>
@@ -318,12 +337,14 @@
                 </div>
                 <div class="row">
                   <Button type="button" size="small" disabled={pending.blocked} onclick={() => resend(invite)}
-                    >Resend</Button
+                    >{t('Resend')}</Button
                   >
                   <ConfirmButton
-                    label="Withdraw"
-                    confirmLabel="Withdraw invite"
-                    question="Withdraw the invite to {invite.email}? Its link stops working."
+                    label={t('Withdraw')}
+                    confirmLabel={t('Withdraw invite')}
+                    question={t('Withdraw the invite to {email}? Its link stops working.', {
+                      email: invite.email,
+                    })}
                     disabled={pending.busy}
                     onconfirm={() => withdraw(invite)}
                   />
@@ -332,39 +353,41 @@
             {/each}
           </List>
           {#if pending.code === 'email_unverified'}
-            <ConfirmEmailFirst action="send the invite again" />
+            <ConfirmEmailFirst action={t('send the invite again')} />
           {:else}
             <FormError message={pending.error} />
           {/if}
         {/if}
       </Panel>
 
-      <Panel title="Settings">
+      <Panel title={t('Settings')}>
         <form class="stack narrow" onsubmit={saveName} novalidate>
-          <Field label="Name" id="team-rename">
+          <Field label={t('Name')} id="team-rename">
             <Input bind:value={newName} maxlength={60} autocomplete="off" />
           </Field>
           <FormError message={rename.error} />
           <div>
-            <SubmitButton task={rename} wide={false} variant="plain" busyLabel="Saving…">Rename</SubmitButton>
+            <SubmitButton task={rename} wide={false} variant="plain" busyLabel={t('Saving…')}
+              >{t('Rename')}</SubmitButton
+            >
           </div>
         </form>
 
         <div class="stack narrow">
-          <h3>Delete the team</h3>
+          <h3>{t('Delete the team')}</h3>
           <p class="muted small">
-            Removes the team, its members and its invites, at once. This can’t be undone.
+            {t('Removes the team, its members and its invites, at once. This can’t be undone.')}
           </p>
           <div>
             <ConfirmButton
-              label="Delete team…"
+              label={t('Delete team…')}
               size="md"
-              confirmLabel="Delete {team.name} for good"
-              question="Type the team’s name to confirm."
+              confirmLabel={t('Delete {team} for good', { team: team.name })}
+              question={t('Type the team’s name to confirm.')}
               disabled={removal.busy}
               onconfirm={deleteTeam}
             >
-              <label class="visually-hidden" for="delete-name">Team name</label>
+              <label class="visually-hidden" for="delete-name">{t('Team name')}</label>
               <Input id="delete-name" bind:value={deleteTyped} autocomplete="off" />
             </ConfirmButton>
           </div>

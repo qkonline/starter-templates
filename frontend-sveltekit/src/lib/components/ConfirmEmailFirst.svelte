@@ -5,6 +5,8 @@
 -->
 <script lang="ts">
   import { resolve } from '$app/paths';
+  import { msg } from '#lib/i18n/index.svelte.ts';
+  import Trans from './Trans.svelte';
 
   /** What the person was trying to do, e.g. "add a passkey". */
   let { action }: { action: string } = $props();
@@ -12,7 +14,13 @@
 
 <div role="alert">
   <p class="error">
-    Confirm your email address first, then {action}. Under Email on your account page, send yourself a code
-    and enter it. <a href="{resolve('account')}#email">Confirm your email</a>
+    <Trans
+      text={msg(
+        'Confirm your email address first, then {action}. Under Email on your account page, send yourself a code and enter it. <link>Confirm your email</link>',
+      )}
+      vars={{ action }}
+    >
+      {#snippet link(s: string)}<a href="{resolve('account')}#email">{s}</a>{/snippet}
+    </Trans>
   </p>
 </div>

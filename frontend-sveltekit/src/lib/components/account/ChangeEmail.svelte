@@ -10,6 +10,8 @@
   import { auth } from '#lib/session.svelte.ts';
   import { emailProblem, makeKey, makeKeys } from '#lib/password.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
+  import Trans from '../Trans.svelte';
   import Captcha from '../Captcha.svelte';
   import CodeInput from '../CodeInput.svelte';
   import FormError from '../FormError.svelte';
@@ -51,11 +53,11 @@
     const methods = auth.methods;
     if (!user || !methods || !sentTo) return;
     if (user.hasPassword && !password) {
-      verifyTask.error = 'Enter your password.';
+      verifyTask.error = t('Enter your password.');
       return;
     }
     if (!user.hasPassword && !currentCode.trim()) {
-      verifyTask.error = `Enter the code we sent to ${user.email} as well.`;
+      verifyTask.error = t('Enter the code we sent to {email} as well.', { email: user.email });
       return;
     }
     const to = sentTo;
@@ -87,7 +89,12 @@
 
 {#if !sentTo}
   <form class="stack" onsubmit={send} novalidate>
-    <Field label="New email address" id="new-email" invalid={!!sendTask.error} describedby="new-email-error">
+    <Field
+      label={t('New email address')}
+      id="new-email"
+      invalid={!!sendTask.error}
+      describedby="new-email-error"
+    >
       <Input
         type="email"
         bind:value={email}
@@ -104,35 +111,56 @@
       />{/if}
     <FormError id="new-email-error" message={sendTask.error} />
     <div class="row">
-      <SubmitButton task={sendTask} wide={false} busyLabel="Sending…">Send code to new address</SubmitButton>
-      <span class="success" role="status">{done ? 'Your email address is changed.' : ''}</span>
+      <SubmitButton task={sendTask} wide={false} busyLabel={t('Sending…')}
+        >{t('Send code to new address')}</SubmitButton
+      >
+      <span class="success" role="status">{done ? t('Your email address is changed.') : ''}</span>
     </div>
   </form>
 {:else}
   <form class="stack" onsubmit={verify} novalidate>
-    <p>Enter the code we sent to <strong>{sentTo}</strong>.</p>
+    <p>
+      <Trans text={msg('Enter the code we sent to <b>{email}</b>.')} vars={{ email: sentTo }}>
+        {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+      </Trans>
+    </p>
     <CodeInput id="change-code" bind:value={code} />
     {#if auth.user && !auth.user.hasPassword}
-      <p>And the code we sent to your current address, <strong>{auth.user.email}</strong>.</p>
-      <CodeInput id="change-current-code" label="Code from your current address" bind:value={currentCode} />
+      <p>
+        <Trans
+          text={msg('And the code we sent to your current address, <b>{email}</b>.')}
+          vars={{ email: auth.user.email }}
+        >
+          {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+        </Trans>
+      </p>
+      <CodeInput
+        id="change-current-code"
+        label={t('Code from your current address')}
+        bind:value={currentCode}
+      />
     {/if}
     {#if auth.user?.hasPassword}
       <PasswordInput
         id="change-password"
         bind:value={password}
-        label="Your password"
-        hint="Your password stays the same; it’s needed because your email is part of how it’s protected."
+        label={t('Your password')}
+        hint={t(
+          'Your password stays the same; it’s needed because your email is part of how it’s protected.',
+        )}
       />
     {/if}
     <FormError message={verifyTask.error || sendTask.error} />
     <div class="row">
-      <SubmitButton task={verifyTask} wide={false} busyLabel="Checking…">Change email</SubmitButton>
+      <SubmitButton task={verifyTask} wide={false} busyLabel={t('Checking…')}
+        >{t('Change email')}</SubmitButton
+      >
       <Button
         type="button"
         onclick={() => {
           sentTo = null;
           verifyTask.clear();
-        }}>Use another address</Button
+        }}>{t('Use another address')}</Button
       >
     </div>
   </form>

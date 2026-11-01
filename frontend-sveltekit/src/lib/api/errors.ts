@@ -4,6 +4,8 @@
 
 import type { components } from '@starter/contract/types';
 
+import { t } from '#lib/i18n/index.svelte.ts';
+
 export type ErrorCode = components['schemas']['ErrorCode'];
 
 /**
@@ -54,13 +56,13 @@ export const isErrorCode = (value: unknown): value is ErrorCode =>
 
 /** Plain words for a reply that isn't a contract `Error`, by status. */
 function fallbackMessage(status: number): string {
-  if (status === 401) return 'You’ve been signed out. Sign in again.';
-  if (status === 403) return 'You can’t do that here.';
-  if (status === 404) return 'That isn’t here.';
-  if (status === 413) return 'That file is too large.';
-  if (status === 429) return 'Too many tries. Wait a little, then try again.';
-  if (status >= 500) return 'Something went wrong on the server. Try again in a moment.';
-  return 'Something went wrong. Try again.';
+  if (status === 401) return t('You’ve been signed out. Sign in again.');
+  if (status === 403) return t('You can’t do that here.');
+  if (status === 404) return t('That isn’t here.');
+  if (status === 413) return t('That file is too large.');
+  if (status === 429) return t('Too many tries. Wait a little, then try again.');
+  if (status >= 500) return t('Something went wrong on the server. Try again in a moment.');
+  return t('Something went wrong. Try again.');
 }
 
 function fallbackCode(status: number): ErrorCode {
@@ -103,8 +105,8 @@ export function networkError(): ApiError {
   return new ApiError(
     'network',
     offline
-      ? 'You’re offline. Try again once you’re connected.'
-      : 'Couldn’t reach the server. Check your connection and try again.',
+      ? t('You’re offline. Try again once you’re connected.')
+      : t('Couldn’t reach the server. Check your connection and try again.'),
     0,
   );
 }
@@ -113,7 +115,7 @@ export function networkError(): ApiError {
 export function messageOf(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error && error.message) return error.message;
-  return 'Something went wrong. Try again.';
+  return t('Something went wrong. Try again.');
 }
 
 /** The person closed the browser's passkey prompt, or it timed out: nothing to say about it. */

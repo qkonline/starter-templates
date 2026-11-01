@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { check, textsIn } from '../../../scripts/i18n.mjs';
+import { allTexts, check, textsIn } from '../../../scripts/i18n.mjs';
 import { formatNumber, i18n, locales, pick, t, tn } from './index.svelte.ts';
 
 locales.xx = {
@@ -61,5 +61,17 @@ describe('finding the texts', () => {
       '<b>Hi</b>': '<b>Hoi</b>',
     });
     expect(r).toEqual({ missing: ['Bye.'], stale: ['Gone.'], broken: ['Hello {name}.'] });
+  });
+});
+
+describe("the app's languages", () => {
+  it('translate only texts still in the code, keeping their placeholders and tags', () => {
+    const texts = allTexts();
+    expect(texts.length).toBeGreaterThan(300);
+    for (const [code, l] of Object.entries(locales)) {
+      if (code === 'en' || code === 'xx') continue;
+      const r = check(texts, l.messages);
+      expect({ code, stale: r.stale, broken: r.broken }).toEqual({ code, stale: [], broken: [] });
+    }
   });
 });

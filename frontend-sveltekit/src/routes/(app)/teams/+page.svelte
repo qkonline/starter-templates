@@ -15,6 +15,7 @@
   import Input from '#lib/components/ui/Input.svelte';
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   const base = resolve('').replace(/\/$/, '');
   let teams = $state<TeamSummary[] | null>(null);
@@ -35,7 +36,7 @@
   function make(e: SubmitEvent) {
     e.preventDefault();
     if (!name.trim()) {
-      create.error = 'Give the team a name.';
+      create.error = t('Give the team a name.');
       return;
     }
     create.run(async () => {
@@ -73,26 +74,27 @@
   }
 </script>
 
-<svelte:head><title>Teams · {appName}</title></svelte:head>
+<svelte:head><title>{t('Teams')} · {appName}</title></svelte:head>
 
 {#if !auth.features?.teams}
-  <p class="muted">Teams aren’t switched on in this app.</p>
+  <p class="muted">{t('Teams aren’t switched on in this app.')}</p>
 {:else}
   <div class="stack page">
-    <h1>Teams</h1>
+    <h1>{t('Teams')}</h1>
 
     {#if invites.length}
-      <Panel title="Invites for you">
+      <Panel title={t('Invites for you')}>
         <List>
           {#each invites as invite (invite.id)}
             <li>
               <div>
                 <p class="title">{invite.team.name}</p>
                 <p class="muted small">
-                  From {invite.invitedBy.name ?? invite.invitedBy.email}, as {roleLabel(
-                    invite.role,
-                  ).toLowerCase()} ·
-                  {expiresIn(invite.expiresAt)}
+                  {t('From {name}, as {role} · {expires}', {
+                    name: invite.invitedBy.name ?? invite.invitedBy.email,
+                    role: roleLabel(invite.role).toLowerCase(),
+                    expires: expiresIn(invite.expiresAt),
+                  })}
                 </p>
               </div>
               <div class="row">
@@ -101,13 +103,13 @@
                   variant="primary"
                   size="small"
                   disabled={answering === invite.id}
-                  onclick={() => accept(invite)}>Join</Button
+                  onclick={() => accept(invite)}>{t('Join')}</Button
                 >
                 <Button
                   type="button"
                   size="small"
                   disabled={answering === invite.id}
-                  onclick={() => decline(invite)}>Decline</Button
+                  onclick={() => decline(invite)}>{t('Decline')}</Button
                 >
               </div>
             </li>
@@ -117,11 +119,11 @@
       </Panel>
     {/if}
 
-    <Panel title="Your teams">
+    <Panel title={t('Your teams')}>
       {#if teams === null}
-        {#if load.error}<FormError message={load.error} />{:else}<p class="muted">Loading…</p>{/if}
+        {#if load.error}<FormError message={load.error} />{:else}<p class="muted">{t('Loading…')}</p>{/if}
       {:else if teams.length === 0}
-        <p class="muted">You’re not in a team yet. Make one below, or join one from an invite.</p>
+        <p class="muted">{t('You’re not in a team yet. Make one below, or join one from an invite.')}</p>
       {:else}
         <List>
           {#each teams as team (team.id)}
@@ -129,8 +131,9 @@
               <div>
                 <p class="title"><a href={teamPath(team.id, base)}>{team.name}</a></p>
                 <p class="muted small">
-                  {team.memberCount}
-                  {team.memberCount === 1 ? 'member' : 'members'} · You’re {asRole(team.role)}
+                  {tn(team.memberCount, '1 member', '{count} members')} · {t('You’re {role}', {
+                    role: asRole(team.role),
+                  })}
                 </p>
               </div>
             </li>
@@ -139,19 +142,24 @@
       {/if}
       {#if !auth.user?.emailVerified}
         <p class="muted small">
-          Invites sent to {auth.user?.email} show here once you’ve confirmed the address.
-          <a href="{resolve('account')}#email">Confirm it</a>
+          {t('Invites sent to {email} show here once you’ve confirmed the address.', {
+            email: auth.user?.email ?? '',
+          })}
+          <a href="{resolve('account')}#email">{t('Confirm it')}</a>
         </p>
       {/if}
     </Panel>
 
-    <Panel title="New team">
+    <Panel title={t('New team')}>
       <form class="stack narrow" onsubmit={make} novalidate>
-        <Field label="Name" id="team-name">
+        <Field label={t('Name')} id="team-name">
           <Input bind:value={name} maxlength={60} autocomplete="off" />
         </Field>
         <FormError message={create.error} />
-        <div><SubmitButton task={create} wide={false} busyLabel="Making…">Make the team</SubmitButton></div>
+        <div>
+          <SubmitButton task={create} wide={false} busyLabel={t('Making…')}>{t('Make the team')}</SubmitButton
+          >
+        </div>
       </form>
     </Panel>
   </div>

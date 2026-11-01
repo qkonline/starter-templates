@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { isId, readBody, readCapped } from '../checks';
 import type { Ctx } from '../env';
 import { forbidden, invalid, notFound, Refusal, tooMany } from '../errors';
+import { tr } from '../i18n';
 import { requireFeature, requireUser, requireVerifiedEmail, type AppEnv } from '../middleware';
 import type { SyncWho } from '../sync/rules';
 import { isMediaType, isSyncId, MAX_BYTES, MAX_FILE, PAGE, PART_SIZE, type Outcome } from '../sync/store';
@@ -39,8 +40,8 @@ async function ask<T>(work: Promise<Outcome<T>>): Promise<T> {
     throw e;
   }
   if (!out.ok) {
-    if (out.status === 429) throw tooMany(out.retryAfter, out.message);
-    throw new Refusal(out.status, out.code, out.message);
+    if (out.status === 429) throw tooMany(out.retryAfter, out.message, out.vars);
+    throw new Refusal(out.status, out.code, out.message, undefined, out.vars);
   }
   return out.value;
 }
@@ -54,7 +55,9 @@ sync.post('/sync/push', async (c) => {
   const who = await whoIn(ctx, user.id, session.id, c.req.query('team'));
   const bytes = await readCapped(c.req.raw, MAX_BYTES);
   if (!bytes) throw new Refusal(413, 'too_large', 'That batch is over 256 KB. Send fewer changes at a time.');
-  return c.json(await ask(stubOf(ctx, who.space).push(who, new TextDecoder().decode(bytes))));
+  const { results } = await ask(stubOf(ctx, who.space).push(who, new TextDecoder().decode(bytes)));
+  // Each refused change's message in the person's language.
+  return c.json({ results: results.map((r) => (r.message ? { ...r, message: tr(ctx.lang, r.message) } : r)) });
 });
 
 sync.get('/sync/pull', async (c) => {
@@ -63,7 +66,7 @@ sync.get('/sync/pull', async (c) => {
   const since = c.req.query('since');
   const limit = c.req.query('limit');
   if (since !== undefined && !/^\d{1,15}$/.test(since)) throw invalid('That sync position is out of date. Start again from the beginning.');
-  if (limit !== undefined && (!/^\d{1,3}$/.test(limit) || +limit < 1 || +limit > PAGE)) throw invalid(`Ask for 1 to ${PAGE} records at a time.`);
+  if (limit !== undefined && (!/^\d{1,3}$/.test(limit) || +limit < 1 || +limit > PAGE)) throw invalid('Ask for 1 to {max} records at a time.', { max: PAGE });
   return c.json(await ask(stubOf(ctx, space).pull(user.id, Number(since ?? 0), limit === undefined ? undefined : Number(limit))));
 });
 

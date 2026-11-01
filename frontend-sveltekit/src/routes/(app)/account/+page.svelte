@@ -20,85 +20,98 @@
   import Button from '#lib/components/ui/Button.svelte';
   import Notice from '#lib/components/ui/Notice.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   const user = $derived(auth.user!);
   const support = $derived(!!auth.support);
   let devices = $state<ReturnType<typeof Devices>>();
 </script>
 
-<svelte:head><title>Account · {appName}</title></svelte:head>
+<svelte:head><title>{t('Account')} · {appName}</title></svelte:head>
 
 <div class="page stack">
   <header class="head">
     <div class="titles">
-      <h1>Account</h1>
-      <p class="muted">How you appear in {appName}, and how you sign in.</p>
+      <h1>{t('Account')}</h1>
+      <p class="muted">{t('How you appear in {app}, and how you sign in.', { app: appName })}</p>
     </div>
-    <Button type="button" onclick={signOut}>{support ? 'End support session' : 'Sign out'}</Button>
+    <Button type="button" onclick={signOut}>{support ? t('End support session') : t('Sign out')}</Button>
   </header>
 
   {#if !support && syncState.pending > 0}
     <Notice>
-      {syncState.pending === 1 ? '1 change' : `${syncState.pending} changes`} made on this device {syncState.pending ===
-      1
-        ? 'hasn’t'
-        : 'haven’t'} reached {appName} yet. If you sign out now, {syncState.pending === 1
-        ? 'it stays'
-        : 'they stay'}
-      on this device and {syncState.pending === 1 ? 'is' : 'are'} sent the next time you sign in here.
+      {tn(
+        syncState.pending,
+        '1 change made on this device hasn’t reached {app} yet. If you sign out now, it stays on this device and is sent the next time you sign in here.',
+        '{count} changes made on this device haven’t reached {app} yet. If you sign out now, they stay on this device and are sent the next time you sign in here.',
+        { app: appName },
+      )}
     </Notice>
   {/if}
 
   {#if support}
     <Notice>
-      This is a support session. Profile, email, password, passkeys, devices, notifications and data aren’t
-      available here.
+      {t(
+        'This is a support session. Profile, email, password, passkeys, devices, notifications and data aren’t available here.',
+      )}
     </Notice>
   {:else}
-    <Panel title="Profile" description="How you appear in {appName}."><Profile /></Panel>
+    <Panel title={t('Profile')} description={t('How you appear in {app}.', { app: appName })}
+      ><Profile /></Panel
+    >
 
-    <Panel id="email" title="Email">
+    <Panel id="email" title={t('Email')}>
       {#snippet description()}
         {user.email}
-        {#if user.emailVerified}<Badge>Confirmed</Badge>{:else}<Badge tone="danger">Not confirmed</Badge>{/if}
+        {#if user.emailVerified}<Badge>{t('Confirmed')}</Badge>{:else}<Badge tone="danger"
+            >{t('Not confirmed')}</Badge
+          >{/if}
       {/snippet}
       <div class="stack">
         {#if !user.emailVerified}
           <div class="stack">
-            <h3>Confirm your address</h3>
+            <h3>{t('Confirm your address')}</h3>
             <ConfirmEmail />
           </div>
         {/if}
         <div class="stack">
-          {#if !user.emailVerified}<h3>Change your address</h3>{/if}
+          {#if !user.emailVerified}<h3>{t('Change your address')}</h3>{/if}
           <ChangeEmail />
         </div>
       </div>
     </Panel>
 
-    <Panel title="Password" description="Your password never leaves this device.">
+    <Panel title={t('Password')} description={t('Your password never leaves this device.')}>
       <PasswordSection onChanged={() => devices?.reload()} />
     </Panel>
 
-    <Panel title="Passkeys" description="Sign in with Face ID, Touch ID, Windows Hello or a security key.">
+    <Panel
+      title={t('Passkeys')}
+      description={t('Sign in with Face ID, Touch ID, Windows Hello or a security key.')}
+    >
       <Passkeys />
     </Panel>
 
-    <Panel title="Devices" description="Where your account is signed in."
+    <Panel title={t('Devices')} description={t('Where your account is signed in.')}
       ><Devices bind:this={devices} /></Panel
     >
 
     {#if auth.features?.push}
-      <Panel title="Notifications" description="On this device, even when {appName} is closed.">
+      <Panel
+        title={t('Notifications')}
+        description={t('On this device, even when {app} is closed.', { app: appName })}
+      >
         <PushSection />
       </Panel>
     {/if}
   {/if}
 
-  <Panel title="Display" description="Theme, mode and text size on this device."><DisplaySection /></Panel>
+  <Panel title={t('Display')} description={t('Theme, mode and text size on this device.')}
+    ><DisplaySection /></Panel
+  >
 
   {#if !support}
-    <Panel title="Data" description="Take your data with you, or remove it."><DataSection /></Panel>
+    <Panel title={t('Data')} description={t('Take your data with you, or remove it.')}><DataSection /></Panel>
   {/if}
 </div>
 

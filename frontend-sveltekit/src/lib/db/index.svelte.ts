@@ -22,6 +22,7 @@
 
 import { api } from '#lib/api/index.ts';
 import { onForget } from '#lib/device.ts';
+import { t } from '#lib/i18n/index.svelte.ts';
 import { newId } from './ids';
 import { ME, openLocal, type Fields, type Local, type RefusedChange, type Space } from './local';
 import { createSync } from './sync';
@@ -54,9 +55,9 @@ let opened: Promise<Local> | null = null;
 const dbName = (a: { id: string; support: boolean }) => (a.support ? SUPPORT : DATA) + a.id;
 
 function open(): Promise<Local> {
-  if (!account) return Promise.reject(new Error('Sign in first: the data on this device is per account.'));
+  if (!account) return Promise.reject(new Error(t('Sign in first: the data on this device is per account.')));
   if (syncState.stale)
-    return Promise.reject(new Error('This app was updated in another tab. Reload to carry on.'));
+    return Promise.reject(new Error(t('This app was updated in another tab. Reload to carry on.')));
   opened ??= openLocal(dbName(account), {
     onStale: () => {
       opened = null;

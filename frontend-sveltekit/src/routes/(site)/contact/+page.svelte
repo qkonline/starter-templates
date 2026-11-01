@@ -10,12 +10,14 @@
   import { emailProblem } from '#lib/password.ts';
   import { auth, hasToken, loadMethods, loadUser } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
   import Captcha from '#lib/components/Captcha.svelte';
   import FormError from '#lib/components/FormError.svelte';
   import SubmitButton from '#lib/components/SubmitButton.svelte';
   import Field from '#lib/components/ui/Field.svelte';
   import Input from '#lib/components/ui/Input.svelte';
   import Textarea from '#lib/components/ui/Textarea.svelte';
+  import Trans from '#lib/components/Trans.svelte';
 
   let ready = $state(false);
   let problem = $state('');
@@ -40,7 +42,7 @@
   function send(e: SubmitEvent) {
     e.preventDefault();
     const missing =
-      (!signedIn ? emailProblem(email) : null) ?? (message.trim() ? null : 'Write your message first.');
+      (!signedIn ? emailProblem(email) : null) ?? (message.trim() ? null : t('Write your message first.'));
     if (missing) {
       task.error = missing;
       return;
@@ -59,23 +61,27 @@
   }
 </script>
 
-<svelte:head><title>Contact · {appName}</title></svelte:head>
+<svelte:head><title>{t('Contact')} · {appName}</title></svelte:head>
 
 <div class="column stack">
-  <h1>Contact</h1>
+  <h1>{t('Contact')}</h1>
   {#if sent}
-    <p role="status">Thank you. Your message is on its way, and we’ll answer by email.</p>
+    <p role="status">{t('Thank you. Your message is on its way, and we’ll answer by email.')}</p>
   {:else}
-    <p class="muted">Questions, problems, ideas: write to us here.</p>
+    <p class="muted">{t('Questions, problems, ideas: write to us here.')}</p>
     <form class="stack" onsubmit={send} novalidate>
       <Field id="contact-name">
-        {#snippet label()}Name <span class="muted">(optional)</span>{/snippet}
+        {#snippet label()}{t('Name')} <span class="muted">{t('(optional)')}</span>{/snippet}
         <Input bind:value={name} maxlength={80} autocomplete="name" />
       </Field>
       {#if signedIn}
-        <p class="small muted">We’ll answer at <strong>{auth.user?.email}</strong>.</p>
+        <p class="small muted">
+          <Trans text={msg('We’ll answer at <b>{email}</b>.')} vars={{ email: auth.user?.email ?? '' }}>
+            {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+          </Trans>
+        </p>
       {:else}
-        <Field label="Email" id="contact-email">
+        <Field label={t('Email')} id="contact-email">
           <Input
             type="email"
             bind:value={email}
@@ -85,7 +91,7 @@
           />
         </Field>
       {/if}
-      <Field label="Message" id="contact-message">
+      <Field label={t('Message')} id="contact-message">
         <Textarea rows={7} maxlength={5000} bind:value={message} />
       </Field>
       {#if ready && auth.methods?.captcha}<Captcha
@@ -95,7 +101,7 @@
         />{/if}
       <FormError message={task.error || problem} />
       <div>
-        <SubmitButton {task} wide={false} busyLabel="Sending…">Send message</SubmitButton>
+        <SubmitButton {task} wide={false} busyLabel={t('Sending…')}>{t('Send message')}</SubmitButton>
       </div>
     </form>
   {/if}

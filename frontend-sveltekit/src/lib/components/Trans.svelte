@@ -4,9 +4,12 @@
   translator can move the link within the sentence. `{name}` placeholders are filled from `vars`
   as plain text, never as markup.
 
-    <Trans text="Read our <link>privacy notice</link>, {name}." vars={{ name }}>
-      {#snippet link(s)}<a href="/privacy">{s}</a>{/snippet}
+    <Trans text={msg('Read our <link>privacy notice</link>, {name}.')} vars={{ name }}>
+      {#snippet link(s: string)}<a href="/privacy">{s}</a>{/snippet}
     </Trans>
+
+  With a {placeholder}, the text goes in msg() inside braces: in a quoted attribute Svelte would
+  read `{name}` as code. Without one, `text="…"` is fine. Snippet parameters need their type.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';

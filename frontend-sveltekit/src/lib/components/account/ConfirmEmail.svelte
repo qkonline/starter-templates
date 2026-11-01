@@ -3,6 +3,8 @@
   import { api } from '#lib/api/index.ts';
   import { auth } from '#lib/session.svelte.ts';
   import { Task } from '#lib/task.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
+  import Trans from '../Trans.svelte';
   import CodeInput from '../CodeInput.svelte';
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
@@ -33,30 +35,43 @@
 
 {#if !showCode}
   <div class="stack">
-    <p>We’ll email a code to <strong>{auth.user?.email}</strong>.</p>
+    <p>
+      <Trans text={msg('We’ll email a code to <b>{email}</b>.')} vars={{ email: auth.user?.email ?? '' }}>
+        {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+      </Trans>
+    </p>
     <div>
-      <SubmitButton task={sendTask} type="button" wide={false} busyLabel="Sending…" onclick={send}>
-        Send code
+      <SubmitButton task={sendTask} type="button" wide={false} busyLabel={t('Sending…')} onclick={send}>
+        {t('Send code')}
       </SubmitButton>
     </div>
     <FormError message={sendTask.error} />
   </div>
 {:else}
   <form class="stack" onsubmit={confirm} novalidate>
-    <p>Enter the code we sent to <strong>{auth.user?.email}</strong>. It works for 10 minutes.</p>
+    <p>
+      <Trans
+        text={msg('Enter the code we sent to <b>{email}</b>. It works for 10 minutes.')}
+        vars={{ email: auth.user?.email ?? '' }}
+      >
+        {#snippet b(s: string)}<strong>{s}</strong>{/snippet}
+      </Trans>
+    </p>
     <CodeInput id="confirm-code" bind:value={code} />
     <FormError message={confirmTask.error || sendTask.error} />
     <div class="row">
-      <SubmitButton task={confirmTask} wide={false} busyLabel="Checking…">Confirm email</SubmitButton>
+      <SubmitButton task={confirmTask} wide={false} busyLabel={t('Checking…')}
+        >{t('Confirm email')}</SubmitButton
+      >
       <SubmitButton
         task={sendTask}
         type="button"
         variant="plain"
         wide={false}
-        busyLabel="Sending…"
+        busyLabel={t('Sending…')}
         onclick={send}
       >
-        Send a new code
+        {t('Send a new code')}
       </SubmitButton>
     </div>
   </form>

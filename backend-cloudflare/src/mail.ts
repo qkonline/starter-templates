@@ -4,6 +4,7 @@
 import type { Ctx } from './env';
 import { alert } from './alerts';
 import { Refusal } from './errors';
+import { tr, type Vars } from './i18n';
 
 export interface Mail {
   to: string;
@@ -56,16 +57,29 @@ export async function sendMail(ctx: Ctx, mail: Mail): Promise<void> {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-/** An email carrying a six-digit code, with a line saying what it's for. */
+/**
+ * A translated line as HTML: the text escaped, then its {placeholders} filled with escaped values
+ * (those named in `bold` in <b>), so neither a translation nor a value can add markup.
+ */
+export function trHtml(lang: string, text: string, vars: Vars = {}, bold: string[] = []): string {
+  return esc(tr(lang, text)).replace(/\{(\w+)\}/g, (all, name: string) => {
+    if (!(name in vars)) return all;
+    const value = esc(String(vars[name]));
+    return bold.includes(name) ? `<b>${value}</b>` : value;
+  });
+}
+
+/** An email carrying a six-digit code, with a line saying what it's for (English: translated here). */
 export function codeMail(ctx: Ctx, to: string, code: string, purpose: string): Mail {
-  const title = ctx.cfg.title;
-  const after = `${purpose} It works for 10 minutes. If you didn't ask for it, you can ignore this email.`;
+  const { lang } = ctx;
+  const app = ctx.cfg.title;
+  const after = `${tr(lang, purpose)} ${tr(lang, "It works for 10 minutes. If you didn't ask for it, you can ignore this email.")}`;
   return {
     to,
-    subject: `Your ${title} code is ${code}`,
-    text: `Your ${title} code is ${code}\n\n${after}`,
+    subject: tr(lang, 'Your {app} code is {code}', { app, code }),
+    text: `${tr(lang, 'Your {app} code is {code}', { app, code })}\n\n${after}`,
     html:
-      `<p style="font:16px/1.5 system-ui,sans-serif">Your ${esc(title)} code is</p>` +
+      `<p style="font:16px/1.5 system-ui,sans-serif">${trHtml(lang, 'Your {app} code is', { app })}</p>` +
       `<p style="font:600 28px/1.2 system-ui,sans-serif;letter-spacing:4px">${code}</p>` +
       `<p style="font:14px/1.5 system-ui,sans-serif;color:#5b6170">${esc(after)}</p>`,
   };
@@ -73,15 +87,18 @@ export function codeMail(ctx: Ctx, to: string, code: string, purpose: string): M
 
 /** To the old address once an account has moved to another: who to tell if it wasn't them. */
 export function movedMail(ctx: Ctx, to: string, next: string): Mail {
+  const { lang } = ctx;
+  const app = ctx.cfg.title;
   const [name, domain] = next.split('@');
-  const shown = `${name!.slice(0, 2)}…@${domain}`;
-  const help = ctx.cfg.contactEmail ? ` If this wasn't you, write to ${ctx.cfg.contactEmail} straight away.` : " If this wasn't you, reply to this email straight away.";
-  const text = `The email address of your ${ctx.cfg.title} account was changed to ${shown}, so this address no longer signs in.${help}`;
+  const address = `${name!.slice(0, 2)}…@${domain}`;
+  const help = ctx.cfg.contactEmail
+    ? tr(lang, "If this wasn't you, write to {contact} straight away.", { contact: ctx.cfg.contactEmail })
+    : tr(lang, "If this wasn't you, reply to this email straight away.");
+  const text = `${tr(lang, 'The email address of your {app} account was changed to {address}, so this address no longer signs in.', { app, address })} ${help}`;
   return {
     to,
-    subject: `Your ${ctx.cfg.title} email address was changed`,
+    subject: tr(lang, 'Your {app} email address was changed', { app }),
     text,
     html: `<p style="font:16px/1.5 system-ui,sans-serif">${esc(text)}</p>`,
   };
 }
-

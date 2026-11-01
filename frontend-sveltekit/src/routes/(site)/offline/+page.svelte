@@ -5,23 +5,28 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
   import { appName, homePath } from '#lib/config.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Button from '#lib/components/ui/Button.svelte';
 </script>
 
 <svelte:head>
-  <title>You’re offline · {appName}</title>
+  <title>{t('You’re offline')} · {appName}</title>
   <meta name="robots" content="noindex" />
 </svelte:head>
 
 <div class="stack offline">
-  <h1>You’re offline</h1>
+  <h1>{t('You’re offline')}</h1>
   <p class="muted">
-    This page needs a connection. What you’ve already opened in {appName} still works; try this page again once
-    you’re back online.
+    {t(
+      'This page needs a connection. What you’ve already opened in {app} still works; try this page again once you’re back online.',
+      { app: appName },
+    )}
   </p>
   <div class="row">
-    <Button variant="primary" href={resolve(homePath)} data-sveltekit-reload>Open {appName}</Button>
-    <Button type="button" onclick={() => location.reload()}>Try again</Button>
+    <Button variant="primary" href={resolve(homePath)} data-sveltekit-reload
+      >{t('Open {app}', { app: appName })}</Button
+    >
+    <Button type="button" onclick={() => location.reload()}>{t('Try again')}</Button>
   </div>
 </div>
 

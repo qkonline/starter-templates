@@ -3,22 +3,23 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { appName } from '#lib/config.ts';
+  import { t } from '#lib/i18n/index.svelte.ts';
   import Button from '#lib/components/ui/Button.svelte';
 </script>
 
 <svelte:head
-  ><title>{page.status === 404 ? 'Not found' : 'Something went wrong'} · {appName}</title></svelte:head
+  ><title>{page.status === 404 ? t('Not found') : t('Something went wrong')} · {appName}</title></svelte:head
 >
 
 <main id="main" class="center stack">
   {#if page.status === 404}
-    <h1>There’s nothing here</h1>
-    <p class="muted">The address may be mistyped, or the page has moved.</p>
+    <h1>{t('There’s nothing here')}</h1>
+    <p class="muted">{t('The address may be mistyped, or the page has moved.')}</p>
   {:else}
-    <h1>Something went wrong</h1>
-    <p class="muted">Reload the page to try again. If it keeps happening, let us know.</p>
+    <h1>{t('Something went wrong')}</h1>
+    <p class="muted">{t('Reload the page to try again. If it keeps happening, let us know.')}</p>
   {/if}
-  <p><Button href={resolve('')}>Go to the home page</Button></p>
+  <p><Button href={resolve('')}>{t('Go to the home page')}</Button></p>
 </main>
 
 <style>

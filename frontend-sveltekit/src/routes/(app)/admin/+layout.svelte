@@ -7,35 +7,36 @@
   import { page } from '$app/state';
   import { appName } from '#lib/config.ts';
   import { auth } from '#lib/session.svelte.ts';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
   let { children } = $props();
 
   const allowed = $derived(!!auth.features?.admin && !!auth.user?.isAdmin && !auth.support);
   const sections = [
-    { path: resolve('admin'), label: 'Overview' },
-    { path: resolve('admin/people'), label: 'People' },
-    { path: resolve('admin/messages'), label: 'Messages' },
-    { path: resolve('admin/errors'), label: 'Errors' },
-    { path: resolve('admin/audit'), label: 'Audit log' },
+    { path: resolve('admin'), label: msg('Overview') },
+    { path: resolve('admin/people'), label: msg('People') },
+    { path: resolve('admin/messages'), label: msg('Messages') },
+    { path: resolve('admin/errors'), label: msg('Errors') },
+    { path: resolve('admin/audit'), label: msg('Audit log') },
   ];
 </script>
 
-<svelte:head><title>Admin · {appName}</title></svelte:head>
+<svelte:head><title>{t('Admin')} · {appName}</title></svelte:head>
 
 {#if allowed}
   <!-- ph-no-capture: PostHog's autocapture records nothing in here (people, emails, messages). -->
   <div class="admin ph-no-capture">
-    <nav class="sub" aria-label="Admin">
+    <nav class="sub" aria-label={t('Admin')}>
       {#each sections as s (s.path)}
-        <a href={s.path} aria-current={page.url.pathname === s.path ? 'page' : undefined}>{s.label}</a>
+        <a href={s.path} aria-current={page.url.pathname === s.path ? 'page' : undefined}>{t(s.label)}</a>
       {/each}
     </nav>
     {@render children()}
   </div>
 {:else}
   <div class="stack">
-    <h1>Not available</h1>
-    <p class="muted">This part of {appName} is for its admins.</p>
+    <h1>{t('Not available')}</h1>
+    <p class="muted">{t('This part of {app} is for its admins.', { app: appName })}</p>
   </div>
 {/if}
 

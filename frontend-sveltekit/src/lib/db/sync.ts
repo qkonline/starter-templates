@@ -10,6 +10,7 @@
 // this session, its unsent changes kept, until the person discards them (`discardSpace`).
 
 import { ApiError } from '#lib/api/errors.ts';
+import { t } from '#lib/i18n/index.svelte.ts';
 import type { Api } from '#lib/api/client.ts';
 import { ME, type Local, type OutboxEntry, type Space } from './local';
 
@@ -307,7 +308,7 @@ export function createSync(local: Local, api: Api, hooks: SyncHooks = {}) {
         if (e.retryInMs !== null && !stopped) later(e.retryInMs);
         return;
       }
-      const message = e instanceof Error ? e.message : 'Syncing stopped.';
+      const message = e instanceof Error ? e.message : t('Syncing stopped.');
       await report({ running: false, error: message, waitUntil: null });
     }
   }

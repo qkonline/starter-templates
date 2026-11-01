@@ -19,6 +19,7 @@
   import Input from '#lib/components/ui/Input.svelte';
   import List from '#lib/components/ui/List.svelte';
   import Panel from '#lib/components/ui/Panel.svelte';
+  import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   let q = $state('');
   // Per person: what was typed in one row's form never carries over to another's.
@@ -67,7 +68,7 @@
         list.update(u.id, () => updated);
         delete reasons[u.id];
       },
-      `${label(u)} is suspended and signed out everywhere.`,
+      t('{name} is suspended and signed out everywhere.', { name: label(u) }),
     );
   }
 
@@ -78,13 +79,13 @@
         const updated = await api.adminUnsuspend(u.id);
         list.update(u.id, () => updated);
       },
-      `${label(u)} can sign in again.`,
+      t('{name} can sign in again.', { name: label(u) }),
     );
   }
 
   function remove(u: AdminUser) {
     if ((typed[u.id] ?? '').trim().toLowerCase() !== u.email) {
-      act.error = `Type ${u.email} exactly to confirm.`;
+      act.error = t('Type {email} exactly to confirm.', { email: u.email });
       return;
     }
     run(
@@ -94,7 +95,7 @@
         list.remove(u.id);
         delete typed[u.id];
       },
-      `${u.email}’s account is deleted.`,
+      t('{email}’s account is deleted.', { email: u.email }),
     );
   }
 
@@ -115,10 +116,10 @@
           tab.opener = null;
           tab.location.href = url;
         } else if (!window.open(url, '_blank', 'noopener')) {
-          throw new Error('The browser blocked the new tab. Allow pop-ups for this site, then try again.');
+          throw new Error(t('The browser blocked the new tab. Allow pop-ups for this site, then try again.'));
         }
       },
-      `Support session for ${u.email} opened in a new tab.`,
+      t('Support session for {email} opened in a new tab.', { email: u.email }),
     );
     // It didn't start (it failed, or another action was still running): the blank tab goes too.
     if (!ok && tab && !tab.closed) tab.close();
@@ -126,9 +127,9 @@
 </script>
 
 <div class="stack">
-  <h1>People</h1>
+  <h1>{t('People')}</h1>
   <div class="search">
-    <Field label="Find by email or name" id="people-q">
+    <Field label={t('Find by email or name')} id="people-q">
       <Input
         type="search"
         bind:value={q}
@@ -142,7 +143,7 @@
   <p class="success" role="status">{status}</p>
   <FormError message={list.error || act.error} />
   {#if list.loaded && list.items.length === 0}
-    <p class="muted">No one matches.</p>
+    <p class="muted">{t('No one matches.')}</p>
   {/if}
   <Panel>
     <List>
@@ -153,16 +154,16 @@
             <div>
               <p class="title">
                 {u.email}
-                {#if u.isAdmin}<Badge>Admin</Badge>{/if}
-                {#if u.suspended}<Badge tone="danger">Suspended</Badge>{/if}
-                {#if !u.emailVerified}<Badge tone="plain">Not confirmed</Badge>{/if}
+                {#if u.isAdmin}<Badge>{t('Admin')}</Badge>{/if}
+                {#if u.suspended}<Badge tone="danger">{t('Suspended')}</Badge>{/if}
+                {#if !u.emailVerified}<Badge tone="plain">{t('Not confirmed')}</Badge>{/if}
               </p>
               <p class="muted small">
                 {#if u.name}{u.name} ·
-                {/if}Joined {formatWhen(u.createdAt)} · {u.lastActiveAt
-                  ? `Active ${formatWhen(u.lastActiveAt)}`
-                  : 'Not signed in anywhere'}{#if u.teams !== null}
-                  · {u.teams} {u.teams === 1 ? 'team' : 'teams'}{/if}
+                {/if}{t('Joined {when}', { when: formatWhen(u.createdAt) })} · {u.lastActiveAt
+                  ? t('Active {when}', { when: formatWhen(u.lastActiveAt) })
+                  : t('Not signed in anywhere')}{#if u.teams !== null}
+                  · {tn(u.teams, '1 team', '{count} teams')}{/if}
               </p>
             </div>
           </div>
@@ -170,33 +171,42 @@
             <div class="actions">
               {#if !u.suspended}
                 <Button type="button" size="small" disabled={working === u.id} onclick={() => support(u)}
-                  >Support sign-in</Button
+                  >{t('Support sign-in')}</Button
                 >
                 <ConfirmButton
-                  label="Suspend…"
-                  confirmLabel="Suspend {label(u)}"
-                  question="Suspend {u.email}? They’re signed out everywhere and can’t sign in until unsuspended."
+                  label={t('Suspend…')}
+                  confirmLabel={t('Suspend {name}', { name: label(u) })}
+                  question={t(
+                    'Suspend {email}? They’re signed out everywhere and can’t sign in until unsuspended.',
+                    {
+                      email: u.email,
+                    },
+                  )}
                   disabled={working === u.id}
                   onconfirm={() => suspend(u)}
                 >
                   <label class="small" for="reason-{u.id}"
-                    >Reason, for the audit log (they never see it)</label
+                    >{t('Reason, for the audit log (they never see it)')}</label
                   >
                   <Input id="reason-{u.id}" bind:value={reasons[u.id]} maxlength={500} autocomplete="off" />
                 </ConfirmButton>
               {:else}
                 <Button type="button" size="small" disabled={working === u.id} onclick={() => unsuspend(u)}
-                  >Unsuspend</Button
+                  >{t('Unsuspend')}</Button
                 >
               {/if}
               <ConfirmButton
-                label="Delete…"
-                confirmLabel="Delete for good"
-                question="Delete {u.email}’s account, with everything in it? This can’t be undone."
+                label={t('Delete…')}
+                confirmLabel={t('Delete for good')}
+                question={t('Delete {email}’s account, with everything in it? This can’t be undone.', {
+                  email: u.email,
+                })}
                 disabled={working === u.id}
                 onconfirm={() => remove(u)}
               >
-                <label class="small" for="delete-{u.id}">Type {u.email} to confirm</label>
+                <label class="small" for="delete-{u.id}"
+                  >{t('Type {email} to confirm', { email: u.email })}</label
+                >
                 <Input id="delete-{u.id}" bind:value={typed[u.id]} autocomplete="off" autocapitalize="off" />
               </ConfirmButton>
             </div>
@@ -208,7 +218,7 @@
   {#if list.more}
     <div>
       <Button type="button" size="small" disabled={list.loading} onclick={() => list.loadMore()}
-        >Show more</Button
+        >{t('Show more')}</Button
       >
     </div>
   {/if}

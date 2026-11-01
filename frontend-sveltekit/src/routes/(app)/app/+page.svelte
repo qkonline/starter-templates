@@ -3,18 +3,27 @@
   import { resolve } from '$app/paths';
   import { appName } from '#lib/config.ts';
   import { auth } from '#lib/session.svelte.ts';
+  import Trans from '#lib/components/Trans.svelte';
+  import { msg, t } from '#lib/i18n/index.svelte.ts';
 
   const user = $derived(auth.user!);
 </script>
 
-<svelte:head><title>Home · {appName}</title></svelte:head>
+<svelte:head><title>{t('Home')} · {appName}</title></svelte:head>
 
 <div class="stack">
-  <h1>Hello{user.name ? `, ${user.name}` : ''}.</h1>
+  <h1>{user.name ? t('Hello, {name}.', { name: user.name }) : t('Hello.')}</h1>
   <p class="muted">
-    This is where {appName}’s own pages go. Everything under <code>src/routes/(app)/</code> is behind sign-in.
+    <Trans
+      text={msg(
+        'This is where {app}’s own pages go. Everything under <code>{path}</code> is behind sign-in.',
+      )}
+      vars={{ app: appName, path: 'src/routes/(app)/' }}
+    >
+      {#snippet code(s: string)}<code>{s}</code>{/snippet}
+    </Trans>
   </p>
-  <p><a href={resolve('account')}>Your account</a></p>
+  <p><a href={resolve('account')}>{t('Your account')}</a></p>
 </div>
 
 <style>

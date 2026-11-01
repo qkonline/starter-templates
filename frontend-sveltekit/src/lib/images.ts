@@ -1,6 +1,8 @@
 // Profile photos are cropped square and made small on the device before upload (PRD R2.3): the
 // backend stores what it's sent, at most 2 MB, as PNG, JPEG or WebP.
 
+import { t } from '#lib/i18n/index.svelte.ts';
+
 export const PHOTO_SIZE = 512;
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 /** Larger originals are refused before decoding, so a phone doesn't run out of memory. */
@@ -67,8 +69,8 @@ export function isImageFile(file: File): boolean {
 
 /** Why a chosen file can't be used, or null. */
 export function sourceProblem(file: File): string | null {
-  if (!isImageFile(file)) return 'Choose an image: a JPEG, PNG or WebP photo.';
-  if (file.size > MAX_SOURCE_BYTES) return 'That image is too large. Choose one under 40 MB.';
+  if (!isImageFile(file)) return t('Choose an image: a JPEG, PNG or WebP photo.');
+  if (file.size > MAX_SOURCE_BYTES) return t('That image is too large. Choose one under 40 MB.');
   return null;
 }
 
@@ -85,7 +87,7 @@ export async function renderCrop(
   canvas.width = out;
   canvas.height = out;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('This browser can’t prepare images.');
+  if (!ctx) throw new Error(t('This browser can’t prepare images.'));
   ctx.imageSmoothingQuality = 'high';
   // JPEG has no transparency: put the photo on white.
   ctx.fillStyle = '#fff';
@@ -96,7 +98,7 @@ export async function renderCrop(
     if (!blob) break;
     if (blob.size <= maxBytes) return blob;
   }
-  throw new Error('That photo couldn’t be made small enough. Try another.');
+  throw new Error(t('That photo couldn’t be made small enough. Try another.'));
 }
 
 /** Decode a chosen file, upright (browsers apply EXIF orientation). */
@@ -104,6 +106,6 @@ export async function decodeImage(file: Blob): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(file, { imageOrientation: 'from-image' });
   } catch {
-    throw new Error('That image couldn’t be opened. Try a JPEG or PNG.');
+    throw new Error(t('That image couldn’t be opened. Try a JPEG or PNG.'));
   }
 }

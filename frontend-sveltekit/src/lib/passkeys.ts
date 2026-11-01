@@ -10,6 +10,7 @@ import {
 } from '@simplewebauthn/browser';
 import { api, type Passkey, type SignIn } from '#lib/api/index.ts';
 import { ApiError, cancelled } from '#lib/api/errors.ts';
+import { t } from '#lib/i18n/index.svelte.ts';
 
 type RegistrationOptions = Parameters<typeof startRegistration>[0]['optionsJSON'];
 type AuthenticationOptions = Parameters<typeof startAuthentication>[0]['optionsJSON'];
@@ -24,10 +25,10 @@ export function passkeyError(e: unknown): Error {
   const name = e instanceof Error ? e.name : '';
   const code = (e as { code?: string } | null)?.code ?? '';
   if (name === 'InvalidStateError' || code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED')
-    return new Error('This device already has a passkey for your account.');
+    return new Error(t('This device already has a passkey for your account.'));
   if (name === 'SecurityError')
-    return new Error('Passkeys don’t work on this address. Open the app from its own site.');
-  return new Error('This browser couldn’t make or use a passkey.');
+    return new Error(t('Passkeys don’t work on this address. Open the app from its own site.'));
+  return new Error(t('This browser couldn’t make or use a passkey.'));
 }
 
 /** Add a passkey on this device to the signed-in account. */
