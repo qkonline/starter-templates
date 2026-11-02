@@ -107,7 +107,7 @@ export function setPreferences(prefs: Preferences): void {
 
 /**
  * The browser's own bar (and an installed app's title bar) in the page's background colour.
- * src/app.html starts with Fusion's colours for light and dark; this sets the one in use.
+ * src/app.html starts with the default theme's colours for light and dark; this sets the one in use.
  */
 export function syncThemeColor(doc: Document | undefined = globalThis.document): void {
   if (!doc?.body) return;

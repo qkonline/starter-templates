@@ -56,7 +56,7 @@
 </script>
 
 {#if phase === 'loading'}
-  <div class="loading" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
+  <div class="waiting" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
 {:else if !token}
   <AuthShell title={t('This invite link is incomplete')}>
     <p>{t('Open the link from the email again, or ask for a new invite.')}</p>
@@ -94,7 +94,7 @@
 {/if}
 
 <style>
-  .loading {
+  .waiting {
     min-height: 60dvh;
     display: grid;
     place-items: center;

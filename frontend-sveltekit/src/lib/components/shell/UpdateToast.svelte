@@ -11,28 +11,28 @@
 </script>
 
 {#if pwa.updateReady && !later}
-  <div class="toast pop" role="status">
-    <p>{t('A new version is ready.')}</p>
-    <div class="row">
-      <Button type="button" size="small" variant="primary" onclick={applyUpdate}>{t('Reload')}</Button>
-      <Button type="button" size="small" onclick={() => (later = true)}>{t('Later')}</Button>
+  <!-- DaisyUI's toast: pinned to the bottom corner, above the page. -->
+  <div class="toast toast-end" role="status">
+    <div class="alert pop">
+      <span>{t('A new version is ready.')}</span>
+      <div class="row">
+        <Button type="button" size="small" variant="primary" onclick={applyUpdate}>{t('Reload')}</Button>
+        <Button type="button" size="small" onclick={() => (later = true)}>{t('Later')}</Button>
+      </div>
     </div>
   </div>
 {/if}
 
 <style>
   .toast {
-    position: fixed;
     z-index: var(--z-pop);
-    right: var(--space-4);
-    bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
-    left: auto;
-    max-width: calc(100vw - 2 * var(--space-4));
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  .alert {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
     gap: var(--space-3) var(--space-4);
-    padding: var(--space-3) var(--space-4);
   }
 
   .row {

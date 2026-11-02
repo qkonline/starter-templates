@@ -35,69 +35,59 @@ A change to what crosses between frontend and backend starts in `contract/openap
 
 ## Themes and components
 
-The frontend's look comes from a **theme**, and its pages are built from a small set of
-**components** (`frontend-sveltekit/src/lib/components/ui/`: `Panel`, `Button`, `Field` with
-`Input`, `Textarea` or `Select`, `Segmented`, `Badge`, `Notice`, `Divider`, `List`, `Table`).
-Components take every colour, font, size, corner, shadow and control style from the theme, so
-changing the theme restyles the whole app; nothing on a page needs to change.
+The frontend's look is [DaisyUI 5](https://daisyui.com/) on [Tailwind CSS 4](https://tailwindcss.com/),
+in a theme of its own, **Daisy**: a calm blue-grey palette, Inter served from the site, 36 px
+controls, flat cards. Pages are built from Svelte components around DaisyUI's classes
+(`frontend-sveltekit/src/lib/components/ui/`): `Panel`, `Button`, `Field` with `Input`,
+`Textarea`, `Select`, `FileInput` or `Range`, `Segmented`, `RadioGroup`, `Checkbox`, `Toggle`,
+`Rating`, `Badge`, `Notice`, `Status`, `List`, `Table`, `Stats`, `Tabs`, `Collapse`, `Modal`,
+`Drawer`, `Dropdown`, `Menu`, `Tooltip`, `toast()`, `Pagination`, `Steps`, `Breadcrumbs`,
+`Progress`, `Timeline`, `Navbar`, `Hero`, `Footer`, `Dock`, `Carousel` and more. Each does its
+accessibility and translation once; pages may also use DaisyUI's classes and Tailwind's
+utilities directly.
 
-One theme comes with it, **Fusion**, which sits between two well-known design systems: the
-colours and font of Elastic's [EUI](https://eui.elastic.co/) (blue-grey neutrals, one strong
-blue, Inter served from the site), sized halfway between EUI's roomy controls and
-[Ant Design](https://ant.design/)'s compact ones (36 px fields and buttons, 15 px text, 20 px
-panel padding), with Ant's clearer control states (white bordered buttons tinted blue on hover,
-a blue border and glow on focus, bordered tags, a rule under panel titles). Type stays light:
-400 for text, 500 for headings and buttons.
+To see them all, in light and dark and at each text size: `npm run dev` in
+`frontend-sveltekit/`, then open `/components` (development only; a build leaves it out).
 
 It works in light and dark. People choose the mode (Device, Light or Dark) and the text size in
 Account → Display; the choice is kept on their device. With one theme there is no theme choice
-there; add a theme (below) and the picker appears.
+there; add a theme and the picker appears.
 
 All paths below are in `frontend-sveltekit/`.
 
-**Change the app's default theme**
-
-1. Set `defaultTheme` in `src/lib/themes/index.ts` to the theme's id.
-2. Set the same id on `<html data-theme="…">` in `src/app.html`.
-3. Put that theme's background colour in `static/manifest.webmanifest` (`background_color`,
-   `theme_color`) and in the two `theme-color` metas in `src/app.html`.
-
-**Restyle the look**: edit `src/lib/themes/fusion.css` (or, once there are several, the
-theme's own file). Every value there is a token, grouped and commented: colours
-(`--color-accent`, `--color-bg`…), type (`--font-sans`, `--text-md`, `--weight-heading`…), shape
-(`--radius`, `--shadow-pop`), and how controls look (`--control-height`,
-`--control-focus-shadow`, `--button-plain-bg`, `--segmented-selected-bg`, `--panel-shadow`,
-`--header-height`…). Colours are written once for both modes as `light-dark(<light>, <dark>)`.
-`fusion.css` lists every token a theme can set. To make everything roomier or more compact,
-change `--control-height`, `--button-padding-x`, `--panel-padding` and `--text-md` together.
+**Restyle the look**: edit `src/lib/themes/daisy.css`. It holds DaisyUI's theme variables
+(`--color-primary`, `--color-base-100`…, `--radius-field`, `--size-field` for control height)
+and a few of our own (`--color-heading`, `--color-muted`, `--color-link`), each colour written
+once for both modes as `light-dark(<light>, <dark>)`. DaisyUI's theme generator
+(daisyui.com/theme-generator) is a good place to try colours.
 
 **Add a theme**
 
-1. Create `src/lib/themes/<id>.css` with one rule, `[data-theme='<id>'] { … }`.
-2. Put in it only the tokens that differ from Fusion (copy their lines from `fusion.css` and
-   change the values); the rest come from Fusion. Keep text at 4.5:1 against its background
-   in both modes.
-   For a font of its own, put the files in `static/fonts/` and add an `@font-face` in the
-   theme's file; the site's security policy (CSP) only allows fonts from the site itself.
+1. Create `src/lib/themes/<id>.css` with one rule, `[data-theme='<id>'] { … }`, inside
+   `@layer base`.
+2. Put in it only the variables that differ from Daisy (copy their lines from `daisy.css` and
+   change the values); the rest come from Daisy. Keep text at 4.5:1 against its background in
+   both modes. For a font of its own, put the files in `static/fonts/` and add an `@font-face`
+   in the theme's file; the site's security policy (CSP) only allows fonts from the site itself.
 3. Add `{ id: '<id>', label: '<Name>' }` to `themes` in `src/lib/themes/index.ts`, add
    `@import './lib/themes/<id>.css';` to `src/app.css`, and add `'<id>'` to the `themes` list in
    the small script in `src/app.html`.
 4. Run `npm test`: `src/lib/themes/themes.test.ts` fails if those three places disagree, or if
-   the theme sets a token Fusion doesn't define (usually a typo).
+   the theme sets a variable Daisy doesn't define (usually a typo).
 
-**Offer only one look**: leave a single theme in `src/lib/themes/index.ts` (and remove the other
-`@import`s and ids). Account → Display then shows no theme choice; mode and text size stay.
+**Change the app's default theme**: set `defaultTheme` in `src/lib/themes/index.ts` and the same
+id on `<html data-theme="…">` in `src/app.html`, and put that theme's background colour in
+`static/manifest.webmanifest` (`background_color`, `theme_color`) and in the two `theme-color`
+metas in `src/app.html`.
 
-**Remove a theme**: delete its file and the three entries above. Anyone who had chosen it gets
-the default theme.
+**Spacing**: block components (`Panel`, `Field`, `Notice`, `List`, `Table`, `Segmented`,
+`Divider`…) keep `--flow-space` (1rem) below themselves, and none when they're the last thing in
+their container. Inside a `.stack` or `.row`, the container's `gap` spaces them instead, so
+spacing never doubles. Change `--flow-space` in `src/app.css` to make the whole app looser or
+tighter.
 
-**Spacing**: block components (`Panel`, `Field`, `Notice`, `List`, `Table`, `Segmented`, `Divider`) keep
-`--flow-space` (1rem) below themselves, and none when they're the last thing in their container.
-Inside a `.stack` or `.row`, the container's `gap` spaces them instead, so spacing never doubles.
-Change `--flow-space` in `src/app.css` to make the whole app looser or tighter. `Button` and
-`Badge` sit in a line of text or a row, so they take their spacing from it.
-
-More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#components-and-themes).
+More detail, and the full list of components, is in
+[`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#components-and-themes).
 
 ## Starting a new app
 
@@ -106,7 +96,7 @@ More detail is in [`frontend-sveltekit/README.md`](frontend-sveltekit/README.md#
    kept out of git):
 
    ```sh
-   git clone --depth 1 --branch v0.2.1 https://github.com/qkonline/starter-templates.git my-app
+   git clone --depth 1 --branch v0.3.0 https://github.com/qkonline/starter-templates.git my-app
    cd my-app && rm -rf .git && git init
    ```
 

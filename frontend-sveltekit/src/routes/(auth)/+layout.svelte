@@ -47,11 +47,11 @@
     <div><Button onclick={start}>{t('Try again')}</Button></div>
   </AuthShell>
 {:else}
-  <div class="loading" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
+  <div class="waiting" role="status"><Spinner /><span class="visually-hidden">{t('Loading')}</span></div>
 {/if}
 
 <style>
-  .loading {
+  .waiting {
     min-height: 60dvh;
     display: grid;
     place-items: center;

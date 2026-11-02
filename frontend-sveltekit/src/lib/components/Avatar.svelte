@@ -1,3 +1,4 @@
+<!-- A person's photo, or the first letter of their name (DaisyUI's avatar), `size` px across. -->
 <script lang="ts">
   import type { User } from '#lib/api/index.ts';
 
@@ -6,28 +7,26 @@
   const initial = $derived((user.name || user.email).trim().charAt(0).toUpperCase());
 </script>
 
-<span class="avatar" style:--size="{size}px" aria-hidden="true">
-  {#if user.photoUrl}
-    <img src={user.photoUrl} alt="" width={size} height={size} />
-  {:else}
-    {initial}
-  {/if}
+<span class={['avatar', { 'avatar-placeholder': !user.photoUrl }]} aria-hidden="true">
+  <span class="face" style:width="{size}px" style:height="{size}px" style:font-size="{size * 0.42}px">
+    {#if user.photoUrl}
+      <img src={user.photoUrl} alt="" width={size} height={size} />
+    {:else}
+      {initial}
+    {/if}
+  </span>
 </span>
 
 <style>
-  .avatar {
+  .face {
     display: inline-grid;
     place-items: center;
-    width: var(--size);
-    height: var(--size);
-    flex: none;
     overflow: hidden;
     border-radius: var(--radius-full);
     background: var(--color-accent-soft);
-    color: var(--color-accent);
+    color: var(--color-primary);
     font-weight: var(--weight-medium);
-    font-size: calc(var(--size) * 0.42);
-    box-shadow: inset 0 0 0 1px var(--color-border);
+    box-shadow: inset 0 0 0 1px var(--color-base-300);
   }
 
   img {

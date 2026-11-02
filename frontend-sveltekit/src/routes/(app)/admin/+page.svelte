@@ -60,10 +60,9 @@
 
   .tile {
     padding: var(--space-4) var(--space-5);
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--panel-radius);
-    box-shadow: var(--panel-shadow);
+    background: var(--color-base-100);
+    border: var(--border) solid var(--color-base-300);
+    border-radius: var(--radius-box);
   }
 
   dd {

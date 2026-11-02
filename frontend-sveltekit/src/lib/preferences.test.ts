@@ -30,8 +30,8 @@ const root = () => {
 
 describe('display preferences', () => {
   it('defaults to the default theme, the device mode and normal text', () => {
-    expect(readPreferences(memory())).toEqual({ theme: 'fusion', mode: 'system', text: 'md' });
-    expect(readPreferences(null)).toEqual({ theme: 'fusion', mode: 'system', text: 'md' });
+    expect(readPreferences(memory())).toEqual({ theme: 'daisy', mode: 'system', text: 'md' });
+    expect(readPreferences(null)).toEqual({ theme: 'daisy', mode: 'system', text: 'md' });
   });
 
   it('ignores values it does not know, such as a theme since removed', () => {
@@ -39,16 +39,16 @@ describe('display preferences', () => {
     store.setItem(THEME_KEY, 'purple');
     store.setItem(MODE_KEY, 'dim');
     store.setItem(TEXT_KEY, 'huge');
-    expect(readPreferences(store)).toEqual({ theme: 'fusion', mode: 'system', text: 'md' });
+    expect(readPreferences(store)).toEqual({ theme: 'daisy', mode: 'system', text: 'md' });
   });
 
   it('keeps a choice and stores the defaults as nothing', () => {
     const store = memory();
-    savePreferences({ theme: 'fusion', mode: 'dark', text: 'lg' }, store);
+    savePreferences({ theme: 'daisy', mode: 'dark', text: 'lg' }, store);
     expect(store.map.has(THEME_KEY)).toBe(false);
     expect(store.map.get(MODE_KEY)).toBe('dark');
-    expect(readPreferences(store)).toEqual({ theme: 'fusion', mode: 'dark', text: 'lg' });
-    savePreferences({ theme: 'fusion', mode: 'system', text: 'md' }, store);
+    expect(readPreferences(store)).toEqual({ theme: 'daisy', mode: 'dark', text: 'lg' });
+    savePreferences({ theme: 'daisy', mode: 'system', text: 'md' }, store);
     expect(store.map.size).toBe(0);
   });
 
@@ -64,20 +64,20 @@ describe('display preferences', () => {
         throw new Error('blocked');
       },
     };
-    expect(readPreferences(broken)).toEqual({ theme: 'fusion', mode: 'system', text: 'md' });
-    expect(() => savePreferences({ theme: 'fusion', mode: 'dark', text: 'xl' }, broken)).not.toThrow();
+    expect(readPreferences(broken)).toEqual({ theme: 'daisy', mode: 'system', text: 'md' });
+    expect(() => savePreferences({ theme: 'daisy', mode: 'dark', text: 'xl' }, broken)).not.toThrow();
   });
 
   it('shows the choice as attributes on <html>, the theme always', () => {
     const r = root();
-    applyPreferences({ theme: 'fusion', mode: 'light', text: 'xl' }, r);
+    applyPreferences({ theme: 'daisy', mode: 'light', text: 'xl' }, r);
     expect(Object.fromEntries(r.attrs)).toEqual({
-      'data-theme': 'fusion',
+      'data-theme': 'daisy',
       'data-mode': 'light',
       'data-text': 'xl',
     });
-    applyPreferences({ theme: 'fusion', mode: 'system', text: 'md' }, r);
-    expect(Object.fromEntries(r.attrs)).toEqual({ 'data-theme': 'fusion' });
+    applyPreferences({ theme: 'daisy', mode: 'system', text: 'md' }, r);
+    expect(Object.fromEntries(r.attrs)).toEqual({ 'data-theme': 'daisy' });
   });
 
   it('uses the same keys and values as the script in app.html', () => {

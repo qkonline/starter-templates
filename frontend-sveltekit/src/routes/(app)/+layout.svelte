@@ -183,9 +183,8 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    background: var(--header-bg);
-    border-bottom: 1px solid var(--header-border);
-    box-shadow: var(--header-shadow);
+    background: var(--color-base-100);
+    border-bottom: var(--border) solid var(--color-base-300);
   }
 
   .bar-in {
@@ -286,6 +285,15 @@
   .foot :global(.btn) {
     color: inherit;
     font-size: inherit;
+  }
+
+  /* "Send feedback" is a button, but here it reads like the links beside it. */
+  .foot :global(.btn) {
+    text-decoration: none;
+  }
+
+  .foot :global(.btn:hover) {
+    text-decoration: underline;
   }
 
   .center {

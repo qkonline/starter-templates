@@ -1,7 +1,7 @@
 <!--
-  Around every page: the support-session banner, the offline line, the update prompt, the
-  analytics consent banner, page views and error reporting. Public pages are prerendered with
-  this layout, so everything that needs the browser starts in onMount.
+  Around every page: the support-session banner, the offline line, the update prompt, toast()
+  messages, the analytics consent banner, page views and error reporting. Public pages are
+  prerendered with this layout, so everything that needs the browser starts in onMount.
 -->
 <script lang="ts">
   import '../app.css';
@@ -20,6 +20,7 @@
   import Outdated from '#lib/components/shell/Outdated.svelte';
   import SupportBanner from '#lib/components/shell/SupportBanner.svelte';
   import UpdateToast from '#lib/components/shell/UpdateToast.svelte';
+  import Toaster from '#lib/components/ui/Toaster.svelte';
 
   let { children } = $props();
 
@@ -60,5 +61,6 @@
 {/if}
 {#if started}
   <UpdateToast />
+  <Toaster />
   {#if !auth.support}<ConsentBanner />{/if}
 {/if}

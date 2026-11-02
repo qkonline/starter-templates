@@ -36,7 +36,7 @@
     {#snippet end()}
       <button
         type="button"
-        class="toggle"
+        class="btn btn-ghost btn-xs show"
         aria-pressed={shown}
         aria-controls={id}
         onclick={() => (shown = !shown)}
@@ -50,19 +50,9 @@
 </Field>
 
 <style>
-  .toggle {
-    min-height: var(--control-height-sm);
-    padding: 0 var(--space-3);
-    font: inherit;
-    font-size: var(--text-sm);
+  .show {
+    margin-inline-end: calc(var(--space-2) * -1);
     color: var(--color-muted);
-    background: none;
-    border: 0;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-
-  .toggle:hover {
-    color: var(--color-text);
+    font-weight: var(--weight-body);
   }
 </style>

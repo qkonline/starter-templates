@@ -11,7 +11,7 @@
 
 <div class="shell">
   <a class="brand" href={resolve('')}><span class="logo" aria-hidden="true"></span>{appName}</a>
-  <main id="main" class="card stack">
+  <main id="main" class="auth-card stack">
     <header>
       <h1>{title}</h1>
       {#if lead}<p class="muted">{lead}</p>{/if}
@@ -47,15 +47,14 @@
     background: var(--color-accent);
   }
 
-  .card {
+  .auth-card {
     width: 100%;
     max-width: 26rem;
     gap: var(--space-5);
     padding: var(--space-6);
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--panel-radius);
-    box-shadow: var(--panel-shadow);
+    background: var(--color-base-100);
+    border: var(--border) solid var(--color-base-300);
+    border-radius: var(--radius-box);
   }
 
   header {
@@ -73,7 +72,7 @@
       padding-top: var(--space-5);
     }
 
-    .card {
+    .auth-card {
       padding: var(--space-5) var(--space-4);
     }
   }

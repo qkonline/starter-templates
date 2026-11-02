@@ -82,7 +82,7 @@ test('feedback from inside the app, and display preferences', async ({ page }) =
   await page.getByText('Larger', { exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'xl');
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'fusion');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daisy');
   await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
 });
 

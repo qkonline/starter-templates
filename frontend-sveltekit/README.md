@@ -28,7 +28,7 @@ What's in it (requirement numbers from [`../docs/PRD.md`](../docs/PRD.md)):
 - **Old copies told to update** (R3.6): every request says when the build was made
   (`X-Client-Version`); a backend whose `MIN_CLIENT` is later answers `client_outdated`, and
   the app shows "Update needed" in place of the pages, fetches the new version and switches.
-- **Display preferences** (R3.2): theme (Fusion, or the app's own), mode (device,
+- **Display preferences** (R3.2): theme (Daisy, or the app's own), mode (device,
   light, dark) and text size, per device, applied before the first paint.
 - **Security headers** (R3.3): `_headers` for Cloudflare Pages with HSTS and an enforced CSP
   that reports to the backend's `/telemetry/csp`; each page's inline scripts are allowed by hash
@@ -348,16 +348,30 @@ const back = await data.file(ME, photo);
 
 ## Components and themes
 
-Pages are built from the components in `src/lib/components/ui/`, which own their styles:
+The look is [DaisyUI 5](https://daisyui.com/) on [Tailwind CSS 4](https://tailwindcss.com/),
+with one theme of our own, **Daisy**. Pages are built from the components in
+`src/lib/components/ui/`, each a Svelte component around DaisyUI's classes, with the
+accessibility and translation done once. Pages may also use DaisyUI's classes and Tailwind's
+utilities directly (`class="btn btn-soft"`, `class="flex gap-2"`).
 
-| Component                               | For                                                                                                                                     |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `Panel`                                 | A titled block of a page: `title`, optional `description` and `actions`, then the content                                               |
-| `Button`                                | Buttons, and links that look like one (`href`). `variant`: `plain`, `primary`, `danger`, `danger-solid`, `link`; `size="small"`; `wide` |
-| `Field` + `Input`, `Textarea`, `Select` | A labelled control with an optional `hint`. The control takes its id, `aria-describedby` and `aria-invalid` from the `Field` around it  |
-| `Segmented`                             | One choice out of a few, side by side (radio buttons underneath)                                                                        |
-| `Badge`, `Notice`, `Divider`            | A short label (`tone`: `accent`, `danger`, `plain`), a boxed message, a rule with "or" in it                                            |
-| `List`, `Table`                         | Rows between hairlines; a plain data table                                                                                              |
+To see every component in the theme, in light and dark and at each text size: `npm run dev`,
+then open `/components` (`src/routes/(open)/components/`). It exists only under `npm run dev`:
+a build answers 404 there and leaves the gallery out.
+
+| Component                                                        | For                                                                                                                                                                                                      |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Panel`                                                          | A titled block of a page (DaisyUI's card): `title`, optional `description` and `actions`, then the content                                                                                               |
+| `Button`                                                         | Buttons, and links that look like one (`href`). `variant`: `plain`, `primary`, `danger`, `danger-solid`, `link`, `outline`, `soft`, `ghost`, `dash`; `size`: `xs`, `small`, `md`, `lg`; `wide`; `square` |
+| `Field` + `Input`, `Textarea`, `Select`, `FileInput`, `Range`    | A labelled control with an optional `hint`. The control takes its id, `aria-describedby` and `aria-invalid` from the `Field` around it                                                                   |
+| `Segmented`, `RadioGroup`                                        | One choice out of a few, side by side; one out of a list, one under another (with a hint each)                                                                                                           |
+| `Checkbox`, `Toggle`, `Rating`                                   | A box to tick, an on/off switch, stars to give or show a score                                                                                                                                           |
+| `Badge`, `Notice`, `Status`, `Kbd`, `Indicator`                  | A short label (`tone`), a boxed message (`tone`: warning, info, success, error), a coloured dot, a key, a badge pinned to a corner                                                                       |
+| `Divider`, `Skeleton`, `Progress`, `RadialProgress`, `Countdown` | A rule with "or" in it; shapes while loading; how far something has got; a share as a ring; a number that rolls                                                                                          |
+| `List`, `Table`, `Stats` + `Stat`, `Timeline`                    | Rows between hairlines; a data table (`zebra`); figures side by side; things that happened, in order                                                                                                     |
+| `Tabs`, `Collapse`, `Steps`, `Breadcrumbs`, `Pagination`         | Tabs over one panel (arrow keys); a heading that opens (`group` for an accordion); steps of a series; where a page sits; pages of a list                                                                 |
+| `Modal`, `Drawer`, `Dropdown`, `Menu`, `Tooltip`, `Swap`         | A dialog; a panel from the side; a button that opens a list; links and actions; words on hover and focus; one of two icons                                                                               |
+| `toast()` + `Toaster`                                            | `toast(t('Saved'), { tone: 'success' })` from anywhere; the root layout shows them                                                                                                                       |
+| `Navbar`, `Hero`, `Footer`, `Dock`, `Carousel`, `ChatBubble`     | A bar with start, middle and end; a public page's opening; its foot; a phone's bottom bar; things that scroll sideways; a message                                                                        |
 
 ```svelte
 <Field label="Email" hint="We'll send a code to it.">
@@ -366,38 +380,52 @@ Pages are built from the components in `src/lib/components/ui/`, which own their
 <Button variant="primary" type="submit">Send</Button>
 ```
 
-Block components (`Panel`, `Field`, `Notice`, `List`, `Table`, `Segmented`, `Divider`) keep
-`--flow-space` below themselves, none as the last in their container. A `.stack` or `.row`
-spaces its children with its `gap` instead, so there the margins go. A page layout of its own
-that uses `gap` should carry `stack` or `row` too (as `AuthShell` and the team page's sections
-do), or its children's margins add to the gap. Each component declares its margin inside
-`:where()`, so a page can always override it.
+DaisyUI components without a Svelte one here, used straight from their classes when an app
+needs them: `calendar` (needs a date-picker library, Cally), `fab`, `filter`, `join`, `mask`,
+`diff`, `mockup-*`, `hover-3d`, `hover-gallery`, `text-rotate`, `megamenu`, `aura`, `otp`
+(`CodeInput` covers codes) and `validator` (`Field`'s `invalid` covers it). DaisyUI's `stack` is
+switched off, because `.stack` is our layout helper.
 
-`src/app.css` keeps only what every component shares: the type and space scales, the mode and
-text size, element defaults, and layout helpers (`.stack`, `.row`, `.muted`, `.small`, `.pop`
-for floating surfaces).
+**Class names are written out in full.** Tailwind builds only the classes it finds in the
+source, so `` `btn-${tone}` `` never works; the components map each choice to a full name
+(`{ primary: 'btn-primary', … }`). A page of an app's own does the same. And a class of a page's
+own must not be a DaisyUI component's name (`card`, `hero`, `label`, `loading`, `toast`, `menu`…),
+or DaisyUI's styles join it.
 
-**Themes** set the look through tokens: colours, fonts, the type scale, weights, corners,
-shadows, and how controls, buttons, panels and the top bar look. Each is one CSS file in
+Block components (`Panel`, `Field`, `Notice`, `List`, `Table`, `Segmented`, `Divider`, and the
+new ones through the `flow` class) keep `--flow-space` below themselves, none as the last in
+their container. A `.stack` or `.row` spaces its children with its `gap` instead, so there the
+margins go. A page layout of its own that uses `gap` should carry `stack` or `row` too (as
+`AuthShell` and the team page's sections do), or its children's margins add to the gap. Each
+component declares its margin inside `:where()`, so a page can always override it.
+
+`src/app.css` is Tailwind's entry: it loads Tailwind and DaisyUI, the theme, Tailwind's type
+scale matched to the theme, the element defaults, the mode and text size, and the layout
+helpers (`.stack`, `.row`, `.muted`, `.small`, `.hint`, `.error`, `.success`, `.pop` for
+floating surfaces, `.flow`). It also gives pages short names for the theme's colours
+(`--color-muted`, `--color-border`, `--color-surface`…), which follow the theme.
+
+**Themes** are DaisyUI's theme variables plus a few of our own, one CSS file each in
 `src/lib/themes/`:
 
-- `fusion.css` is the one theme that ships, and the base: it lists every token a theme can set.
-  It takes Elastic EUI's colours and font (Inter, served from `static/fonts/`, licence beside
-  it), sizes halfway between EUI and Ant Design (36 px controls, 15 px text, 20 px panel
-  padding) and Ant's control states. A theme added later overrides only what it changes, so a
-  removed theme falls back to Fusion.
+- `daisy.css` is the one theme that ships, and the base: it lists everything a theme sets. A
+  blue-grey palette, Inter (served from `static/fonts/`, licence beside it), 36 px controls,
+  6 px corners on controls and 8 px on cards, flat. A theme added later overrides only what it
+  changes, so a removed theme falls back to Daisy.
 - Colours are written once as `light-dark(light, dark)`. The mode (Device, Light, Dark) sets
-  `color-scheme`, which picks the half, so a theme has no separate dark block.
+  `color-scheme`, which picks the half, so a theme has no separate dark block. (DaisyUI's own
+  themes are light or dark each; ours carry both, so the mode switch keeps working.)
 - A theme applies to whatever carries `data-theme`. `<html>` always does, and a preview or a
   section can carry another (the picker in Account → Display shows each theme this way).
 
-To **add a theme**: create `<id>.css` with one `[data-theme='<id>']` rule holding the tokens
-it changes from `fusion.css`, then add the id to `src/lib/themes/index.ts`, to the `@import`s in
-`src/app.css` and to the `themes` list in the inline script in `src/app.html`
-(`src/lib/themes/themes.test.ts` checks all of these agree, and that a theme sets no token
-Fusion doesn't define). Its own font goes in `static/fonts/` with an `@font-face` in its file:
-the CSP allows fonts from this site only. With two or more themes, Account → Display shows a
-picker.
+To **add a theme**: create `<id>.css` with one `[data-theme='<id>']` rule inside `@layer base`,
+holding the variables it changes from `daisy.css` (DaisyUI's theme generator at
+daisyui.com/theme-generator gives the colours; write each as `light-dark()`), then add the id to
+`src/lib/themes/index.ts`, to the `@import`s in `src/app.css` and to the `themes` list in the
+inline script in `src/app.html` (`src/lib/themes/themes.test.ts` checks all of these agree, and
+that a theme sets nothing Daisy doesn't define). Keep text at 4.5:1 against its background in
+both modes. Its own font goes in `static/fonts/` with an `@font-face` in its file: the CSP
+allows fonts from this site only. With two or more themes, Account → Display shows a picker.
 
 To **change the app's default**, set `defaultTheme` in `src/lib/themes/index.ts` and `data-theme`
 on `<html>` in `src/app.html`. Then put the theme's background colour in

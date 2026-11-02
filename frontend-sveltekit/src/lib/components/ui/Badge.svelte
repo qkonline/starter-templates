@@ -1,41 +1,28 @@
-<!-- A short label beside a name: "This device", "Admin", "Unconfirmed". -->
+<!-- A short label beside a name: "This device", "Admin", "Unconfirmed" (DaisyUI's badge, soft). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
-  let { tone = 'accent', children }: { tone?: 'accent' | 'danger' | 'plain'; children: Snippet } = $props();
+  type Tone = 'accent' | 'danger' | 'plain' | 'success' | 'warning' | 'info' | 'neutral' | 'outline';
+
+  let { tone = 'accent', children }: { tone?: Tone; children: Snippet } = $props();
+
+  const tones: Record<Tone, string> = {
+    accent: 'badge-soft badge-primary',
+    danger: 'badge-soft badge-error',
+    plain: '',
+    success: 'badge-soft badge-success',
+    warning: 'badge-soft badge-warning',
+    info: 'badge-soft badge-info',
+    neutral: 'badge-neutral',
+    outline: 'badge-outline badge-primary',
+  };
 </script>
 
-<span class={['badge', tone]}>{@render children()}</span>
+<span class={['badge badge-sm', tones[tone]]}>{@render children()}</span>
 
 <style>
   .badge {
-    display: inline-block;
-    margin-left: var(--space-2);
-    padding: 0 var(--space-2);
-    font-size: var(--text-xs);
-    font-weight: var(--badge-weight);
-    line-height: 1.25rem;
-    white-space: nowrap;
-    border: var(--badge-border-width) solid transparent;
-    border-radius: var(--badge-radius);
-    vertical-align: 0.1em;
-  }
-
-  .accent {
-    color: var(--color-accent-soft-text);
-    background: var(--color-accent-soft);
-    border-color: var(--color-accent-border);
-  }
-
-  .danger {
-    color: var(--color-danger-text);
-    background: var(--color-danger-soft);
-    border-color: var(--color-danger-border);
-  }
-
-  .plain {
-    color: var(--color-text);
-    background: var(--color-sunken);
-    border-color: var(--color-border-strong);
+    margin-inline-start: var(--space-2);
+    vertical-align: middle;
   }
 </style>

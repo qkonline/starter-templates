@@ -1,6 +1,7 @@
 <!--
-  One choice out of a few, side by side (theme, text size, a filter). Radio buttons underneath,
-  so arrow keys move between them and a screen reader hears a group:
+  One choice out of a few, side by side (theme, text size, a filter): DaisyUI's join of buttons
+  with radio buttons underneath, so arrow keys move between them and a screen reader hears a
+  group:
 
     <Segmented legend="Text size" options={textSizes} bind:value={text} onchange={save} />
 -->
@@ -26,12 +27,14 @@
   } = $props();
 </script>
 
-<fieldset>
-  <legend class={hideLegend ? 'visually-hidden' : 'label'}>{legend}</legend>
-  <div class="segmented">
+<fieldset class="fieldset segmented">
+  <legend class={hideLegend ? 'visually-hidden' : 'fieldset-legend'}>{legend}</legend>
+  <!-- DaisyUI's join of buttons, each a label around its radio, so the words are on the page. -->
+  <div class="join">
     {#each options as o (o.value)}
-      <label>
+      <label class="join-item btn has-checked:btn-primary">
         <input
+          class="visually-hidden"
           type="radio"
           {name}
           value={o.value}
@@ -47,73 +50,35 @@
 </fieldset>
 
 <style>
-  fieldset {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: 0;
-    border: 0;
-    min-width: 0;
-  }
-
-  legend {
-    margin-bottom: var(--space-2);
-    padding: 0;
-  }
-
   .segmented {
-    display: inline-flex;
+    padding: 0;
+  }
+
+  .fieldset-legend {
+    padding-block: 0 var(--space-1);
+  }
+
+  .join {
     flex-wrap: wrap;
-    align-self: flex-start;
-    padding: 2px;
-    gap: 2px;
-    border: 1px solid var(--segmented-track-border);
-    border-radius: var(--radius-sm);
-    background: var(--segmented-track-bg);
   }
 
   label {
-    display: inline-flex;
-    align-items: center;
-    min-height: calc(var(--control-height) - 6px);
-    padding: 0 var(--space-3);
-    border-radius: calc(var(--radius-sm) - 2px);
-    color: var(--segmented-text);
-    font-size: var(--text-sm);
-    font-weight: var(--button-weight);
-    cursor: pointer;
-    transition:
-      background-color 160ms cubic-bezier(0.2, 0, 0, 1),
-      color 160ms cubic-bezier(0.2, 0, 0, 1);
+    position: relative;
   }
 
-  label:hover {
-    color: var(--color-heading);
-  }
-
-  input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  label:has(input:checked) {
-    background: var(--segmented-selected-bg);
-    color: var(--segmented-selected-text);
-    box-shadow: var(--segmented-selected-shadow);
-  }
-
-  label:has(input:focus-visible) {
+  /* The radio is hidden, so its label shows where focus is. */
+  label:has(:focus-visible) {
     outline: 2px solid var(--color-focus);
-    outline-offset: 1px;
+    outline-offset: 2px;
+    z-index: 1;
   }
 
   /* Space below, unless last; a .stack or .row replaces it with its gap (src/app.css). */
-  :where(fieldset) {
+  :where(.segmented) {
     margin: 0 0 var(--flow-space);
   }
 
-  :where(fieldset:last-child) {
+  :where(.segmented:last-child) {
     margin-block-end: 0;
   }
 </style>

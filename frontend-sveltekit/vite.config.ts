@@ -1,5 +1,6 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
@@ -19,6 +20,7 @@ export default defineConfig(({ mode }) => ({
     ),
   },
   plugins: [
+    tailwindcss(),
     sveltekit({
       // Every route is prerendered: the public pages with their content, the sign-in and
       // signed-in pages as empty shells that start the app in the browser (they set

@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { HTMLInputAttributes } from 'svelte/elements';
+  import type { ClassValue, HTMLInputAttributes } from 'svelte/elements';
   import { getField } from './field.ts';
 
   let {
@@ -26,7 +26,7 @@
   const field = getField();
 </script>
 
-{#snippet control()}
+{#snippet control(classes: ClassValue)}
   <input
     bind:this={ref}
     bind:value
@@ -34,83 +34,26 @@
     aria-describedby={field?.describedby}
     aria-invalid={field?.invalid || undefined}
     {...rest}
-    class={['input', { code, 'has-end': end }, extra]}
+    class={classes}
   />
 {/snippet}
 
 {#if end}
-  <div class="wrap">
-    {@render control()}
-    <div class="end">{@render end()}</div>
+  <!-- DaisyUI's way to put something inside the field: the box around both. A <div>, not
+       DaisyUI's <label>, so the control's text doesn't join the input's name. -->
+  <div class={['input w-full', { 'input-error': field?.invalid }]}>
+    {@render control(['grow', { code }, extra])}
+    {@render end()}
   </div>
 {:else}
-  {@render control()}
+  {@render control(['input w-full', { code, 'input-error': field?.invalid }, extra])}
 {/if}
 
 <style>
-  .input {
-    width: 100%;
-    min-height: var(--control-height);
-    padding: 0 var(--control-padding-x);
-    font: inherit;
-    font-size: var(--text-sm);
-    color: var(--color-heading);
-    background: var(--control-bg);
-    border: 1px solid var(--control-border);
-    border-radius: var(--radius-sm);
-    transition:
-      border-color 160ms cubic-bezier(0.2, 0, 0, 1),
-      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
-  }
-
-  .input::placeholder {
-    color: var(--color-muted);
-  }
-
-  .input:hover:not(:disabled) {
-    border-color: var(--control-border-hover);
-  }
-
-  /* The theme's focus: --control-focus-border and --control-focus-shadow (Fusion: a blue border and glow). */
-  .input:focus-visible {
-    outline: none;
-    border-color: var(--control-focus-border);
-    box-shadow: var(--control-focus-shadow);
-  }
-
-  .input:disabled {
-    color: var(--color-muted);
-    background: var(--color-sunken);
-    cursor: not-allowed;
-  }
-
-  .input[aria-invalid='true'] {
-    border-color: var(--color-danger);
-  }
-
-  .input[aria-invalid='true']:focus-visible {
-    border-color: var(--color-danger);
-    box-shadow: var(--control-invalid-focus-shadow);
-  }
-
+  /* One-time codes: wide-spaced digits. */
   .code {
     font-family: var(--font-mono);
     font-size: var(--text-lg);
-    letter-spacing: 0.3em;
-  }
-
-  .wrap {
-    position: relative;
-  }
-
-  .has-end {
-    padding-right: 4.5rem;
-  }
-
-  .end {
-    position: absolute;
-    right: var(--space-1);
-    top: 50%;
-    transform: translateY(-50%);
+    letter-spacing: 0.4em;
   }
 </style>

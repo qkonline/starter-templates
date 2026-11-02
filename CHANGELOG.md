@@ -7,6 +7,48 @@ version up, and copy over the core's files (never the app's own: `src/app/`, `sr
 
 Each entry says what an app has to do, if anything, under **To take it**.
 
+## 0.3.0 (2 November 2026)
+
+The frontend's look is now DaisyUI 5 on Tailwind CSS 4, in a theme of its own, **Daisy** (the
+Fusion theme is gone). The components keep their names and props, so pages built on them need no
+change; there are 30 new ones beside them, and a gallery of all of them at `/components` under
+`npm run dev`.
+
+**To take it**:
+
+1. In `frontend-sveltekit/`: `npm install -D tailwindcss@4.3.3 @tailwindcss/vite@4.3.3 daisyui@5.7.50`,
+   then copy the core's files over: `vite.config.ts`, `src/app.css`, `src/app.html`,
+   `src/lib/themes/`, `src/lib/components/`, `e2e/`, the layouts (`src/routes/+layout.svelte`,
+   `(app)/`, `(auth)/`, `(site)/`), `(site)/+page.svelte`, `(app)/admin/+page.svelte`,
+   `(open)/invite/+page.svelte` and the new `(open)/components/`. Delete
+   `src/lib/themes/fusion.css`.
+2. Your own pages' styles: the Fusion tokens for how controls, buttons, panels, segmented choices,
+   badges, notices, tables and the top bar look are gone (`--control-*` except
+   `--control-height`, `--button-*`, `--panel-*`, `--segmented-*`, `--badge-*`, `--notice-*`,
+   `--table-head-bg`, `--header-bg`, `--header-border`, `--header-shadow`, and
+   `--color-accent-text`, `--color-accent-subtle`, `--color-accent-border`,
+   `--color-accent-soft-text`, `--color-primary-hover`, `--color-border-hover`,
+   `--color-success-soft`, `--color-danger-subtle`, `--color-notice-text`). Use DaisyUI's
+   (`--color-base-100` for a card, `--color-base-300` for its line, `--radius-box`,
+   `--radius-field`) or a DaisyUI class. The general ones stay (`--color-text`, `--color-muted`,
+   `--color-border`, `--color-surface`, `--color-bg`, `--space-*`, `--text-*`, `--radius`…).
+3. Your own class names that are DaisyUI components' names now pick up DaisyUI's styles: rename
+   them (the core renamed `card`, `hero`, `label`, `loading`, `toast`). The `.label` helper is
+   gone: use `fieldset-legend`.
+4. A theme of your own: rewrite it as DaisyUI's variables (see `src/lib/themes/daisy.css` and
+   the frontend README). Someone who had picked `fusion` gets the default theme.
+
+- Components, new: `Checkbox`, `Toggle`, `RadioGroup`, `Range`, `FileInput`, `Rating`, `Tabs`,
+  `Collapse` (accordion with `group`), `Modal`, `Drawer`, `Dropdown`, `Menu`, `Tooltip`,
+  `toast()` with `Toaster` (in the root layout), `Breadcrumbs`, `Pagination`, `Steps`,
+  `Progress`, `RadialProgress`, `Skeleton`, `Stats`/`Stat`, `Status`, `Kbd`, `Indicator`,
+  `Timeline`, `Countdown`, `Swap`, `Carousel`, `ChatBubble`, `Navbar`, `Hero`, `Footer`, `Dock`.
+- Components, rebuilt on DaisyUI: `Button` (new variants `outline`, `soft`, `ghost`, `dash`;
+  sizes `xs`, `lg`; `square`), `Panel` (card), `Field` and its controls, `Segmented` (join),
+  `Badge` (more tones), `Notice` (alert, with `tone` and `solid`), `Divider`, `List`, `Table`
+  (`zebra`, scrolls sideways), `Spinner`, `Avatar`, the update prompt.
+- Light and dark stay one theme, written with `light-dark()`, so the mode switch works as before.
+
 ## 0.2.1 (1 November 2026)
 
 **To take it**: copy `backend-cloudflare/src/errors.ts`.

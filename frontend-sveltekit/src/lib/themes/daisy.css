@@ -1,0 +1,73 @@
+/*
+  Daisy: the theme, and the full list of what a theme sets. DaisyUI's components with a calm
+  blue-grey palette and Inter: blue for the main action, red for danger, 36 px controls, 6 px
+  corners on controls and 8 px on cards, flat (no depth or noise).
+
+  A theme is DaisyUI's theme variables (https://daisyui.com/docs/themes/) plus four colours of
+  our own (heading, muted, link, strong border) and the shadow of things that float. Colours are
+  `light-dark(light, dark)`: which half applies follows `color-scheme`, which the mode (Device,
+  Light, Dark) sets in src/app.css, so a theme writes both modes in one place. Daisy is the base
+  (`:root`): another theme overrides only what it changes, under `[data-theme='<id>']`.
+*/
+
+/* Inter, served from this site (the CSP allows fonts from here only), Latin, weights 300-600.
+   Licence: static/fonts/Inter-OFL.txt. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+}
+
+@layer base {
+  :root,
+  [data-theme='daisy'] {
+    /* Surfaces: cards and fields (100), the page (200), lines and tracks (300), text on them */
+    --color-base-100: light-dark(#ffffff, #111c2c);
+    --color-base-200: light-dark(#f6f9fc, #0b1628);
+    --color-base-300: light-dark(#e3e8f2, #2b394f);
+    --color-base-content: light-dark(#384861, #b4c1d5);
+
+    /* Roles, each with the colour of text on it */
+    --color-primary: light-dark(#0b64dd, #61a2ff);
+    --color-primary-content: light-dark(#ffffff, #07101f);
+    --color-secondary: light-dark(#516381, #98a8c3);
+    --color-secondary-content: light-dark(#ffffff, #07101f);
+    --color-accent: light-dark(#1750ba, #8bbaff);
+    --color-accent-content: light-dark(#ffffff, #07101f);
+    --color-neutral: light-dark(#111c2c, #e3e8f2);
+    --color-neutral-content: light-dark(#ffffff, #07101f);
+    --color-info: light-dark(#0b64dd, #61a2ff);
+    --color-info-content: light-dark(#ffffff, #07101f);
+    --color-success: light-dark(#09724d, #24c292);
+    --color-success-content: light-dark(#ffffff, #07101f);
+    --color-warning: light-dark(#825803, #facb3d);
+    --color-warning-content: light-dark(#ffffff, #2a2312);
+    --color-error: light-dark(#c61e25, #f6726a);
+    --color-error-content: light-dark(#ffffff, #07101f);
+
+    /* Shape: corners of checkboxes and toggles (selector), fields and buttons, cards and boxes;
+       control sizes (×10 is the height: 0.225rem → 36 px); border width; depth and noise off */
+    --radius-selector: 6px;
+    --radius-field: 6px;
+    --radius-box: 8px;
+    --size-selector: 0.225rem;
+    --size-field: 0.225rem;
+    --border: 1px;
+    --depth: 0;
+    --noise: 0;
+
+    /* Ours, beside DaisyUI's: headings, quieter text, links, a stronger line, rating stars,
+       what's behind a dialog, things that float */
+    --color-heading: light-dark(#111c2c, #e3e8f2);
+    --color-muted: light-dark(#516381, #98a8c3);
+    --color-link: light-dark(#1750ba, #61a2ff);
+    --color-border-strong: light-dark(#cad3e2, #485975);
+    --color-star: light-dark(#e8a317, #facb3d);
+    --color-scrim: light-dark(rgb(72 89 117 / 0.6), rgb(7 16 31 / 0.8));
+    --shadow-pop:
+      0 6px 16px light-dark(rgb(43 57 79 / 0.1), rgb(0 0 0 / 0.45)),
+      0 2px 4px light-dark(rgb(43 57 79 / 0.08), rgb(0 0 0 / 0.3));
+  }
+}

@@ -46,19 +46,25 @@
   });
 </script>
 
-<div class="field">
-  <label class={hideLabel ? 'visually-hidden' : 'label'} for={id}
+<div class="fieldset field">
+  <label class={hideLabel ? 'visually-hidden' : 'fieldset-legend'} for={id}
     >{#if typeof label === 'string'}{label}{:else}{@render label()}{/if}</label
   >
   {@render children()}
-  {#if hint}<p class="hint" id="{id}-hint">{hint}</p>{/if}
+  {#if hint}<p class="label hint" id="{id}-hint">{hint}</p>{/if}
 </div>
 
 <style>
   .field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    padding: 0;
+  }
+
+  .fieldset-legend {
+    padding-block: 0 var(--space-1);
+  }
+
+  .hint {
+    white-space: normal;
   }
 
   /* Space below, unless last; a .stack or .row replaces it with its gap (src/app.css). */

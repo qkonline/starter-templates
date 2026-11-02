@@ -41,9 +41,8 @@
   }
 
   .top {
-    background: var(--header-bg);
-    border-bottom: 1px solid var(--header-border);
-    box-shadow: var(--header-shadow);
+    background: var(--color-base-100);
+    border-bottom: var(--border) solid var(--color-base-300);
   }
 
   .top .bar {

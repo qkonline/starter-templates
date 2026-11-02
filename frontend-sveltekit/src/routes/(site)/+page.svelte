@@ -21,7 +21,7 @@
   <meta name="description" content={t('{app}: a short line about what the app does.', { app: appName })} />
 </svelte:head>
 
-<section class="hero">
+<section class="intro">
   <h1>{t('Say what {app} does, in one line.', { app: appName })}</h1>
   <p class="lead muted">
     {t(
@@ -35,7 +35,7 @@
 </section>
 
 <style>
-  .hero {
+  .intro {
     max-width: 38rem;
     display: flex;
     flex-direction: column;
@@ -43,7 +43,7 @@
     padding-top: var(--space-7);
   }
 
-  .hero h1 {
+  .intro h1 {
     font-size: clamp(2rem, 6vw, 3rem);
     letter-spacing: -0.02em;
   }

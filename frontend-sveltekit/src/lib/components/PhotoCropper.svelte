@@ -137,9 +137,10 @@
   </div>
 
   <div class="field">
-    <label class="label" for="crop-zoom">{t('Zoom')}</label>
+    <label class="fieldset-legend" for="crop-zoom">{t('Zoom')}</label>
     <input
       id="crop-zoom"
+      class="range range-primary range-sm w-full"
       type="range"
       min="1"
       max={MAX_ZOOM}
@@ -221,11 +222,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
-  }
-
-  input[type='range'] {
-    width: 100%;
-    accent-color: var(--color-accent);
   }
 
   .actions {

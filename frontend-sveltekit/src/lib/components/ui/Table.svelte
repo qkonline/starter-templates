@@ -1,39 +1,34 @@
-<!-- A plain data table (admin): <Table><thead>…</thead><tbody>…</tbody></Table>. -->
+<!--
+  A data table (admin), DaisyUI's: <Table><thead>…</thead><tbody>…</tbody></Table>. It scrolls
+  sideways on its own when it's wider than the page. `zebra` stripes the rows.
+-->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { HTMLTableAttributes } from 'svelte/elements';
 
-  let { children, class: extra, ...rest }: HTMLTableAttributes & { children: Snippet } = $props();
+  let {
+    zebra = false,
+    children,
+    class: extra,
+    ...rest
+  }: HTMLTableAttributes & { zebra?: boolean; children: Snippet } = $props();
 </script>
 
-<table {...rest} class={['table', extra]}>{@render children()}</table>
+<div class="table-wrap">
+  <table {...rest} class={['table', { 'table-zebra': zebra }, extra]}>{@render children()}</table>
+</div>
 
 <style>
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--text-sm);
-  }
-
-  .table :global(:is(th, td)) {
-    padding: var(--space-3) var(--space-3);
-    text-align: left;
-    vertical-align: top;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .table :global(th) {
-    color: var(--color-heading);
-    font-weight: var(--weight-medium);
-    background: var(--table-head-bg);
+  .table-wrap {
+    overflow-x: auto;
   }
 
   /* Space below, unless last; a .stack or .row replaces it with its gap (src/app.css). */
-  :where(.table) {
+  :where(.table-wrap) {
     margin: 0 0 var(--flow-space);
   }
 
-  :where(.table:last-child) {
+  :where(.table-wrap:last-child) {
     margin-block-end: 0;
   }
 </style>

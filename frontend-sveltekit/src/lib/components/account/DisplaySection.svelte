@@ -37,7 +37,7 @@
   {/if}
   {#if themes.length > 1}
     <fieldset>
-      <legend class="label">{t('Theme')}</legend>
+      <legend class="fieldset-legend">{t('Theme')}</legend>
       <div class="themes">
         {#each themes as theme (theme.id)}
           <!-- Each preview carries its own theme, so it shows that theme's colours and fonts. -->
@@ -175,7 +175,7 @@
   }
 
   .secondary {
-    background: var(--button-plain-bg);
+    background: var(--color-base-100);
   }
 
   .primary {

@@ -1,167 +1,221 @@
 /*
-  The look. Colours, fonts, type sizes, corners, shadows and the look of controls come from the
-  theme (src/lib/themes/: Fusion is the base and lists every token a theme sets); this file
-  holds the spacing every theme shares, the mode and text size, and the base styles. Components
-  use only these variables, never colours or fonts of their own, and keep their styles in their
-  own <style> (src/lib/components/ui/ for the building blocks).
+  The look: Tailwind CSS 4 and DaisyUI 5, with the theme in src/lib/themes/ (Daisy is the one
+  that comes with it). Components (src/lib/components/ui/) are built from DaisyUI's classes;
+  pages may use DaisyUI's classes and Tailwind's utilities directly too.
+
+  Layers, lowest first: Tailwind's theme, then base (Tailwind's reset, DaisyUI's base, the theme,
+  and the element defaults below), then components and utilities (DaisyUI's components and
+  Tailwind's utilities). The layout helpers at the end are outside any layer, like each
+  component's own <style>, so they win over all of it.
 */
 
-@import './lib/themes/fusion.css';
+@import 'tailwindcss' source(none);
+@import './lib/themes/daisy.css';
 
-:root {
-  /* Space and size */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
-  --space-7: 3rem;
-  --space-8: 4.5rem;
-  /* The space each block component (ui/: Field, Notice, List, Table, Segmented, Divider) keeps
-     below itself in ordinary flow. */
-  --flow-space: var(--space-4);
-  --page-width: 56rem;
-  --form-width: 24rem;
+/* Classes are looked for in src/ only. */
+@source './';
 
-  /* Things that float above the page: the bell's list, the update prompt, dialogs. */
-  --z-pop: 40;
-
-  /* The mode (Account → Display): the device's unless the person picked light or dark. Every
-     theme colour is light-dark(), so this one property switches them all. */
-  color-scheme: light dark;
+/*
+  DaisyUI, with its own themes off (src/lib/themes/ has ours) and without its `stack`, whose name
+  is our layout helper below.
+*/
+@plugin 'daisyui' {
+  themes: false;
+  exclude: stack;
+  logs: false;
 }
 
-:root[data-mode='light'] {
-  color-scheme: light;
+/* Tailwind's type scale and font, matched to the theme (always written out, for the pages'
+   own styles). */
+@theme static {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Roboto Mono', monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --tracking-tight: -0.011em;
+  --radius-sm: 6px;
 }
 
-:root[data-mode='dark'] {
-  color-scheme: dark;
-}
+@layer base {
+  :root {
+    /* Space and size */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-7: 3rem;
+    --space-8: 4.5rem;
+    /* The space each block component (ui/: Panel, Field, Notice, List, Table, Segmented,
+       Divider…) keeps below itself in ordinary flow. */
+    --flow-space: var(--space-4);
+    --page-width: 56rem;
+    --form-width: 24rem;
+    --header-height: 3.5rem;
 
-/* Text size (Account → Display). Every size is in rem, so this scales the whole app. */
-:root[data-text='sm'] {
-  font-size: 93.75%;
-}
+    /* Things that float above the page: the bell's list, the update prompt, dialogs. */
+    --z-pop: 40;
 
-:root[data-text='lg'] {
-  font-size: 112.5%;
-}
+    /* Type */
+    --font-display: var(--font-sans);
+    --weight-body: 400;
+    --weight-medium: 500;
+    --weight-heading: 500;
+    --weight-display: 500;
+    --leading: 1.55;
 
-:root[data-text='xl'] {
-  font-size: 125%;
-}
+    /*
+      The names pages use in their own styles, taken from the theme's DaisyUI colours so they
+      follow it. In a page, `var(--color-muted)` and `class="text-base-content/70"` both work;
+      the names here are the short way.
+    */
+    --color-bg: var(--color-base-200);
+    --color-surface: var(--color-base-100);
+    --color-sunken: var(--color-base-200);
+    --color-border: var(--color-base-300);
+    --color-text: var(--color-base-content);
+    --color-focus: var(--color-primary);
+    --color-primary-text: var(--color-primary-content);
+    --color-accent-soft: color-mix(in oklab, var(--color-primary) 12%, var(--color-base-100));
+    --color-danger: var(--color-error);
+    --color-danger-text: var(--color-error);
+    --color-on-danger: var(--color-error-content);
+    --color-danger-soft: color-mix(in oklab, var(--color-error) 10%, var(--color-base-100));
+    --color-danger-border: color-mix(in oklab, var(--color-error) 35%, var(--color-base-100));
+    --color-success-text: var(--color-success);
+    --color-notice: color-mix(in oklab, var(--color-warning) 10%, var(--color-base-100));
+    --color-notice-border: color-mix(in oklab, var(--color-warning) 35%, var(--color-base-100));
+    --radius: var(--radius-box);
+    --radius-full: 999px;
+    --control-height: calc(var(--size-field) * 10);
+    --control-height-sm: calc(var(--size-field) * 8);
 
-/* ---------- Base ---------- */
+    /* The page behind everything (DaisyUI paints the root with this). */
+    --root-bg: var(--color-bg);
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+    /* The mode (Account → Display): the device's unless the person picked light or dark. Every
+       theme colour is light-dark(), so this one property switches them all. */
+    color-scheme: light dark;
+  }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
+  :root[data-mode='light'] {
+    color-scheme: light;
+  }
 
-body {
-  margin: 0;
-  min-height: 100dvh;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  font-weight: var(--weight-body);
-  line-height: var(--leading);
-  caret-color: var(--color-accent);
-  scrollbar-color: var(--color-border-strong) transparent;
-  -webkit-font-smoothing: antialiased;
-}
+  :root[data-mode='dark'] {
+    color-scheme: dark;
+  }
 
-h1,
-h2,
-h3 {
-  color: var(--color-heading);
-  font-family: var(--font-display);
-  letter-spacing: var(--tracking-tight);
-  line-height: 1.25;
-  margin: 0;
-  text-wrap: balance;
-}
+  /* Text size (Account → Display). Every size is in rem, so this scales the whole app. */
+  :root[data-text='sm'] {
+    font-size: 93.75%;
+  }
 
-h1 {
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-display);
-}
+  :root[data-text='lg'] {
+    font-size: 112.5%;
+  }
 
-h2 {
-  font-size: var(--text-lg);
-  font-weight: var(--weight-heading);
-}
+  :root[data-text='xl'] {
+    font-size: 125%;
+  }
 
-h3 {
-  font-size: var(--text-md);
-  font-weight: var(--weight-heading);
-}
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 
-p {
-  margin: 0;
-  text-wrap: pretty;
-}
+  body {
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-md);
+    font-weight: var(--weight-body);
+    line-height: var(--leading);
+    caret-color: var(--color-primary);
+    -webkit-font-smoothing: antialiased;
+  }
 
-strong,
-b {
-  font-weight: var(--weight-medium);
-  color: var(--color-heading);
-}
+  h1,
+  h2,
+  h3 {
+    color: var(--color-heading);
+    font-family: var(--font-display);
+    letter-spacing: var(--tracking-tight);
+    line-height: 1.25;
+    text-wrap: balance;
+  }
 
-/* Links: coloured, underlined on hover, and always underlined inside a sentence, where colour
-   alone wouldn't set them apart from the text around them. */
-a {
-  color: var(--color-link);
-  text-decoration: none;
-  text-underline-offset: 0.2em;
-  text-decoration-thickness: 1px;
-}
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-display);
+  }
 
-a:hover,
-p > a {
-  text-decoration-line: underline;
-}
+  h2 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-heading);
+  }
 
-table,
-time,
-code {
-  font-variant-numeric: tabular-nums;
-}
+  h3 {
+    font-size: var(--text-md);
+    font-weight: var(--weight-heading);
+  }
 
-img {
-  max-width: 100%;
-  display: block;
-}
+  p {
+    text-wrap: pretty;
+  }
 
-:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
+  strong,
+  b {
+    font-weight: var(--weight-medium);
+    color: var(--color-heading);
+  }
 
-::selection {
-  background: var(--color-accent-soft);
-  color: var(--color-heading);
-}
+  /* Links: coloured, underlined on hover, and always underlined inside a sentence, where colour
+     alone wouldn't set them apart from the text around them. */
+  a {
+    color: var(--color-link);
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+  a:hover,
+  p > a {
+    text-decoration-line: underline;
+  }
+
+  table,
+  time,
+  code {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-heading);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-/* ---------- Utilities ---------- */
+/* ---------- Layout helpers (outside the layers: they win) ---------- */
 
 .visually-hidden {
   position: absolute;
@@ -177,13 +231,13 @@ img {
 
 .skip-link {
   position: absolute;
-  left: var(--space-4);
+  inset-inline-start: var(--space-4);
   top: -4rem;
   z-index: 10;
   padding: var(--space-2) var(--space-4);
   background: var(--color-primary);
-  color: var(--color-primary-text);
-  border-radius: var(--radius-sm);
+  color: var(--color-primary-content);
+  border-radius: var(--radius-field);
 }
 
 .skip-link:focus {
@@ -221,16 +275,19 @@ img {
   margin-block: 0;
 }
 
+/* The same --flow-space for a block that adds the class (the ui components built on DaisyUI). */
+:where(.flow) {
+  margin: 0 0 var(--flow-space);
+}
+
+:where(.flow:last-child) {
+  margin-block-end: 0;
+}
+
 /* Error and status regions stay in the page, so screen readers hear what appears in them, but
    take no room (and no stack gap) while they're empty. */
 :is([role='alert'], [role='status']):empty {
   position: absolute;
-}
-
-.label {
-  color: var(--color-heading);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
 }
 
 .hint {
@@ -250,8 +307,8 @@ img {
 
 /* A surface that floats above the page: the bell's list, the update prompt, dialogs. */
 .pop {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  background: var(--color-base-100);
+  border: var(--border) solid var(--color-base-300);
+  border-radius: var(--radius-box);
   box-shadow: var(--shadow-pop);
 }

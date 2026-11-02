@@ -1,6 +1,7 @@
 <!--
-  Rows with a hairline between them (devices, passkeys, members): <List><li>…</li></List>. Each <li> lays
-  its parts out in a row that wraps; a `.title` inside one is set in the medium weight.
+  Rows with a hairline between them (devices, passkeys, members), in DaisyUI's list:
+  <List><li>…</li></List>. Each <li> lays its parts out in a row that wraps; a `.title` inside
+  one is set in the medium weight.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -16,12 +17,6 @@
 <ul {...rest} class={['list', extra]}>{@render children()}</ul>
 
 <style>
-  /* Separators between rows only; the container (a panel, a stack) spaces the list itself. */
-  .list {
-    list-style: none;
-    padding: 0;
-  }
-
   .list > :global(li) {
     display: flex;
     flex-wrap: wrap;
@@ -32,7 +27,7 @@
   }
 
   .list > :global(li + li) {
-    border-top: 1px solid var(--color-border);
+    border-top: var(--border) solid var(--color-base-300);
   }
 
   .list > :global(li:first-child) {
@@ -45,6 +40,7 @@
 
   .list :global(.title) {
     font-weight: var(--weight-medium);
+    color: var(--color-heading);
   }
 
   /* Space below, unless last; a .stack or .row replaces it with its gap (src/app.css). */
