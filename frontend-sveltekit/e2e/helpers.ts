@@ -1,4 +1,12 @@
 import { expect, type Page } from '@playwright/test';
+import { homePath } from '../src/lib/config.ts';
+
+// These tests cover the core (sign-in, the account, teams, admin), not what an app replaces:
+// they go to the core's pages by address rather than through the app's header or frame, and
+// never look for the placeholder home's text, so an app's own shell and home keep them passing.
+
+/** The address someone lands on after signing in (`homePath` in src/lib/config.ts). */
+export const atHome = new RegExp(`/${homePath}$`);
 
 export const API_URL = (
   process.env.API_URL ??
@@ -44,7 +52,7 @@ export async function signUp(page: Page, email: string, password: string): Promi
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(atHome);
   await passGate(page, email);
 }
 

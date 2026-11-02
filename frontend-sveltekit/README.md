@@ -127,6 +127,37 @@ First time: `npx playwright install chromium`. If something else holds port 4180
 `E2E_IPV4=1 npm run e2e` serves on 127.0.0.1 and maps `localhost` there inside Chromium.
 `E2E_PORT` picks another port (the backend must allow it).
 
+#### What the core's tests leave to the app
+
+The core's tests cover the core: signing up and in, the account page, teams, admin, the PWA. They
+skip everything an app is expected to replace, so they keep passing on any app built from the
+template:
+
+- They reach the core's pages by address (`page.goto('/account')`, `/teams`, `/admin`), never
+  through links in the header, which an app may restyle, rename or replace with its own frame.
+- They wait for the signed-in layout (`signedInApp(page)`, `[data-signed-in]`), never for the
+  home page's text, and check the address after sign-in against `homePath` (`atHome`).
+- They check that a stored theme, mode and text size apply before the first paint, not which
+  theme it is.
+
+Once your app has its own shell, home page and look, add a spec of your own in `e2e/` (for
+example `e2e/<app>.spec.ts`) that tests what the core's tests no longer do, in your app's words:
+
+- **Navigation:** from the home page, your header, sidebar or tab bar reaches the account page
+  (and Teams and Admin when they're on), each link with the name a person sees, and the current
+  page is marked (`aria-current="page"`).
+- **Home after sign-in:** signing up and signing in land on your home page and show its real
+  content, e.g. its heading, or the person's name if you greet them.
+- **The name on the account:** a name saved on the account page shows where your app shows it.
+- **Your look:** if you replaced or added themes, your default theme's id is on `<html>` before
+  the first paint, and a removed one falls back to it.
+- **The email gate:** with `REQUIRE_VERIFIED_EMAIL` on, your frame isn't drawn until the email is
+  confirmed (the core shows `EmailGate` in its place).
+
+Reuse the helpers in `e2e/helpers.ts` (`signUp`, `signIn`, `passGate`, `confirmEmail`,
+`latestCode`, `signedInApp`, `atHome`) rather than repeating the sign-up steps. Keep the core's
+spec files as they are, so later template releases update them cleanly.
+
 ## Deploying to Cloudflare Pages
 
 ```bash

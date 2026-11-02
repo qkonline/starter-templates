@@ -96,7 +96,7 @@ More detail, and the full list of components, is in
    kept out of git):
 
    ```sh
-   git clone --depth 1 --branch v0.3.1 https://github.com/qkonline/starter-templates.git my-app
+   git clone --depth 1 --branch v0.3.2 https://github.com/qkonline/starter-templates.git my-app
    cd my-app && rm -rf .git && git init
    ```
 

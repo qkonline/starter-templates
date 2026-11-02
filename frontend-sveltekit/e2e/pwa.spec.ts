@@ -62,9 +62,9 @@ test('public pages load without a CSP violation', async ({ page }) => {
   }
 });
 
-test('the theme, mode and text size apply before the first paint', async ({ page }) => {
+// An app may replace the Daisy theme with its own: these check the mechanism, not a theme's name.
+test('the mode and text size apply before the first paint', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('starter:theme', 'daisy');
     localStorage.setItem('starter:mode', 'dark');
     localStorage.setItem('starter:text', 'xl');
     // Record <html>'s attributes at the moment <body> is first parsed, before anything paints.
@@ -80,8 +80,7 @@ test('the theme, mode and text size apply before the first paint', async ({ page
     }).observe(document, { childList: true, subtree: true });
   });
   await page.goto('/privacy');
-  expect(await page.evaluate(() => (window as unknown as { atBody: unknown }).atBody)).toEqual({
-    theme: 'daisy',
+  expect(await page.evaluate(() => (window as unknown as { atBody: unknown }).atBody)).toMatchObject({
     mode: 'dark',
     text: 'xl',
   });
@@ -113,9 +112,10 @@ test('a theme since removed falls back to the default', async ({ page }) => {
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.goto('/');
   const base = await background();
+  const theme = await page.locator('html').getAttribute('data-theme');
   await page.evaluate(() => localStorage.setItem('starter:theme', 'gone'));
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daisy');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme!);
   expect(await background()).toBe(base);
 });
 

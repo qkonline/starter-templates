@@ -7,6 +7,21 @@ version up, and copy over the core's files (never the app's own: `src/app/`, `sr
 
 Each entry says what an app has to do, if anything, under **To take it**.
 
+## 0.3.2 (2 November 2026)
+
+The browser tests test the core, not what an app replaces.
+
+- They open the account, teams and admin pages by address instead of clicking header links an
+  app may rename or replace with its own frame; they check the address after sign-in against
+  `homePath`; the theme tests no longer name the Daisy theme.
+- The frontend README's "What the core's tests leave to the app" lists what an app then tests in
+  a spec of its own: its navigation, its home after sign-in, where it shows the saved name, its
+  look, and the email gate around its frame.
+
+**To take it**: copy the core's `e2e/` files (`helpers.ts`, `smoke.spec.ts`, `features.spec.ts`,
+`pwa.spec.ts`) and `frontend-sveltekit/README.md`; keep your own spec files. Then add the tests
+the README lists to your own spec.
+
 ## 0.3.1 (2 November 2026)
 
 Fixes found building the first app on 0.3.0.

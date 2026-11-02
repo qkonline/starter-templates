@@ -95,7 +95,7 @@ test('a team, an emailed invite accepted after signing up, and the last admin', 
   const a = await (await browser.newContext()).newPage();
   await signUp(a, adminEmail, password);
   await confirmEmail(a, adminEmail);
-  await a.getByRole('link', { name: 'Teams' }).click();
+  await a.goto('/teams');
   // The account page (where confirmEmail left us) has a Name field too: wait for Teams first.
   await expect(a.getByRole('heading', { name: 'Teams', level: 1 })).toBeVisible();
   await a.getByLabel('Name').fill('E2E team');
@@ -181,7 +181,7 @@ test('admin: find someone, open a support session in its own tab, end it', async
   await admin.goto('/signin');
   await signIn(admin, adminEmail!, adminPassword!);
   await passGate(admin, adminEmail!);
-  await admin.getByRole('link', { name: 'Admin' }).click();
+  await admin.goto('/admin');
   await expect(admin.getByRole('heading', { name: 'Admin', level: 1 })).toBeVisible();
   await admin.getByRole('link', { name: 'People' }).click();
   await admin.getByLabel('Find by email or name').fill(personEmail);
