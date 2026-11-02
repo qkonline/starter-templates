@@ -8,6 +8,7 @@ import {
   features,
   latestInviteToken,
   passGate,
+  signedInApp,
   signIn,
   signUp,
   uniqueEmail,
@@ -37,11 +38,11 @@ test('the signed-in app opens with no connection, from what the device kept', as
   });
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await expect(page.getByRole('heading', { name: /^Hello/ })).toBeVisible();
+  await expect(signedInApp(page)).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: /^Hello/ })).toBeVisible();
+  await expect(signedInApp(page)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Can’t reach the app' })).toHaveCount(0);
   await page.goto('/account');
   await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();

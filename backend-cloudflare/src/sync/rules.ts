@@ -36,3 +36,10 @@ export interface SyncRules {
 }
 
 export const noRules: SyncRules = { onlyListed: false, tables: {} };
+
+/**
+ * Tables the core's own contract tests write (`test_notes`, `test_appointments`…). A backend
+ * running locally accepts them even with `onlyListed: true`, so an app that lists its tables
+ * still passes the core's suite; a deployed one never does.
+ */
+export const isTestTable = (table: string) => table.startsWith('test_');

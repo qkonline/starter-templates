@@ -55,15 +55,15 @@ describe.skipIf(!features.sync)('sync', () => {
     // appointment. Sent in either order and each twice, both stay, with the ids they were made with.
     const a = await signUp();
     const b = await signIn(a.email); // another device of the same account
-    const ali = put('appointments', id(), { patient: 'Ali', slot: '10:00' });
-    const sara = put('appointments', id(), { patient: 'Sara', slot: '10:00' });
+    const ali = put('test_appointments', id(), { patient: 'Ali', slot: '10:00' });
+    const sara = put('test_appointments', id(), { patient: 'Sara', slot: '10:00' });
     expect((await push(b.token, [sara])).map((r) => r.status)).toEqual(['applied']);
     expect((await push(a.token, [ali])).map((r) => r.status)).toEqual(['applied']);
     await push(a.token, [ali]);
     await push(b.token, [sara]);
 
     const { records } = await pullAll(a.token);
-    const appointments = records.filter((r) => r.table === 'appointments');
+    const appointments = records.filter((r) => r.table === 'test_appointments');
     expect(appointments.map((r) => r.id).sort()).toEqual([ali.record, sara.record].sort());
     expect(byId(records, ali.record)[0]).toMatchObject({ fields: { patient: 'Ali', slot: '10:00' }, deleted: false, createdBy: a.user.id });
   });
@@ -71,9 +71,9 @@ describe.skipIf(!features.sync)('sync', () => {
   test('a batch sent again is applied once', async () => {
     const { token } = await signUp();
     const record = id();
-    const first = [put('notes', record, { title: 'first' })];
+    const first = [put('test_notes', record, { title: 'first' })];
     await push(token, first);
-    await push(token, [put('notes', record, { title: 'second' })]);
+    await push(token, [put('test_notes', record, { title: 'second' })]);
     // The reply to the first batch was lost; it goes again. It must not undo the second.
     const again = await push(token, first);
     expect(again).toEqual([{ id: first[0]!.id, status: 'applied' }]);
@@ -84,12 +84,12 @@ describe.skipIf(!features.sync)('sync', () => {
   test('changes are merged per field, and the later one wins a field both set', async () => {
     const { token } = await signUp();
     const record = id();
-    await push(token, [put('appointments', record, { patient: 'Ali', slot: '10:00', note: '' })]);
+    await push(token, [put('test_appointments', record, { patient: 'Ali', slot: '10:00', note: '' })]);
     // Two devices offline: one moves the time, the other adds a note; both reach the backend.
-    await push(token, [put('appointments', record, { slot: '11:00' })]);
-    await push(token, [put('appointments', record, { note: 'Bring scans' })]);
+    await push(token, [put('test_appointments', record, { slot: '11:00' })]);
+    await push(token, [put('test_appointments', record, { note: 'Bring scans' })]);
     // Both set the same field: the one the backend received later wins.
-    await push(token, [put('appointments', record, { slot: '12:00' }), put('appointments', record, { slot: '09:30' })]);
+    await push(token, [put('test_appointments', record, { slot: '12:00' }), put('test_appointments', record, { slot: '09:30' })]);
     const { records } = await pullAll(token);
     expect(byId(records, record)[0]!.fields).toEqual({ patient: 'Ali', slot: '09:30', note: 'Bring scans' });
   });
@@ -97,10 +97,10 @@ describe.skipIf(!features.sync)('sync', () => {
   test("a record's version changes with every change, and a change can say which it was made on", async () => {
     const { token } = await signUp();
     const record = id();
-    await push(token, [put('notes', record, { title: 'a' })]);
+    await push(token, [put('test_notes', record, { title: 'a' })]);
     const first = byId((await pullAll(token)).records, record)[0]!;
     expect(first.version).toMatch(/^\d+$/);
-    const edit = { ...put('notes', record, { title: 'b' }), base: first.version };
+    const edit = { ...put('test_notes', record, { title: 'b' }), base: first.version };
     expect((await push(token, [edit])).map((r) => r.status)).toEqual(['applied']);
     const second = byId((await pullAll(token)).records, record)[0]!;
     expect(Number(second.version)).toBeGreaterThan(Number(first.version));
@@ -110,13 +110,13 @@ describe.skipIf(!features.sync)('sync', () => {
   test('a delete stays as a marker, and a later edit to it is refused, not brought back', async () => {
     const { token } = await signUp();
     const record = id();
-    await push(token, [put('notes', record, { title: 'x' })]);
+    await push(token, [put('test_notes', record, { title: 'x' })]);
     const { next } = await pullAll(token);
-    await push(token, [del('notes', record)]);
+    await push(token, [del('test_notes', record)]);
     const after = await pullAll(token, { since: next });
     expect(byId(after.records, record)).toEqual([expect.objectContaining({ deleted: true, fields: {} })]);
 
-    const late = put('notes', record, { title: 'edited offline' });
+    const late = put('test_notes', record, { title: 'edited offline' });
     const [result] = await push(token, [late]);
     expect(result).toMatchObject({ id: late.id, status: 'refused', code: 'conflict' });
     expect(result!.message!.length).toBeGreaterThan(0);
@@ -128,9 +128,9 @@ describe.skipIf(!features.sync)('sync', () => {
     const { token } = await signUp();
     // A record grown past 192 KB by merging is refused; the change next to it still goes in.
     const grow = id();
-    await push(token, [put('notes', grow, { a: 'x'.repeat(150 * 1024) })]);
-    const good = put('notes', id(), { title: 'fine' });
-    const results = await push(token, [put('notes', grow, { b: 'y'.repeat(60 * 1024) }), good]);
+    await push(token, [put('test_notes', grow, { a: 'x'.repeat(150 * 1024) })]);
+    const good = put('test_notes', id(), { title: 'fine' });
+    const results = await push(token, [put('test_notes', grow, { b: 'y'.repeat(60 * 1024) }), good]);
     expect(results.map((r) => r.status)).toEqual(['refused', 'applied']);
     expect(results[0]).toMatchObject({ code: 'too_large' });
     const { records } = await pullAll(token);
@@ -138,7 +138,7 @@ describe.skipIf(!features.sync)('sync', () => {
     expect(Object.keys(byId(records, grow)[0]!.fields)).toEqual(['a']);
 
     // A batch over 256 KB is refused whole.
-    const huge = put('notes', id(), { a: 'x'.repeat(130 * 1024), b: 'y'.repeat(130 * 1024) });
+    const huge = put('test_notes', id(), { a: 'x'.repeat(130 * 1024), b: 'y'.repeat(130 * 1024) });
     expectError(await call('post', '/sync/push', { token, json: { changes: [huge] } }), 'post', '/sync/push', 413, 'too_large');
   });
 
@@ -147,17 +147,17 @@ describe.skipIf(!features.sync)('sync', () => {
     const bad = (json: unknown) => call('post', '/sync/push', { token, json });
     expectError(await bad({}), 'post', '/sync/push', 400, 'invalid_input');
     expectError(await bad({ changes: [] }), 'post', '/sync/push', 400, 'invalid_input');
-    expectError(await bad({ changes: [put('notes', id(), {})], extra: 1 }), 'post', '/sync/push', 400, 'invalid_input');
-    expectError(await bad({ changes: Array.from({ length: 101 }, () => put('notes', id(), {})) }), 'post', '/sync/push', 400, 'invalid_input');
+    expectError(await bad({ changes: [put('test_notes', id(), {})], extra: 1 }), 'post', '/sync/push', 400, 'invalid_input');
+    expectError(await bad({ changes: Array.from({ length: 101 }, () => put('test_notes', id(), {})) }), 'post', '/sync/push', 400, 'invalid_input');
     for (const change of [
-      { ...put('notes', id(), {}), id: 'short' },
-      { ...put('notes', id(), {}), table: 'Bad Table' },
-      { ...put('notes', id(), {}), record: 'no/slashes/here/please' },
-      { ...put('notes', id(), {}), op: 'merge' },
-      { ...put('notes', id(), {}), at: 'yesterday' },
-      { ...put('notes', id(), {}), fields: [1, 2] },
-      { ...put('notes', id(), {}), fields: { 'bad name': 1 } },
-      { ...del('notes', id()), fields: { title: 'x' } },
+      { ...put('test_notes', id(), {}), id: 'short' },
+      { ...put('test_notes', id(), {}), table: 'Bad Table' },
+      { ...put('test_notes', id(), {}), record: 'no/slashes/here/please' },
+      { ...put('test_notes', id(), {}), op: 'merge' },
+      { ...put('test_notes', id(), {}), at: 'yesterday' },
+      { ...put('test_notes', id(), {}), fields: [1, 2] },
+      { ...put('test_notes', id(), {}), fields: { 'bad name': 1 } },
+      { ...del('test_notes', id()), fields: { title: 'x' } },
     ])
       expectError(await bad({ changes: [change] }), 'post', '/sync/push', 400, 'invalid_input');
     expectError(await call('get', '/sync/pull?since=abc', { token }), 'get', '/sync/pull', 400, 'invalid_input');
@@ -168,7 +168,7 @@ describe.skipIf(!features.sync)('sync', () => {
     const { token } = await signUp();
     const ids = Array.from({ length: 120 }, () => id());
     for (let i = 0; i < ids.length; i += 50)
-      await push(token, ids.slice(i, i + 50).map((r, j) => put('items', r, { n: i + j })));
+      await push(token, ids.slice(i, i + 50).map((r, j) => put('test_items', r, { n: i + j })));
 
     const { records, next, pages } = await pullAll(token, { limit: 25 });
     expect(pages).toBeGreaterThanOrEqual(5);
@@ -180,7 +180,7 @@ describe.skipIf(!features.sync)('sync', () => {
     expect(none.next).toBe(next);
 
     // One record changes: the next pull has that one only, as it is now.
-    await push(token, [put('items', ids[3]!, { n: 'changed' })]);
+    await push(token, [put('test_items', ids[3]!, { n: 'changed' })]);
     const later = await pullAll(token, { since: next });
     expect(later.records).toEqual([expect.objectContaining({ id: ids[3], fields: { n: 'changed' } })]);
   });
@@ -190,7 +190,7 @@ describe.skipIf(!features.sync)('sync', () => {
     let refused: Awaited<ReturnType<typeof call>> | null = null;
     const record = id();
     for (let i = 0; i < 70 && !refused; i++) {
-      const r = await call('post', '/sync/push', { token, json: { changes: [put('ticks', record, { n: i })] } });
+      const r = await call('post', '/sync/push', { token, json: { changes: [put('test_ticks', record, { n: i })] } });
       if (r.status === 429) refused = r;
       else expectReply(r, 'post', '/sync/push', 200);
     }
@@ -206,10 +206,10 @@ describe.skipIf(!features.sync)('sync', () => {
     const a = await signUp();
     const b = await signUp();
     const record = id();
-    await push(a.token, [put('notes', record, { secret: 'a' })]);
+    await push(a.token, [put('test_notes', record, { secret: 'a' })]);
     expect((await pullAll(b.token)).records).toEqual([]);
     // B sending a change to the same id makes B's own record; A's is untouched.
-    await push(b.token, [put('notes', record, { secret: 'b' })]);
+    await push(b.token, [put('test_notes', record, { secret: 'b' })]);
     expect(byId((await pullAll(a.token)).records, record)[0]!.fields).toEqual({ secret: 'a' });
   });
 
@@ -220,7 +220,7 @@ describe.skipIf(!features.sync)('sync', () => {
 
   test('needs a session', async () => {
     expectError(await call('get', '/sync/pull'), 'get', '/sync/pull', 401, 'signed_out');
-    expectError(await call('post', '/sync/push', { json: { changes: [put('notes', id(), {})] } }), 'post', '/sync/push', 401, 'signed_out');
+    expectError(await call('post', '/sync/push', { json: { changes: [put('test_notes', id(), {})] } }), 'post', '/sync/push', 401, 'signed_out');
   });
 
   describe.skipIf(!features.teams)("a team's shared data", () => {
@@ -235,8 +235,8 @@ describe.skipIf(!features.sync)('sync', () => {
       expectReply(await call('post', '/invites/accept', { token: member.token, json: { token: found } }), 'post', '/invites/accept', 200);
 
       // Both offline, both book: two records in the team's data, made by each.
-      const ali = put('appointments', id(), { patient: 'Ali' });
-      const sara = put('appointments', id(), { patient: 'Sara' });
+      const ali = put('test_appointments', id(), { patient: 'Ali' });
+      const sara = put('test_appointments', id(), { patient: 'Sara' });
       await push(member.token, [sara], team.id);
       await push(admin.token, [ali], team.id);
       const { records } = await pullAll(member.token, { team: team.id });
@@ -251,7 +251,7 @@ describe.skipIf(!features.sync)('sync', () => {
 
       const outsider = await signUp();
       expectError(await call('get', `/sync/pull?team=${team.id}`, { token: outsider.token }), 'get', '/sync/pull', 404, 'not_found');
-      expectError(await call('post', `/sync/push?team=${team.id}`, { token: outsider.token, json: { changes: [put('x', id(), {})] } }), 'post', '/sync/push', 404, 'not_found');
+      expectError(await call('post', `/sync/push?team=${team.id}`, { token: outsider.token, json: { changes: [put('test_x', id(), {})] } }), 'post', '/sync/push', 404, 'not_found');
     });
   });
 
@@ -270,11 +270,11 @@ describe.skipIf(!features.sync)('sync', () => {
       };
       const viewer = await join('viewer');
       const member = await join('member');
-      const note = put('notes', id(), { text: 'Bed 4' });
+      const note = put('test_notes', id(), { text: 'Bed 4' });
       await push(admin.token, [note], team.id);
 
       expect((await pullAll(viewer.token, { team: team.id })).records.map((r) => r.id)).toEqual([note.record]);
-      const [refused] = await push(viewer.token, [put('notes', note.record, { text: 'changed' })], team.id);
+      const [refused] = await push(viewer.token, [put('test_notes', note.record, { text: 'changed' })], team.id);
       expect(refused).toMatchObject({ status: 'refused', code: 'forbidden' });
       const fileId = id();
       expectError(
@@ -395,6 +395,6 @@ describe.skipIf(!features.sync)('sync', () => {
 test.skipIf(features.sync)('sync switched off is not there', async () => {
   const { token } = await signUpOnly();
   expectError(await call('get', '/sync/pull', { token }), 'get', '/sync/pull', 404, 'not_found');
-  expectError(await call('post', '/sync/push', { token, json: { changes: [put('notes', id(), {})] } }), 'post', '/sync/push', 404, 'not_found');
+  expectError(await call('post', '/sync/push', { token, json: { changes: [put('test_notes', id(), {})] } }), 'post', '/sync/push', 404, 'not_found');
   expectError(await call('post', '/sync/files', { token, json: { id: id(), type: 'image/png', size: 1 } }), 'post', '/sync/files', 404, 'not_found');
 });

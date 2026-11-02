@@ -135,9 +135,13 @@ PUBLIC_API_URL=https://api.example.com/api npm run deploy
 
 `npm run deploy` refuses to start unless `PUBLIC_API_URL` (from the shell or `.env`) is an
 `https:` address (`scripts/predeploy.mjs`), since a build without it would call localhost from
-people's browsers; then it builds and runs `wrangler pages deploy build` with the pinned
+people's browsers; then it builds and runs `wrangler pages deploy build --force` with the pinned
 `wrangler` devDependency. A Cloudflare Pages Git build (`CF_PAGES=1`) fails the same way.
 `npm run build` alone doesn't check, so local builds and the e2e tests keep using localhost.
+`--force` keeps the deploy on classic Pages: since 4.155, Wrangler otherwise hands it to Pages
+on Workers, which refuses a folder of static files. If your Wrangler login sees more than one
+Cloudflare account, name the one to use: `CLOUDFLARE_ACCOUNT_ID=… npm run deploy` (a Pages
+`wrangler.toml` can't hold `account_id`).
 `npm run deploy:staging` does the same with `.env.staging` (the staging API) as a Pages
 deployment on the `staging` branch (`../docs/operations.md`, "Staging").
 `wrangler.toml` names the Pages project (`name`, change it per app) and its output folder. The
@@ -220,6 +224,7 @@ the app's, and it never touches them, so its fixes merge without hand work:
 | `src/lib/config.ts`        | `appName`, and `homePath`, where people land after signing in                         |
 | `src/lib/app/shell.ts`     | `appNav` (links in the signed-in header), `appPublicPaths`, `appDeviceKeys`           |
 | `src/lib/app/csp.ts`       | hosts the app's pages load scripts, data, images or fonts from                        |
+| `src/lib/app/frame.ts`     | `appFrame`: the app's own frame around signed-in pages, in place of the core's header |
 | `src/routes/(app)/…`, etc. | the app's own pages (any route the core doesn't have)                                 |
 | `../contract/app.yaml`     | the app's own paths; `api.client` is typed with them (`npm run types` in `contract/`) |
 
@@ -227,6 +232,12 @@ the app's, and it never touches them, so its fixes merge without hand work:
   `(app)` layout handles sign-in, the email gate, the header, the bell and the feedback link;
   `auth.user` from `#lib/session.svelte.ts` is the person, `auth.features` the switches. A link
   in the header: `appNav` in `src/lib/app/shell.ts`.
+- **A frame of the app's own** (a sidebar, a tab bar) instead of the core's header and footer:
+  a component set as `appFrame` in `src/lib/app/frame.ts`. It gets `user` and the page as
+  `children`, renders the page inside `<main id="main">`, and shows what the core's header
+  did (links, the bell, sync status, the account link, the email banner, "Send feedback");
+  the comment in `frame.ts` lists them. Everything signed in sits inside `[data-signed-in]`,
+  which the browser tests wait for, so they keep passing once the app replaces the home page.
 - **One page per thing, with a query parameter** (`/team?id=…`), not a route parameter
   (`/teams/[id]`): every page is then a prerendered file, works offline from the service
   worker's cache, and needs no fallback rules on the host. If an app does add a route with a

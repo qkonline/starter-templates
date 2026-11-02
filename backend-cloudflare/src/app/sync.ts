@@ -15,7 +15,8 @@
 //   when new); `who.role` is the person's role in the team, or null in their own space.
 //
 // `onlyListed: true` refuses changes to tables not listed here (`invalid_input`), once an app
-// has said what all its tables are. `afterApply` runs after each batch is applied, with the
+// has said what all its tables are (locally the core's test tables, `test_…`, still pass, so the
+// contract suite runs). `afterApply` runs after each batch is applied, with the
 // changes that went in: for copying them somewhere else (a D1 table for reports, a
 // notification). It runs after the reply is decided and its failure is only logged, so keep
 // what it writes rebuildable; mind D1's 100,000 rows written a day on the free plan.

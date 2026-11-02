@@ -113,12 +113,13 @@ export class SyncSpace extends DurableObject<Env> {
     return refuse(429, 'rate_limited', 'Syncing is going too fast. It will carry on in a moment.', wait);
   }
 
-  async push(who: SyncWho, body: string): Promise<Outcome<{ results: Result[] }>> {
+  /** `local`: the backend runs in local development (see `isTestTable`). */
+  async push(who: SyncWho, body: string, local = false): Promise<Outcome<{ results: Result[] }>> {
     const wait = this.busy(`push:${who.user}`, PUSHES_PER_MINUTE);
     if (wait) return this.slowDown(wait);
     const full = this.appFull();
     if (full) return full;
-    const out = this.store.push(who, body);
+    const out = this.store.push(who, body, Date.now(), local);
     if (!out.ok) return out;
     if (out.value.applied.length) this.metered(out.value.applied.length, 0);
     if (syncRules.afterApply && out.value.applied.length) {

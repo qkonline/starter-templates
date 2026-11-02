@@ -1,8 +1,10 @@
 <!--
   Everything behind sign-in. Without a working session, off to sign in. With
   `requireVerifiedEmail` on and the email unconfirmed, only the gate shows (PRD R1.7). The
-  header shows Teams, Admin and the bell only when /features has them on. With sync on, it
-  starts keeping the device's data in step and shows what's still waiting.
+  header shows Teams, Admin and the bell only when /features has them on. An app with a frame of
+  its own (`appFrame` in src/lib/app/frame.ts) gets that drawn in place of the header and footer.
+  With sync on, it starts keeping the device's data in step and shows what's still waiting.
+  Everything signed in sits inside `[data-signed-in]`, which the browser tests wait for.
 
   Offline first: when the device kept what the app needs from the last start, the app opens from
   it at once and checks with the backend in the background (and again on reconnecting), so it
@@ -13,8 +15,9 @@
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import { messageOf } from '#lib/api/index.ts';
+  import { appFrame } from '#lib/app/frame.ts';
   import { appNav } from '#lib/app/shell.ts';
-  import { appName } from '#lib/config.ts';
+  import { appName, homePath } from '#lib/config.ts';
   import { onMount } from 'svelte';
   import { startSync, useAccount } from '#lib/db/index.svelte.ts';
   import type { User } from '#lib/api/index.ts';
@@ -95,18 +98,22 @@
   const teamsOn = $derived(!!auth.features?.teams);
   const adminOn = $derived(!!auth.features?.admin && !!user?.isAdmin && !auth.support);
   let feedback = $state<ReturnType<typeof FeedbackDialog>>();
+  const AppFrame = appFrame;
+  const home = resolve(homePath);
 </script>
 
 {#if phase === 'ready' && user}
   {#if gated}
     <EmailGate />
+  {:else if AppFrame}
+    <div class="frame" data-signed-in><AppFrame {user}>{@render children()}</AppFrame></div>
   {:else}
-    <div class="app">
+    <div class="app" data-signed-in>
       <header class="bar">
         <div class="bar-in">
-          <a class="brand" href={resolve('app')}><span class="logo" aria-hidden="true"></span>{appName}</a>
+          <a class="brand" href={home}><span class="logo" aria-hidden="true"></span>{appName}</a>
           <nav aria-label={t('Main')}>
-            <a href={resolve('app')} aria-current={current(resolve('app'))}>{t('Home')}</a>
+            <a href={home} aria-current={current(home)}>{t('Home')}</a>
             {#each appNav as item (item.path)}
               {@const href = `${resolve('')}${item.path}`.replace(/\/\/+/g, '/')}
               <a {href} aria-current={item.match === 'prefix' ? within(href) : current(href)}
@@ -121,13 +128,15 @@
             {#if adminOn}
               <a href={resolve('admin')} aria-current={within(resolve('admin'))}>{t('Admin')}</a>
             {/if}
+          </nav>
+          <div class="tools">
             {#if auth.features?.sync}<SyncStatus />{/if}
             <Bell />
             <a class="me" href={resolve('account')} aria-current={current(resolve('account'))}>
               <Avatar {user} size={28} />
               <span>{t('Account')}</span>
             </a>
-          </nav>
+          </div>
         </div>
       </header>
 
@@ -172,6 +181,11 @@
 {/if}
 
 <style>
+  /* An app's own frame lays itself out; this wrapper only marks it as signed in. */
+  .frame {
+    display: contents;
+  }
+
   .app {
     min-height: 100dvh;
     display: flex;
@@ -215,15 +229,23 @@
     background: var(--color-accent);
   }
 
-  nav {
+  nav,
+  .tools {
     display: flex;
     align-items: stretch;
     align-self: stretch;
     gap: var(--space-1);
   }
 
-  nav a {
+  nav {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  nav a,
+  .me {
     display: inline-flex;
+    white-space: nowrap;
     align-items: center;
     gap: var(--space-2);
     padding: 0 var(--space-3);
@@ -236,16 +258,18 @@
       box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
   }
 
-  nav a:hover {
+  nav a:hover,
+  .me:hover {
     color: var(--color-link);
   }
 
-  nav a[aria-current='page'] {
+  nav a[aria-current='page'],
+  .me[aria-current='page'] {
     color: var(--color-link);
     box-shadow: inset 0 -2px 0 var(--color-accent);
   }
 
-  nav :global(.bell) {
+  .tools :global(.bell) {
     align-self: center;
   }
 
@@ -305,17 +329,42 @@
     color: var(--color-muted);
   }
 
-  @media (max-width: 30rem) {
-    .me span {
-      display: none;
-    }
-
+  /* Phones: the brand and the tools on top, the links on a row of their own below, which
+     scrolls sideways when they don't fit (the bell's panel stays outside it, unclipped). */
+  @media (max-width: 40rem) {
     .bar-in {
+      flex-wrap: wrap;
+      gap: 0 var(--space-3);
       padding-inline: var(--space-3);
     }
 
-    nav a {
+    .brand {
+      min-height: var(--header-height);
+    }
+
+    nav {
+      order: 3;
+      flex: 1 0 100%;
+      justify-content: flex-start;
+      min-height: 2.75rem;
+      margin-inline: calc(-1 * var(--space-3));
+      padding-inline: var(--space-1);
+      overflow-x: auto;
+      scrollbar-width: none;
+      border-top: var(--border) solid var(--color-base-300);
+    }
+
+    nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    nav a,
+    .me {
       padding: 0 var(--space-2);
+    }
+
+    .me span {
+      display: none;
     }
   }
 </style>

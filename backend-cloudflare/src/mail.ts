@@ -5,6 +5,7 @@ import type { Ctx } from './env';
 import { alert } from './alerts';
 import { Refusal } from './errors';
 import { tr, type Vars } from './i18n';
+import { DAY, limit } from './limits';
 
 export interface Mail {
   to: string;
@@ -25,6 +26,9 @@ export async function sendMail(ctx: Ctx, mail: Mail): Promise<void> {
     console.log(`Mail to ${mail.to}: ${mail.subject}`);
     return;
   }
+  // The app's own share of the mail plan (MAIL_PER_DAY), counted before anything is sent.
+  if (cfg.mailPerDay)
+    await limit(ctx, 'mail:app', cfg.mailPerDay, DAY, "We've sent as many emails as we can today. Try again tomorrow.");
   const failed = new Refusal(502, 'mail_failed', "The email couldn't be sent. Try again in a minute.");
   const tell = (why: string) => {
     const p = alert(env, "Email couldn't be sent", why, 'Resend');

@@ -48,10 +48,16 @@ export async function signUp(page: Page, email: string, password: string): Promi
   await passGate(page, email);
 }
 
+/**
+ * The signed-in app, whatever its home page shows: the core's (app) layout marks it, with or
+ * without an app frame, so these tests keep passing once an app replaces the placeholder home.
+ */
+export const signedInApp = (page: Page) => page.locator('[data-signed-in]');
+
 /** If the app holds unconfirmed accounts back, confirm with the mailed code. */
 export async function passGate(page: Page, email: string): Promise<void> {
   const gate = page.getByRole('heading', { name: 'Confirm your email' });
-  const home = page.getByRole('heading', { name: /^Hello/ });
+  const home = signedInApp(page);
   await expect(gate.or(home)).toBeVisible();
   if (await gate.isVisible()) {
     await page.getByLabel('Code').fill(await latestCode(email));

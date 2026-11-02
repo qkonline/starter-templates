@@ -55,7 +55,7 @@ sync.post('/sync/push', async (c) => {
   const who = await whoIn(ctx, user.id, session.id, c.req.query('team'));
   const bytes = await readCapped(c.req.raw, MAX_BYTES);
   if (!bytes) throw new Refusal(413, 'too_large', 'That batch is over 256 KB. Send fewer changes at a time.');
-  const { results } = await ask(stubOf(ctx, who.space).push(who, new TextDecoder().decode(bytes)));
+  const { results } = await ask(stubOf(ctx, who.space).push(who, new TextDecoder().decode(bytes), ctx.cfg.local));
   // Each refused change's message in the person's language.
   return c.json({ results: results.map((r) => (r.message ? { ...r, message: tr(ctx.lang, r.message) } : r)) });
 });

@@ -88,6 +88,12 @@ export interface Env {
   PUSH_EXTRA_HOSTS?: string;
   /** Local development only: seconds between sends of one invite (60 otherwise). */
   INVITE_RESEND_GAP_S?: string;
+  /**
+   * Emails a day from the whole app, of every kind (codes, invites, notices, contact copies).
+   * For a mail account several apps share: give each its part of the plan's daily quota. Unset
+   * or empty, no cap of its own (the invite cap still applies). Not counted with dev mail.
+   */
+  MAIL_PER_DAY?: string;
 }
 
 export interface Config {
@@ -118,6 +124,8 @@ export interface Config {
   pushExtraHosts: string[];
   /** The time between sends of one invite. */
   inviteResendGapMs: number;
+  /** MAIL_PER_DAY: emails a day from the whole app, or null for no cap of its own. */
+  mailPerDay: number | null;
   /** The browser's PBKDF2 rounds for passwords, and the ones before them while accounts move over. */
   passwordIterations: number;
   previousIterations: number | null;
@@ -139,6 +147,14 @@ function rounds(v: string | undefined): number | null {
   if (!text) return null;
   const n = Number(text);
   if (!Number.isInteger(n) || n < 100_000) throw new Error(`PASSWORD_ITERATIONS must be a whole number of at least 100000, not "${text}".`);
+  return n;
+}
+
+/** MAIL_PER_DAY as a whole number of emails; a value that isn't one is a mistake worth failing loudly on. */
+function mailPerDay(text?: string): number | null {
+  if (!text?.trim()) return null;
+  const n = Number(text);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`MAIL_PER_DAY must be a whole number of emails, not "${text}".`);
   return n;
 }
 
@@ -190,6 +206,7 @@ export function config(env: Env, api: string): Config {
     passwordIterations: rounds(env.PASSWORD_ITERATIONS) ?? 600_000,
     previousIterations: rounds(env.PASSWORD_PREVIOUS_ITERATIONS),
     inviteResendGapMs: (local && Number.isInteger(gap) && gap > 0 ? gap : 60) * 1000,
+    mailPerDay: mailPerDay(env.MAIL_PER_DAY),
   };
 }
 

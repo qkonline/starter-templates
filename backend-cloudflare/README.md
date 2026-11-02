@@ -74,6 +74,7 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `GOOGLE_CLIENT_SECRET` | secret | Google's client secret. |
 | `RESEND_API_KEY` | secret | Sends mail through Resend. Set, `/dev/mail` is 404 whatever `DEV_MAIL` says. |
 | `MAIL_FROM` | var | Who mail comes from, e.g. `Starter <hello@example.com>`, on a domain verified at Resend. |
+| `MAIL_PER_DAY` | var | Emails a day from the whole app, of every kind (codes, invites, notices, contact copies); past it, `rate_limited` until the next day. Resend's free plan sends 100 a day for the whole account, so with several apps on one account give each its part. Empty: no cap of its own (the invite cap still applies). Not counted with dev mail. |
 | `DEV_MAIL` | dev flag | Local development only (the API on localhost): with no `RESEND_API_KEY`, mail is kept at `/api/dev/mail` (newest last, at most 500) instead of sent, and every per-network limit is off so test runs don't lock themselves out. Never in `wrangler.toml`: `npm run dev` and `dev:all` pass it with `--var`, so a deploy can't carry it. |
 | `APP_URL` | var | The frontend's address, for links in emails (invites go to `<APP_URL>/invite?token=…`). Empty: the first of `ALLOWED_ORIGINS`. |
 | `TEAMS` | var | `true` turns on teams (`/teams`, `/invites`). Off, they're 404. |

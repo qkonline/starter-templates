@@ -203,6 +203,14 @@ describe("the app's rules", () => {
     expect(pushed(s, who('b', 'b-1', 'admin'), [{ ...del(r), table: 'doses' }])[0]!.status).toBe('applied');
     expect(pushed(s, 'a', [{ ...put(uid(), {}), table: 'other' }])[0]).toMatchObject({ code: 'invalid_input' });
   });
+
+  test("the core's test tables pass a listed app's rules only in local development", () => {
+    const s = fakeStore(rules);
+    const change = () => [{ ...put(uid(), { title: 'x' }), table: 'test_notes' }];
+    const local = s.push(who('a'), body(...change()), Date.now(), true);
+    expect(local.ok && local.value.results[0]!.status).toBe('applied');
+    expect(pushed(s, 'a', change())[0]).toMatchObject({ status: 'refused', code: 'invalid_input' });
+  });
 });
 
 describe('the record of what happened', () => {

@@ -17,7 +17,7 @@
 // - Who and which session made and last changed each record is kept (Rule 7).
 // - The tables are versioned (`MIGRATIONS`): a later release adds a step, never edits one.
 
-import { noRules, type SyncRules, type SyncWho } from './rules';
+import { isTestTable, noRules, type SyncRules, type SyncWho } from './rules';
 
 /** What the Durable Object's `ctx.storage.sql` gives, and what the tests give in its place. */
 export interface Sql {
@@ -316,8 +316,12 @@ export class SpaceStore {
     return true;
   }
 
-  /** Applies a batch from `who`, in order, as one transaction. `applied` is what went in, for `afterApply`. */
-  push(who: SyncWho, text: string, now = Date.now()): Outcome<{ results: Result[]; applied: Change[] }> {
+  /**
+   * Applies a batch from `who`, in order, as one transaction. `applied` is what went in, for
+   * `afterApply`. `local`: a backend in local development, which also takes the core's test
+   * tables when the app lists its own (`isTestTable`).
+   */
+  push(who: SyncWho, text: string, now = Date.now(), local = false): Outcome<{ results: Result[]; applied: Change[] }> {
     if (this.isGone) return gone();
     const changes = readChanges(text);
     if (!changes) return unreadable();
@@ -349,7 +353,7 @@ export class SpaceStore {
         }
         // The same change id twice in one batch: once.
         seen.set(c.id, { id: c.id, code: null, message: null });
-        const refusal = this.apply(c, who, ++seq, now);
+        const refusal = this.apply(c, who, ++seq, now, local);
         if (refusal) {
           seq--;
           seen.set(c.id, { id: c.id, code: refusal.code, message: refusal.message });
@@ -366,10 +370,10 @@ export class SpaceStore {
   }
 
   /** One change; a refusal, or nothing when it was applied. */
-  private apply(c: Change, who: SyncWho, seq: number, now: number): { code: Code; message: string } | null {
+  private apply(c: Change, who: SyncWho, seq: number, now: number, local: boolean): { code: Code; message: string } | null {
     if (who.role === 'viewer') return { code: 'forbidden', message: "You can see this team's data but not change it. Ask a team admin." };
     const rules = this.rules.tables[c.table];
-    if (!rules && this.rules.onlyListed) return { code: 'invalid_input', message: 'This app has no such kind of record. Update the app.' };
+    if (!rules && this.rules.onlyListed && !(local && isTestTable(c.table))) return { code: 'invalid_input', message: 'This app has no such kind of record. Update the app.' };
     const row = this.first<RecordRow>('SELECT * FROM records WHERE tbl = ? AND id = ?', c.table, c.record);
     const current = row ? { fields: JSON.parse(row.fields) as Record<string, unknown>, deleted: !!row.deleted } : null;
     if (c.op === 'put' && current?.deleted) return { code: 'conflict', message: 'This was deleted on another device, so the change wasn’t kept.' };

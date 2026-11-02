@@ -1,6 +1,6 @@
 // Sign up → account → change name → sign out → sign in, against a real backend.
 import { expect, test } from '@playwright/test';
-import { backendUp, confirmEmail, passGate, signUp, uniqueEmail } from './helpers';
+import { backendUp, confirmEmail, passGate, signedInApp, signUp, uniqueEmail } from './helpers';
 
 test.beforeAll(async () => {
   test.skip(!(await backendUp()), 'No backend at API_URL: start one, then run again.');
@@ -33,7 +33,9 @@ test('sign up, rename, sign out, sign in again', async ({ page }) => {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(page).toHaveURL(/\/app$/);
   await passGate(page, email);
-  await expect(page.getByRole('heading', { name: 'Hello, Ada Lovelace.' })).toBeVisible();
+  // The name came back with the account (read on the account page: the home is the app's own).
+  await page.goto('/account');
+  await expect(page.getByLabel('Name')).toHaveValue('Ada Lovelace');
 });
 
 test('a wrong password shows the backend’s message', async ({ page }) => {
@@ -80,5 +82,5 @@ test('a passkey added on the account signs in', async ({ page, browserName }) =>
   await expect(page).toHaveURL(/\/signin$/);
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole('heading', { name: /^Hello/ })).toBeVisible();
+  await expect(signedInApp(page)).toBeVisible();
 });
