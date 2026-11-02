@@ -9,8 +9,8 @@ Each entry says what an app has to do, if anything, under **To take it**.
 
 ## 0.3.0 (2 November 2026)
 
-The frontend's look is now DaisyUI 5 on Tailwind CSS 4, in a theme of its own, **Daisy** (the
-Fusion theme is gone). The components keep their names and props, so pages built on them need no
+The frontend's look is now DaisyUI 5 on Tailwind CSS 4, in a theme of its own, **Daisy**, which
+replaces the earlier one. The components keep their names and props, so pages built on them need no
 change; there are 30 new ones beside them, and a gallery of all of them at `/components` under
 `npm run dev`.
 
@@ -20,9 +20,9 @@ change; there are 30 new ones beside them, and a gallery of all of them at `/com
    then copy the core's files over: `vite.config.ts`, `src/app.css`, `src/app.html`,
    `src/lib/themes/`, `src/lib/components/`, `e2e/`, the layouts (`src/routes/+layout.svelte`,
    `(app)/`, `(auth)/`, `(site)/`), `(site)/+page.svelte`, `(app)/admin/+page.svelte`,
-   `(open)/invite/+page.svelte` and the new `(open)/components/`. Delete
-   `src/lib/themes/fusion.css`.
-2. Your own pages' styles: the Fusion tokens for how controls, buttons, panels, segmented choices,
+   `(open)/invite/+page.svelte` and the new `(open)/components/`. Delete the earlier theme's
+   file from `src/lib/themes/` (every file there but `daisy.css` and your own themes).
+2. Your own pages' styles: the earlier theme's tokens for how controls, buttons, panels, segmented choices,
    badges, notices, tables and the top bar look are gone (`--control-*` except
    `--control-height`, `--button-*`, `--panel-*`, `--segmented-*`, `--badge-*`, `--notice-*`,
    `--table-head-bg`, `--header-bg`, `--header-border`, `--header-shadow`, and
@@ -36,7 +36,7 @@ change; there are 30 new ones beside them, and a gallery of all of them at `/com
    them (the core renamed `card`, `hero`, `label`, `loading`, `toast`). The `.label` helper is
    gone: use `fieldset-legend`.
 4. A theme of your own: rewrite it as DaisyUI's variables (see `src/lib/themes/daisy.css` and
-   the frontend README). Someone who had picked `fusion` gets the default theme.
+   the frontend README). Someone who had picked the earlier theme gets the default one.
 
 - Components, new: `Checkbox`, `Toggle`, `RadioGroup`, `Range`, `FileInput`, `Rating`, `Tabs`,
   `Collapse` (accordion with `group`), `Modal`, `Drawer`, `Dropdown`, `Menu`, `Tooltip`,
