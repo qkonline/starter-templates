@@ -80,8 +80,8 @@ describe('changing email', () => {
     expectError(await sendChange(a.token, a.email), 'post', '/me/email/send', 400, 'invalid_input');
     expectReply(await sendChange(a.token, b.email), 'post', '/me/email/send', 204);
     const mail = (await call('get', '/dev/mail')).body.mail as { to: string; subject: string }[];
-    // Only the confirmation code an app that requires confirming sends at sign-up, never a change code.
-    expect(mail.filter((m) => m.to === b.email)).toHaveLength(methods.requireVerifiedEmail ? 1 : 0);
+    // Only the confirmation code an app that confirms at sign-up sends, never a change code.
+    expect(mail.filter((m) => m.to === b.email)).toHaveLength(methods.confirmOnSignup ? 1 : 0);
     // Nobody holds a code for it, so moving there fails like any wrong code.
     const r = await call('post', '/me/email/verify', {
       token: a.token,

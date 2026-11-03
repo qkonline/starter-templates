@@ -37,6 +37,11 @@ export interface Env {
   EMAIL_CODE?: string;
   /** "true" to hold people back on the app's own routes until they confirm their email. */
   REQUIRE_VERIFIED_EMAIL?: string;
+  /**
+   * "true" to email a confirmation code at sign-up without holding anyone back (the person goes
+   * straight in and confirms when they like). REQUIRE_VERIFIED_EMAIL sends one either way.
+   */
+  CONFIRM_ON_SIGNUP?: string;
   /** Turnstile: the public site key, and the secret (a secret). Both set, the CAPTCHA is on. */
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET?: string;
@@ -102,6 +107,8 @@ export interface Config {
   origins: string[];
   emailCode: boolean;
   requireVerifiedEmail: boolean;
+  /** Email a confirmation code at password sign-up: CONFIRM_ON_SIGNUP, or REQUIRE_VERIFIED_EMAIL. */
+  confirmOnSignup: boolean;
   captcha: { siteKey: string; secret: string } | null;
   google: { clientId: string; clientSecret: string } | null;
   teams: boolean;
@@ -183,6 +190,7 @@ export function config(env: Env, api: string): Config {
     origins,
     emailCode: on(env.EMAIL_CODE),
     requireVerifiedEmail: on(env.REQUIRE_VERIFIED_EMAIL),
+    confirmOnSignup: on(env.CONFIRM_ON_SIGNUP) || on(env.REQUIRE_VERIFIED_EMAIL),
     captcha: env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET ? { siteKey: env.TURNSTILE_SITE_KEY, secret: env.TURNSTILE_SECRET } : null,
     google:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } : null,

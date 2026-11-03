@@ -68,6 +68,7 @@ for a deployed Worker, and in `.dev.vars` (never committed) locally. `npm run de
 | `RP_ID` | var | The passkey site: a domain whose subdomains share passkeys (`example.com`). `localhost` locally. |
 | `EMAIL_CODE` | var | `true` turns on signing in by emailed code. Off by default: each one is an email from the quota. Off, `/auth/code/*` is 404. |
 | `REQUIRE_VERIFIED_EMAIL` | var | `true` sends a confirmation code at sign-up and makes `requireVerifiedEmail` answer `email_unverified` on the app's own routes until the email is confirmed. Off by default. |
+| `CONFIRM_ON_SIGNUP` | var | `true` sends the confirmation code at sign-up without holding anyone back: the person goes straight in and confirms when they like (the account page shows the code field while it's fresh). One email from the quota per sign-up. Off by default; implied by `REQUIRE_VERIFIED_EMAIL`. |
 | `TURNSTILE_SITE_KEY` | var | Cloudflare Turnstile's public key. With `TURNSTILE_SECRET`, the CAPTCHA is on for sign-up, sign-in, forgot password and sending codes (the email-change code too). A token passes only if it was made on one of `ALLOWED_ORIGINS`' hosts. |
 | `TURNSTILE_SECRET` | secret | Turnstile's secret key. The test secrets work only on a local API. |
 | `GOOGLE_CLIENT_ID` | var | With `GOOGLE_CLIENT_SECRET`, signing in with Google is on. Off, `/auth/oauth/google/*` is 404. |

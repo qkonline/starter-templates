@@ -68,6 +68,7 @@ auth.get('/auth/methods', (c) => {
     oauth: cfg.google ? ['google'] : [],
     captcha: cfg.captcha ? { provider: 'turnstile', siteKey: cfg.captcha.siteKey } : null,
     requireVerifiedEmail: cfg.requireVerifiedEmail,
+    confirmOnSignup: cfg.confirmOnSignup,
   });
 });
 
@@ -83,7 +84,7 @@ auth.post('/auth/password/signup', perNetwork, async (c) => {
   const made = await ctx.db.createUser({ id, email, verified: false, password: await hashPasswordKey(b.passwordKey, ctx.cfg.passwordIterations), now: Date.now() });
   if (!made) throw emailTaken();
   const user = (await ctx.db.userById(id))!;
-  if (ctx.cfg.requireVerifiedEmail) {
+  if (ctx.cfg.confirmOnSignup) {
     // The account is made either way; if the mail fails, the person asks for another code.
     await sendCode(ctx, { purpose: 'confirm', subject: id }, email, { counted: false }).catch((e) => console.error('Confirm code', e));
   }

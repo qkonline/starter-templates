@@ -115,6 +115,7 @@ export const methods = (await call('get', '/auth/methods')).body as {
   oauth: string[];
   captcha: { provider: string; siteKey: string } | null;
   requireVerifiedEmail: boolean;
+  confirmOnSignup: boolean;
 };
 
 /**
@@ -182,7 +183,7 @@ export interface Signed {
 /** The password most tests use. */
 export const PASSWORD = 'correct horse battery staple';
 
-/** Make an account with a password, signed in. No email is sent unless the app requires confirming. */
+/** Make an account with a password, signed in. No email is sent unless the app confirms at sign-up (`confirmOnSignup`). */
 export async function signUp(email = freshEmail(), password = PASSWORD): Promise<Signed & { email: string; key: string }> {
   const key = await keyFor(password, email);
   const r = await call('post', '/auth/password/signup', { json: { email, passwordKey: key, ...captcha() } });

@@ -31,6 +31,9 @@ MAIL_PER_DAY = "100"
 # Switches ("true" or "false"). Email codes cost an email from the quota each time.
 EMAIL_CODE = "false"
 REQUIRE_VERIFIED_EMAIL = "false"
+# A confirmation code at sign-up without the hold (the person confirms when they like): one more
+# email from the quota per sign-up. REQUIRE_VERIFIED_EMAIL sends one either way.
+CONFIRM_ON_SIGNUP = "false"
 # The CAPTCHA is on when both the site key (here) and TURNSTILE_SECRET (a secret) are set.
 TURNSTILE_SITE_KEY = ""
 # Google is on when both GOOGLE_CLIENT_ID (here) and GOOGLE_CLIENT_SECRET (a secret) are set.

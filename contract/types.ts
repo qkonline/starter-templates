@@ -1512,6 +1512,13 @@ export interface components {
              *     address, or delete the account.
              */
             requireVerifiedEmail: boolean;
+            /**
+             * @description When true, signing up with a password emails a code to confirm the address at once
+             *     (always so when `requireVerifiedEmail` is on). Without `requireVerifiedEmail` the
+             *     person goes straight into the app and confirms with that code when they like
+             *     (`/me/email/confirm`). Each code is an email from the app's quota.
+             */
+            confirmOnSignup: boolean;
         };
         Features: {
             /** @description Teams with admins, members and invites. */

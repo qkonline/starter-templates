@@ -19,10 +19,21 @@ describe('signing up', () => {
     expect(me.body.user).toEqual(s.user);
   });
 
-  test.skipIf(methods.requireVerifiedEmail)('sends no email when the app does not require confirming', async () => {
+  test.skipIf(methods.confirmOnSignup)('sends no email when the app does not confirm at sign-up', async () => {
     const s = await signUp();
     const mail = (await call('get', '/dev/mail')).body.mail as { to: string }[];
     expect(mail.some((m) => m.to === s.email)).toBe(false);
+  });
+
+  test.skipIf(!methods.confirmOnSignup)('emails a code at sign-up that confirms the address', async () => {
+    const email = freshEmail();
+    let token = '';
+    const code = await codeFrom(email, async () => {
+      token = (await signUp(email)).token;
+    });
+    const r = await call('post', '/me/email/confirm', { token, json: { code } });
+    expectReply(r, 'post', '/me/email/confirm', 200);
+    expect(r.body.user.emailVerified).toBe(true);
   });
 
   test('the address is trimmed and lower-cased', async () => {

@@ -7,6 +7,26 @@ version up, and copy over the core's files (never the app's own: `src/app/`, `sr
 
 Each entry says what an app has to do, if anything, under **To take it**.
 
+## 0.3.3 (2 November 2026)
+
+A confirmation code at sign-up, without holding anyone back.
+
+- `CONFIRM_ON_SIGNUP = "true"` in `wrangler.toml` emails the confirmation code when someone signs
+  up with a password, as `REQUIRE_VERIFIED_EMAIL` does, but lets them straight into the app; they
+  confirm with it when they like. `/auth/methods` says so in `confirmOnSignup` (also true with
+  `REQUIRE_VERIFIED_EMAIL`), and the account page shows the code field at once while the code
+  still works (10 minutes). Each sign-up is then one email from the quota (and `MAIL_PER_DAY`).
+
+**To take it**:
+
+1. In `contract/`, copy over `openapi.yaml`, `types.ts` (or `npm run types`), `tests/lib.ts`,
+   `tests/password.test.ts` and `tests/account.test.ts`.
+2. In `backend-cloudflare/`, copy over `src/env.ts`, `src/routes/auth.ts` and the new
+   `src/routes/auth.test.ts`; add `CONFIRM_ON_SIGNUP` to `[vars]` in `wrangler.toml` and
+   `wrangler.staging.toml` (`"false"` keeps things as they were).
+3. In `frontend-sveltekit/`, copy over `src/routes/(app)/account/+page.svelte` and
+   `src/lib/components/account/ConfirmEmail.svelte`.
+
 ## 0.3.2 (2 November 2026)
 
 The browser tests test the core, not what an app replaces.

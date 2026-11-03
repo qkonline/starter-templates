@@ -16,7 +16,7 @@ their inbox, mail can arrive late on a poor connection, and Resend's free plan s
 confirming the address. Each app reads its settings from `/auth/methods`.
 
 - **R1.1 Email and password.** Signing up makes the account and signs in at once, with no email
-  (unless the app requires confirmation, R1.7). Signing in with a wrong password or an unknown
+  (unless the app confirms at sign-up, R1.7). Signing in with a wrong password or an unknown
   address gets the same answer. At most 10 wrong tries per address and 100 per network in
   15 minutes; 30 sign-ups per network an hour. *(HYP)*
 - **R1.2 The password never leaves the device.** The browser turns it into a `passwordKey` with
@@ -46,7 +46,8 @@ confirming the address. Each app reads its settings from `/auth/methods`.
   that verification, not just the device. *(boardo, planner)*
 - **R1.7 Confirming the address, optional per app.** Accounts start unconfirmed. Some apps hold
   people back until they confirm (`requireVerifiedEmail`: the app's own routes answer
-  `email_unverified`), others only show a reminder. Confirming is a code sent on request.
+  `email_unverified`), others only show a reminder. Confirming is a code sent on request, or at
+  sign-up when the app holds people back or asks for it without the hold (`confirmOnSignup`).
 - **R1.8 Nobody keeps an address they don't own.** If someone signs up with another person's
   address, the owner takes it back by forgot password, an email code or Google: the password is
     cleared or replaced and every session the squatter had ends, with the push subscriptions and

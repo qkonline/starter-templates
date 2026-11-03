@@ -9,7 +9,7 @@
   import FormError from '../FormError.svelte';
   import SubmitButton from '../SubmitButton.svelte';
 
-  /** `sent`: a code may already be on its way (the app sends one at sign-up when it requires confirming). */
+  /** `sent`: a code may already be on its way (the app sends one at sign-up with `confirmOnSignup`). */
   let { sent = false }: { sent?: boolean } = $props();
 
   let codeSent = $state(false);

@@ -115,8 +115,9 @@ paths:
       operationId: passwordSignUp
       summary: Make an account with an email and password, signed in at once
       description: |
-        No email is sent unless the app requires confirmed email, in which case a confirmation
-        code goes out as with `/me/email/confirm/send`; that first code doesn't count toward the
+        No email is sent unless `/auth/methods` says `confirmOnSignup` (always so when the app
+        requires confirmed email), in which case a confirmation code goes out as with
+        `/me/email/confirm/send`; that first code doesn't count toward the
         60 seconds between codes or the per-address limits, so asking for another right away
         works. The account starts unconfirmed. At most 30 sign-ups per network an hour.
       security: []
@@ -2598,7 +2599,7 @@ components:
 
     Methods:
       type: object
-      required: [password, emailCode, oauth, captcha, requireVerifiedEmail]
+      required: [password, emailCode, oauth, captcha, requireVerifiedEmail, confirmOnSignup]
       additionalProperties: false
       properties:
         password:
@@ -2653,6 +2654,13 @@ components:
             When true, the app's own paths answer `email_unverified` (403) until the email is
             confirmed. The core paths here always work, so the person can confirm, change the
             address, or delete the account.
+        confirmOnSignup:
+          type: boolean
+          description: |
+            When true, signing up with a password emails a code to confirm the address at once
+            (always so when `requireVerifiedEmail` is on). Without `requireVerifiedEmail` the
+            person goes straight into the app and confirms with that code when they like
+            (`/me/email/confirm`). Each code is an email from the app's quota.
 
     Features:
       type: object

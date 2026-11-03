@@ -23,6 +23,10 @@
   import { t, tn } from '#lib/i18n/index.svelte.ts';
 
   const user = $derived(auth.user!);
+  // A code went out at sign-up and still works (10 minutes): show where to type it at once.
+  const codeOnItsWay = $derived(
+    !!auth.methods?.confirmOnSignup && Date.now() - Date.parse(user.createdAt) < 10 * 60_000,
+  );
   const support = $derived(!!auth.support);
   let devices = $state<ReturnType<typeof Devices>>();
 </script>
@@ -71,7 +75,7 @@
         {#if !user.emailVerified}
           <div class="stack">
             <h3>{t('Confirm your address')}</h3>
-            <ConfirmEmail />
+            <ConfirmEmail sent={codeOnItsWay} />
           </div>
         {/if}
         <div class="stack">
